@@ -1,0 +1,113 @@
+.category-section {
+  margin-bottom: 3rem;
+}
+
+.category-section-search-wrapper {
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.category-section-search-container {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  align-items: center;
+}
+
+.category-section-search-icon {
+  position: absolute;
+  left: 1.25rem;
+  font-size: 1.25rem;
+  color: #9ca3af;
+  pointer-events: none;
+  z-index: 1;
+  transition: color 0.3s ease;
+}
+
+.category-section-search {
+  width: 100%;
+  padding: 1rem 1rem 1rem 3.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 3rem;
+  font-size: 1rem;
+  background-color: #ffffff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.category-section-search::placeholder {
+  color: #9ca3af;
+}
+
+.category-section-search:focus {
+  outline: none;
+  border-color: #dc2626;
+  box-shadow:
+    0 0 0 4px rgba(220, 38, 38, 0.1),
+    0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.category-section-search-container:focus-within .category-section-search-icon {
+  color: #dc2626;
+}
+
+.category-section-tabs-wrapper {
+  margin-bottom: 1.5rem;
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+.category-section-tabs {
+  display: flex;
+  gap: 0.5rem;
+  min-width: max-content;
+}
+
+.category-section-tab {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  transition: all 0.3s;
+  background: transparent;
+  color: #374151;
+}
+
+.category-section-tab:hover {
+  background-color: #f3f4f6;
+}
+
+.category-section-tab.active {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.category-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .category-section-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.category-section-empty {
+  text-align: center;
+  padding: 3rem 0;
+}
+
+.category-section-empty-text {
+  color: #9ca3af;
+  font-size: 1.125rem;
+}
