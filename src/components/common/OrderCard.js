@@ -6,8 +6,10 @@ import { ORDER_STATUS } from "../../constants";
  * Thẻ hiển thị một đơn hàng (dùng trong danh sách đơn)
  */
 function OrderCard({ order, onView }) {
-  const status = ORDER_STATUS[order.status] || ORDER_STATUS.pending;
+  const status = ORDER_STATUS[order?.status] || ORDER_STATUS.pending;
   const StatusIcon = status.icon;
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const total = Number(order?.total) || 0;
 
   return (
     <div className="ck-order-card ck-rounded-2xl ck-p-6 ck-card-hover">
@@ -17,9 +19,9 @@ function OrderCard({ order, onView }) {
       >
         <div>
           <h3 className="ck-font-bold ck-text-white ck-text-xl ck-mb-1 ck-mono">
-            {order.id}
+            {order?.id ?? "—"}
           </h3>
-          <p className="ck-text-gray-400 ck-text-sm">{order.date}</p>
+          <p className="ck-text-gray-400 ck-text-sm">{order?.date ?? ""}</p>
         </div>
         <span className={`ck-badge ${status.bg}`}>
           <StatusIcon size={16} />
@@ -31,7 +33,7 @@ function OrderCard({ order, onView }) {
         <p className="ck-text-sm ck-text-gray-400 ck-mb-2">
           Sản phẩm đặt hàng:
         </p>
-        {order.items.slice(0, 3).map((item, idx) => (
+        {items.slice(0, 3).map((item, idx) => (
           <p key={idx} className="ck-text-sm ck-text-white ck-mb-1">
             • {item.name}{" "}
             <span className="ck-font-bold ck-text-orange-400">
@@ -39,9 +41,9 @@ function OrderCard({ order, onView }) {
             </span>
           </p>
         ))}
-        {order.items.length > 3 && (
+        {items.length > 3 && (
           <p className="ck-text-xs ck-text-gray-500 ck-mt-2">
-            +{order.items.length - 3} sản phẩm khác
+            +{items.length - 3} sản phẩm khác
           </p>
         )}
       </div>
@@ -66,7 +68,7 @@ function OrderCard({ order, onView }) {
           Chi tiết
         </button>
         <span className="ck-font-black ck-text-2xl ck-text-orange-400">
-          {order.total.toLocaleString()}₫
+          {total.toLocaleString()}₫
         </span>
       </div>
     </div>

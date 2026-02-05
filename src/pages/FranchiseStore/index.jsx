@@ -57,7 +57,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
   const stats = [
     {
       label: "Đơn hàng tháng này",
-      value: orders.filter((o) => o.date.includes("01/2026")).length.toString(),
+      value: orders.filter((o) => (o.date || "").includes("01/2026")).length.toString(),
       change: "",
       icon: ShoppingCart,
       color: "ck-icon-box-blue",
@@ -71,7 +71,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
     },
     {
       label: "Tồn kho",
-      value: products.reduce((sum, p) => sum + p.stock, 0).toString(),
+      value: products.reduce((sum, p) => sum + (p.stock ?? 0), 0).toString(),
       change: "",
       icon: Package,
       color: "ck-icon-box-green",
@@ -158,16 +158,18 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
   };
 
   const filteredProducts = products.filter((p) => {
+    const term = (searchTerm || "").toLowerCase();
     const matchSearch =
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchTerm.toLowerCase());
+      (p.name || "").toLowerCase().includes(term) ||
+      String(p.id || "").toLowerCase().includes(term);
     const matchCategory =
       categoryFilter === "all" || p.category === categoryFilter;
     return matchSearch && matchCategory;
   });
 
-  const lowStockProducts = products.filter((p) => p.stock < p.min * 1.5);
-  const categories = ["all", ...new Set(products.map((p) => p.category))];
+  const minVal = (p) => Number(p.min) || 0;
+  const lowStockProducts = products.filter((p) => (p.stock ?? 0) < minVal(p) * 1.5);
+  const categories = ["all", ...new Set(products.map((p) => p.category).filter(Boolean))];
 
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black">
@@ -711,7 +713,8 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                     </thead>
                     <tbody>
                       {filteredProducts.map((product) => {
-                        const percent = (product.stock / product.min) * 100;
+                        const minP = Number(product.min) || 0;
+                        const percent = minP > 0 ? ((product.stock ?? 0) / minP) * 100 : 100;
                         const status =
                           percent < 100
                             ? "low"
@@ -748,7 +751,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                             </td>
                             <td className="ck-text-center">
                               <span className="ck-font-bold ck-text-orange-400 ck-mono">
-                                {product.price.toLocaleString()}₫
+                                {(product.price ?? 0).toLocaleString()}₫
                               </span>
                             </td>
                             <td className="ck-text-center">
@@ -831,7 +834,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                       </p>
                       <p className="ck-text-3xl ck-font-black ck-text-white ck-mono">
                         {(
-                          orders.reduce((sum, o) => sum + o.total, 0) / 1000000
+                          orders.reduce((sum, o) => sum + (o.total ?? 0), 0) / 1000000
                         ).toFixed(1)}
                         M
                       </p>
@@ -859,7 +862,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                       <p className="ck-text-3xl ck-font-black ck-text-white ck-mono">
                         {orders.length > 0
                           ? (
-                              orders.reduce((sum, o) => sum + o.total, 0) /
+                              orders.reduce((sum, o) => sum + (o.total ?? 0), 0) /
                               orders.length /
                               1000
                             ).toFixed(0)
@@ -886,7 +889,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                           {order.id}
                         </p>
                         <p className="ck-text-sm ck-text-gray-400">
-                          {order.date}
+                          {order.date ?? ""}
                         </p>
                       </div>
                       <div
@@ -894,10 +897,10 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                         style={{ textAlign: "right" }}
                       >
                         <p className="ck-font-black ck-text-orange-400 ck-mono">
-                          {order.total.toLocaleString()}₫
+                          {(order.total ?? 0).toLocaleString()}₫
                         </p>
                         <p className="ck-text-sm ck-text-gray-400">
-                          {order.items.length} sản phẩm
+                          {(order.items || []).length} sản phẩm
                         </p>
                       </div>
                     </div>
@@ -970,7 +973,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
               <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">
                 <p className="ck-text-sm ck-text-gray-400 ck-mb-1">Ngày đặt</p>
                 <p className="ck-font-semibold ck-text-white">
-                  {selectedOrder.date}
+                  {selectedOrder.date ?? ""}
                 </p>
               </div>
               <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">
@@ -978,7 +981,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                   Ngày giao dự kiến
                 </p>
                 <p className="ck-font-semibold ck-text-white">
-                  {selectedOrder.deliveryDate}
+                  {selectedOrder.deliveryDate ?? "—"}
                 </p>
               </div>
             </div>
@@ -988,7 +991,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                 Sản phẩm đặt hàng
               </h4>
               <div className="ck-space-y-3">
-                {selectedOrder.items.map((item, idx) => (
+                {(selectedOrder.items || []).map((item, idx) => (
                   <div
                     key={idx}
                     className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900-50 ck-p-4 ck-rounded-xl"
@@ -1023,7 +1026,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                 Tổng cộng
               </span>
               <span className="ck-text-3xl ck-font-black ck-text-orange-400 ck-mono">
-                {selectedOrder.total.toLocaleString()}₫
+                {(selectedOrder.total ?? 0).toLocaleString()}₫
               </span>
             </div>
           </div>

@@ -152,11 +152,11 @@ function mapProduct(p) {
 }
 
 const productsApi = {
-  /** Danh sách sản phẩm: backend trả { data: [...], totalItems, totalPages, currentPage } */
+  /** Danh sách sản phẩm: backend trả { data: [...] } hoặc mảng trực tiếp */
   async getList() {
     const res = await request("/api/products");
-    const list = Array.isArray(res.data) ? res.data : res.data || [];
-    return list.map(mapProduct);
+    const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+    return (list || []).map(mapProduct);
   },
 
   /** Tạo sản phẩm */
