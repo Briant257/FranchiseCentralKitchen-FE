@@ -1,9 +1,12 @@
 /**
  * API service - Kết nối backend Central Kitchen.
  * Auth: login trước, token được gửi kèm mọi request.
+ * Dev: dùng proxy (package.json) → gọi relative path để tránh CORS.
  */
-
-const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8081";
+const BASE_URL =
+  process.env.NODE_ENV === "development"
+    ? ""
+    : (process.env.REACT_APP_API_URL || "http://localhost:8081");
 const TOKEN_KEY = "ck_token";
 const USER_KEY = "ck_user";
 

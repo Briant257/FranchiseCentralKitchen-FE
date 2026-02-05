@@ -110,66 +110,67 @@ function LoginPage({ onLogin }) {
           )}
 
           {!showRegister ? (
-            <>
-              <div className="ck-space-y-5">
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Tên đăng nhập
-                  </label>
-                  <div className="ck-input-wrap">
-                    <span className="ck-input-icon">
-                      <User size={20} />
-                    </span>
-                    <input
-                      type="text"
-                      className="ck-input"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleLogin()}
-                      placeholder="Nhập tên đăng nhập"
-                      autoFocus
-                    />
-                  </div>
+            <form
+              className="ck-space-y-5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleLogin();
+              }}
+            >
+              <div>
+                <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
+                  Tên đăng nhập
+                </label>
+                <div className="ck-input-wrap">
+                  <span className="ck-input-icon">
+                    <User size={20} />
+                  </span>
+                  <input
+                    type="text"
+                    className="ck-input"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Nhập tên đăng nhập"
+                    autoFocus
+                  />
                 </div>
-
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Mật khẩu
-                  </label>
-                  <div className="ck-input-wrap">
-                    <span className="ck-input-icon">
-                      <Lock size={20} />
-                    </span>
-                    <input
-                      type="password"
-                      className="ck-input"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleLogin()}
-                      placeholder="Nhập mật khẩu"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="ck-btn ck-btn-primary ck-w-full"
-                  onClick={handleLogin}
-                  disabled={loading}
-                >
-                  {loading ? "⏳ Đang xác thực..." : "🚀 Đăng nhập"}
-                </button>
-
-                <button
-                  type="button"
-                  className="ck-btn ck-w-full ck-py-2 ck-text-gray-400 ck-text-sm"
-                  style={{ background: "none", border: "none" }}
-                  onClick={() => setShowRegister(true)}
-                >
-                  Chưa có tài khoản? Đăng ký
-                </button>
               </div>
-            </>
+
+              <div>
+                <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
+                  Mật khẩu
+                </label>
+                <div className="ck-input-wrap">
+                  <span className="ck-input-icon">
+                    <Lock size={20} />
+                  </span>
+                  <input
+                    type="password"
+                    className="ck-input"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="ck-btn ck-btn-primary ck-w-full"
+                disabled={loading}
+              >
+                {loading ? "⏳ Đang xác thực..." : "🚀 Đăng nhập"}
+              </button>
+
+              <button
+                type="button"
+                className="ck-btn ck-w-full ck-py-2 ck-text-gray-400 ck-text-sm"
+                style={{ background: "none", border: "none" }}
+                onClick={() => setShowRegister(true)}
+              >
+                Chưa có tài khoản? Đăng ký
+              </button>
+            </form>
           ) : (
             <>
               <div className="ck-space-y-4">
