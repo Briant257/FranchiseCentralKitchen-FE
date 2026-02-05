@@ -1,25 +1,16 @@
 import React, { useState } from "react";
-import { ChefHat, User, Lock } from "../../components/icons/Icons";
+import { ChefHat, User, Lock, Eye, EyeOff } from "../../components/icons/Icons";
 import api from "../../services/api";
 
 /**
  * Trang đăng nhập Central Kitchen (Auth API: token lưu sau khi login)
  */
 function LoginPage({ onLogin }) {
-  const [showRegister, setShowRegister] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState("");
-
-  const [reg, setReg] = useState({
-    username: "",
-    password: "",
-    fullName: "",
-    employeeCode: "",
-    role: "KITCHEN_STAFF",
-  });
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -27,43 +18,12 @@ function LoginPage({ onLogin }) {
       return;
     }
     setError("");
-    setSuccess("");
     setLoading(true);
     try {
       const user = await api.login(username, password);
       onLogin(user);
     } catch (err) {
       setError(err.message || "Đăng nhập thất bại!");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegister = async () => {
-    if (!reg.username || !reg.password || !reg.fullName || !reg.employeeCode) {
-      setError("Vui lòng điền đầy đủ thông tin đăng ký.");
-      return;
-    }
-    setError("");
-    setSuccess("");
-    setLoading(true);
-    try {
-      const res = await api.register(reg);
-      const msg =
-        res.message ||
-        (res.employeeCode
-          ? `Đăng ký thành công! Mã nhân viên của bạn là: ${res.employeeCode}`
-          : "Đăng ký thành công!");
-      setSuccess(msg);
-      setReg({
-        username: "",
-        password: "",
-        fullName: "",
-        employeeCode: "",
-        role: "KITCHEN_STAFF",
-      });
-    } catch (err) {
-      setError(err.message || "Đăng ký thất bại!");
     } finally {
       setLoading(false);
     }
@@ -101,175 +61,93 @@ function LoginPage({ onLogin }) {
               </p>
             </div>
           )}
-          {success && (
-            <div className="ck-rounded-xl ck-p-3 ck-mb-4 ck-bg-green-500-20 ck-border ck-border-green-500-30">
-              <p className="ck-text-green-400 ck-text-sm ck-font-semibold ck-text-center">
-                {success}
-              </p>
+
+          <form
+            className="ck-space-y-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleLogin();
+            }}
+          >
+            <div>
+              <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
+                Tên đăng nhập
+              </label>
+              <div className="ck-input-wrap">
+                <span className="ck-input-icon">
+                  <User size={20} />
+                </span>
+                <input
+                  type="text"
+                  className="ck-input"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Nhập tên đăng nhập"
+                  autoFocus
+                />
+              </div>
             </div>
-          )}
 
-          {!showRegister ? (
-            <form
-              className="ck-space-y-5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleLogin();
-              }}
-            >
-              <div>
-                <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                  Tên đăng nhập
-                </label>
-                <div className="ck-input-wrap">
-                  <span className="ck-input-icon">
-                    <User size={20} />
-                  </span>
-                  <input
-                    type="text"
-                    className="ck-input"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Nhập tên đăng nhập"
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                  Mật khẩu
-                </label>
-                <div className="ck-input-wrap">
-                  <span className="ck-input-icon">
-                    <Lock size={20} />
-                  </span>
-                  <input
-                    type="password"
-                    className="ck-input"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Nhập mật khẩu"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="ck-btn ck-btn-primary ck-w-full"
-                disabled={loading}
-              >
-                {loading ? "⏳ Đang xác thực..." : "🚀 Đăng nhập"}
-              </button>
-
-              <button
-                type="button"
-                className="ck-btn ck-w-full ck-py-2 ck-text-gray-400 ck-text-sm"
-                style={{ background: "none", border: "none" }}
-                onClick={() => setShowRegister(true)}
-              >
-                Chưa có tài khoản? Đăng ký
-              </button>
-            </form>
-          ) : (
-            <>
-              <div className="ck-space-y-4">
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Tên đăng nhập *
-                  </label>
-                  <input
-                    type="text"
-                    className="ck-input ck-w-full"
-                    value={reg.username}
-                    onChange={(e) =>
-                      setReg((r) => ({ ...r, username: e.target.value }))
-                    }
-                    placeholder="bep_truong_02"
-                  />
-                </div>
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Mật khẩu *
-                  </label>
-                  <input
-                    type="password"
-                    className="ck-input ck-w-full"
-                    value={reg.password}
-                    onChange={(e) =>
-                      setReg((r) => ({ ...r, password: e.target.value }))
-                    }
-                    placeholder="password123"
-                  />
-                </div>
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Họ tên *
-                  </label>
-                  <input
-                    type="text"
-                    className="ck-input ck-w-full"
-                    value={reg.fullName}
-                    onChange={(e) =>
-                      setReg((r) => ({ ...r, fullName: e.target.value }))
-                    }
-                    placeholder="Nguyễn Văn Bếp Trưởng"
-                  />
-                </div>
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Mã nhân viên *
-                  </label>
-                  <input
-                    type="text"
-                    className="ck-input ck-w-full"
-                    value={reg.employeeCode}
-                    onChange={(e) =>
-                      setReg((r) => ({ ...r, employeeCode: e.target.value }))
-                    }
-                    placeholder="NV001"
-                  />
-                </div>
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
-                    Vai trò
-                  </label>
-                  <select
-                    className="ck-select ck-w-full ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                    value={reg.role}
-                    onChange={(e) =>
-                      setReg((r) => ({ ...r, role: e.target.value }))
-                    }
-                  >
-                    <option value="KITCHEN_STAFF">Nhân viên bếp</option>
-                    <option value="ADMIN">Quản trị viên</option>
-                  </select>
-                </div>
-
+            <div>
+              <label className="ck-block ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-2">
+                Mật khẩu
+              </label>
+              <div className="ck-input-wrap" style={{ position: "relative" }}>
+                <span className="ck-input-icon">
+                  <Lock size={20} />
+                </span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="ck-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu"
+                  style={{ paddingRight: "48px" }}
+                />
                 <button
                   type="button"
-                  className="ck-btn ck-btn-primary ck-w-full"
-                  onClick={handleRegister}
-                  disabled={loading}
-                >
-                  {loading ? "Đang đăng ký..." : "Đăng ký"}
-                </button>
-
-                <button
-                  type="button"
-                  className="ck-btn ck-w-full ck-py-2 ck-text-gray-400 ck-text-sm"
-                  style={{ background: "none", border: "none" }}
-                  onClick={() => {
-                    setShowRegister(false);
-                    setError("");
-                    setSuccess("");
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="ck-password-toggle"
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "6px",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#9ca3af",
+                    transition: "all 0.2s ease",
                   }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#f97316";
+                    e.currentTarget.style.background = "rgba(249, 115, 22, 0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "#9ca3af";
+                    e.currentTarget.style.background = "none";
+                  }}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                 >
-                  ← Quay lại đăng nhập
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-            </>
-          )}
+            </div>
+
+            <button
+              type="submit"
+              className="ck-btn ck-btn-primary ck-w-full"
+              disabled={loading}
+            >
+              {loading ? "⏳ Đang xác thực..." : "🚀 Đăng nhập"}
+            </button>
+          </form>
         </div>
       </div>
     </div>
