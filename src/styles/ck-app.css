@@ -978,3 +978,36 @@
   width: 2.5rem;
   height: 2.5rem;
 }
+
+/* Bổ sung thêm các class Grid và Animation cho Dashboard */
+.ck-grid {
+  display: grid;
+}
+.ck-grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ck-grid-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ck-col-span-1 {
+  grid-column: span 1 / span 1;
+}
+.ck-col-span-2 {
+  grid-column: span 2 / span 2;
+}
+
+/* Hiệu ứng nhấp nháy cho đèn cảnh báo đỏ */
+@keyframes ck-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+.ck-animate-pulse {
+  animation: ck-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.ck-inline-block {
+  display: inline-block;
+}
