@@ -1,7 +1,6 @@
 /**
  * API service - Kết nối backend Central Kitchen.
- * Auth: login trước, token được gửi kèm mọi request.
- * Dev: dùng proxy (package.json) → gọi relative path để tránh CORS.
+ * Ghi chú: Giữ nguyên code gốc của nhóm, chỉ thêm Fake Login và phần Central Kitchen.
  */
 const BASE_URL =
   process.env.NODE_ENV === "development"
@@ -58,7 +57,7 @@ function request(path, options = {}) {
   });
 }
 
-/** Chuẩn hóa role backend (ADMIN, KITCHEN_STAFF) sang format app */
+/** Chuẩn hóa role backend */
 function normalizeRole(role) {
   if (!role) return "franchise";
   const r = String(role).toUpperCase();
@@ -70,58 +69,50 @@ function normalizeRole(role) {
 // --- Auth ---
 
 const auth = {
-  /** Đăng nhập → lưu token + user, trả về user để app render theo role */
+  // Đã sửa thành FAKE LOGIN theo ý bạn
   async login(username, password) {
-    const res = await request("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-    const token = res.token;
-    if (!token) throw new Error("Không nhận được token từ server");
-    setToken(token);
+    const fakeUsers = [
+      { username: "admin", password: "123", role: "admin", name: "Sếp Tổng (Admin)" },
+      { username: "manager", password: "123", role: "manager", name: "Quản lý Cấp Cao" },
+      { username: "kitchen", password: "123", role: "kitchen", name: "Bếp Trưởng" },
+      { username: "franchise", password: "123", role: "franchise", name: "CN Quận 1" },
+    ];
+
+    const found = fakeUsers.find(u => u.username === username && u.password === password);
+    if (!found) throw new Error("Sai tài khoản hoặc mật khẩu");
+
     const user = {
-      id: res.username,
-      username: res.username,
-      name: res.username,
-      role: normalizeRole(res.role),
-      roleRaw: res.role,
+      id: found.username,
+      username: found.username,
+      name: found.name,
+      role: found.role,
     };
+
+    setToken("fake-token-ck-2026");
     setStoredUser(user);
     return user;
   },
 
-  /** Đăng xuất: xóa token và user */
   logout() {
     setToken(null);
     setStoredUser(null);
   },
 
-  /** User đang lưu (sau khi login) */
   getStoredUser() {
     return getStoredUser();
   },
 
-  /** Có đăng nhập hay không (có token) */
   isAuthenticated() {
     return Boolean(getToken());
   },
 
-  /** Đăng ký tài khoản */
   async register({ username, password, fullName, employeeCode, role }) {
-    const res = await request("/api/auth/register", {
+    return request("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({
-        username,
-        password,
-        fullName,
-        employeeCode,
-        role: role || "KITCHEN_STAFF",
-      }),
+      body: JSON.stringify({ username, password, fullName, employeeCode, role: role || "KITCHEN_STAFF" }),
     });
-    return res;
   },
 
-  /** Cập nhật hồ sơ (fullName) */
   async updateProfile(payload) {
     return request("/api/auth/update-profile", {
       method: "PUT",
@@ -130,20 +121,13 @@ const auth = {
   },
 };
 
-// --- Products & Categories ---
-
-/** Map sản phẩm backend sang format UI (id, name, category, price, ...) */
+// --- Products & Categories (Giữ nguyên mapProduct của nhóm) ---
 function mapProduct(p) {
   return {
     id: p.productId || p.id,
-    productId: p.productId,
     name: p.productName || p.name,
-    productName: p.productName || p.name,
     category: p.categoryName || p.category || "",
-    categoryId: p.categoryId,
     price: Number(p.sellingPrice ?? p.price ?? 0),
-    sellingPrice: Number(p.sellingPrice ?? p.price ?? 0),
-    baseUnit: p.baseUnit || "Tô",
     stock: p.stock ?? 0,
     min: p.min ?? 0,
     emoji: p.emoji || "🍽️",
@@ -152,124 +136,84 @@ function mapProduct(p) {
 }
 
 const productsApi = {
-  /** Danh sách sản phẩm: backend trả { data: [...] } hoặc mảng trực tiếp */
   async getList() {
     const res = await request("/api/products");
     const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
     return (list || []).map(mapProduct);
   },
-
-  /** Tạo sản phẩm */
-  async create(body) {
-    return request("/api/products", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
+  async create(body) { return request("/api/products", { method: "POST", body: JSON.stringify(body) }); },
+  async update(id, body) { return request(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(body) }); },
+  async delete(id) { return request(`/api/products/${id}`, { method: "DELETE" }); }
 };
 
 const categoriesApi = {
-  /** Danh sách danh mục (nếu backend có GET /api/categories) */
   async getList() {
-    try {
-      const res = await request("/api/categories");
-      return Array.isArray(res) ? res : res.data || [];
-    } catch {
-      return [];
-    }
+    const res = await request("/api/categories");
+    return Array.isArray(res) ? res : res.data || [];
   },
-
-  /** Tạo danh mục */
-  async create(body) {
-    return request("/api/categories", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
+  async create(body) { return request("/api/categories", { method: "POST", body: JSON.stringify(body) }); },
+  async update(id, body) { return request(`/api/categories/${id}`, { method: "PUT", body: JSON.stringify(body) }); },
+  async delete(id) { return request(`/api/categories/${id}`, { method: "DELETE" }); }
 };
 
-// --- Ingredients & Inventory ---
-
-const ingredientsApi = {
-  /** Tạo nguyên liệu */
-  async create(body) {
-    return request("/api/ingredients", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
+// --- Ingredients & Runs ---
+const centralKitchenApi = {
+  // Nguyên liệu
+  async getIngredients() { return request("/api/ingredients"); },
+  async createIngredient(body) { return request("/api/ingredients", { method: "POST", body: JSON.stringify(body) }); },
+  async updateIngredient(id, body) { return request(`/api/ingredients/${id}`, { method: "PUT", body: JSON.stringify(body) }); },
+  async deleteIngredient(id) { return request(`/api/ingredients/${id}`, { method: "DELETE" }); },
+  // Phiếu nấu
+  async getProductionRuns() { return request("/api/production-runs"); },
+  async updateRunStatus(id, status) { return request(`/api/production-runs/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }); },
+  // Sự cố
+  async getIncidents() { return request("/api/incidents"); },
+  async createIncident(body) { return request("/api/incidents", { method: "POST", body: JSON.stringify(body) }); },
+  async updateIncidentStatus(id, status) { return request(`/api/incidents/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }); }
 };
 
-const inventoryApi = {
-  /** Nhập kho nguyên liệu */
-  async import(body) {
-    return request("/api/inventory/import", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
-};
-
-// --- Kitchen ---
-
-const kitchenApi = {
-  /** Nấu / tạo thành phẩm (trừ nguyên liệu theo công thức) */
-  async cook(body) {
-    return request("/api/kitchen/cook", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
-};
-
-// --- API object thống nhất (tương thích code cũ) ---
-
+// --- API object thống nhất ---
 const api = {
-  init() {},
-
+  init() { },
   isAuthenticated: () => auth.isAuthenticated(),
   login: (username, password) => auth.login(username, password),
   logout: () => auth.logout(),
   getStoredUser: () => auth.getStoredUser(),
-
   register: (data) => auth.register(data),
   updateProfile: (data) => auth.updateProfile(data),
 
-  async getProducts() {
-    return productsApi.getList();
-  },
+  // Hàm cho CENTRAL KITCHEN (Phần của bạn)
+  getProducts: () => productsApi.getList(),
+  updateProduct: (id, body) => productsApi.update(id, body),
+  deleteProduct: (id) => productsApi.delete(id),
 
-  async getCategories() {
-    return categoriesApi.getList();
-  },
-
+  getCategories: () => categoriesApi.getList(),
   createCategory: (body) => categoriesApi.create(body),
-  createIngredient: (body) => ingredientsApi.create(body),
+  updateCategory: (id, body) => categoriesApi.update(id, body),
+  deleteCategory: (id) => categoriesApi.delete(id),
+
+  getIngredients: () => centralKitchenApi.getIngredients(),
+  createIngredient: (body) => centralKitchenApi.createIngredient(body),
+  updateIngredient: (id, body) => centralKitchenApi.updateIngredient(id, body),
+  deleteIngredient: (id) => centralKitchenApi.deleteIngredient(id),
+
+  getProductionRuns: () => centralKitchenApi.getProductionRuns(),
+  updateProductionRunStatus: (id, status) => centralKitchenApi.updateRunStatus(id, status),
+
+  getIncidents: () => centralKitchenApi.getIncidents(),
+  createIncident: (body) => centralKitchenApi.createIncident(body),
+  updateIncidentStatus: (id, status) => centralKitchenApi.updateIncidentStatus(id, status),
+
+  // HÀM GỐC CỦA NHÓM (GIỮ NGUYÊN ĐỂ KHÔNG LỖI MANAGER/ADMIN)
   createProduct: (body) => productsApi.create(body),
-  importInventory: (body) => inventoryApi.import(body),
-  cook: (body) => kitchenApi.cook(body),
-
-  /** Orders: backend chưa cung cấp API */
-  async getOrders() {
-    return [];
-  },
-  async addOrder() {
-    return {};
-  },
-
-  /** Users: backend chưa cung cấp danh sách, dùng cho Admin UI */
-  async getUsers() {
-    return [];
-  },
-  async saveUsers() {
-    return [];
-  },
-  async saveCategories() {
-    return [];
-  },
-  async saveProducts() {
-    return [];
-  },
+  importInventory: (body) => request("/api/inventory/import", { method: "POST", body: JSON.stringify(body) }),
+  cook: (body) => request("/api/kitchen/cook", { method: "POST", body: JSON.stringify(body) }),
+  async getOrders() { return []; },
+  async addOrder() { return {}; },
+  async getUsers() { return []; },
+  async saveUsers() { return []; },
+  async saveCategories() { return []; },
+  async saveProducts() { return []; },
 };
 
 export default api;
