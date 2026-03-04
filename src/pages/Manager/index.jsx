@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LogOut, LayoutDashboard, Search, Download, Filter, Plus, X, Eye, Trash2 } from "../../components/icons/Icons";
+import { LogOut, LayoutDashboard, Search, Download, Filter, Plus, X, Eye, Trash2, Store, ShoppingCart, Send } from "../../components/icons/Icons";
 import api from "../../services/api";
 
 const ManagerPage = ({ onLogout, userData }) => {
@@ -16,19 +16,33 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [recipes, setRecipes] = useState([]);
   const [kpiStats, setKpiStats] = useState([]);
 
+  const [selectedStore, setSelectedStore] = useState(null); // Cửa hàng đang xem
+  const [isOrderingForStore, setIsOrderingForStore] = useState(false); // Trạng thái đang đặt hàng hộ
+  const [stores, setStores] = useState([]); // Danh sách cửa hàng lấy từ API
+  const [allOrders, setAllOrders] = useState([]); // Chứa tất cả đơn hàng để lọc theo store
+
+  // State hỗ trợ cho việc đặt hàng hộ
+  const [cart, setCart] = useState([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [orderNote, setOrderNote] = useState("");
+  const [searchTermHộ, setSearchTermHộ] = useState("");
+
   // ==========================================
   // HÀM FETCH DỮ LIỆU TỪ API
   // ==========================================
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [prods, reps, exps, invs, recs, kpis] = await Promise.all([
+      const [prods, reps, exps, invs, recs, kpis, sts, ords] = await Promise.all([
         api.getMasterProducts().catch(() => []),
         api.getReports().catch(() => []),
         api.getExpenses().catch(() => []),
         api.getManagerInventory().catch(() => []),
         api.getManagerRecipes().catch(() => []),
-        api.getKPIStats().catch(() => [])
+        api.getKPIStats().catch(() => []),
+        // Fetch thêm danh sách cửa hàng và đơn hàng
+        api.getStores?.().catch(() => [{id: 'ST001', name: 'CN Quận 1', address: '123 Lê Lợi', is_active: true}, {id: 'ST002', name: 'CN Quận 3', address: '456 Võ Văn Tần', is_active: true}]),
+        api.getAllOrders?.().catch(() => []) 
       ]);
       setMasterProducts(prods);
       setReports(reps);
@@ -36,6 +50,8 @@ const ManagerPage = ({ onLogout, userData }) => {
       setInventory(invs);
       setRecipes(recs);
       setKpiStats(kpis);
+      setStores(sts);
+      setAllOrders(ords);
     } catch (error) {
       console.error("Lỗi tải dữ liệu Manager:", error);
     } finally {
@@ -47,8 +63,35 @@ const ManagerPage = ({ onLogout, userData }) => {
     loadData();
   }, [loadData]);
 
-  // State để lưu thông tin mẻ nấu đang được chọn để xem công thức
+  // Logic giỏ hàng đặt hộ
+  const addToCart = (product) => {
+    const existing = cart.find(i => i.sku === product.sku);
+    if (existing) setCart(cart.map(i => i.sku === product.sku ? { ...i, quantity: i.quantity + 1 } : i));
+    else setCart([...cart, { ...product, quantity: 1 }]);
+  };
+
+  const handleCreateOrderHộ = async () => {
+    if (!cart.length || !deliveryDate) return alert("Vui lòng chọn món và ngày giao!");
+    const newOrder = {
+      id: `MGR-${Date.now().toString().slice(-4)}`,
+      storeId: selectedStore.id,
+      storeName: selectedStore.name,
+      items: cart.map(i => ({ productId: i.sku, name: i.name, quantity: i.quantity, price: i.price })),
+      status: "pending",
+      date: new Date().toLocaleString("vi-VN"),
+      deliveryDate: new Date(deliveryDate).toLocaleDateString("vi-VN"),
+      total: cart.reduce((s, i) => s + i.price * i.quantity, 0),
+      note: `[MANAGER ĐẶT HỘ] ${orderNote}`,
+    };
+    try {
+      await api.addOrder(newOrder);
+      alert("✅ Đã tạo đơn đặt hàng hộ thành công!");
+      setCart([]); setIsOrderingForStore(false); loadData();
+    } catch (e) { alert("Lỗi đặt hàng hộ!"); }
+  };
+
   const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
+
   // ==========================================
   // STATE & HÀM ĐIỀU KHIỂN UI (SẢN PHẨM MASTER)
   // ==========================================
@@ -62,22 +105,16 @@ const ManagerPage = ({ onLogout, userData }) => {
   const handleSaveMasterProduct = async () => {
     if (!newMasterProduct.name || !newMasterProduct.price) return alert("Vui lòng điền Tên và Giá bán!");
     try {
-      if (editingMasterProduct) {
-        await api.updateMasterProduct(editingMasterProduct.sku, newMasterProduct);
-      } else {
-        await api.createMasterProduct(newMasterProduct);
-      }
+      if (editingMasterProduct) await api.updateMasterProduct(editingMasterProduct.sku, newMasterProduct);
+      else await api.createMasterProduct(newMasterProduct);
       setShowAddMasterProduct(false);
-      loadData(); // Gọi lại API để làm mới danh sách
+      loadData();
     } catch (error) { alert("Lỗi lưu sản phẩm!"); }
   };
 
   const handleDeleteMasterProduct = async (sku) => { 
     if(window.confirm("Bạn có chắc muốn xóa SP này?")) {
-      try {
-        await api.deleteMasterProduct(sku);
-        loadData();
-      } catch (error) { alert("Lỗi xóa sản phẩm!"); }
+      try { await api.deleteMasterProduct(sku); loadData(); } catch (error) { alert("Lỗi xóa sản phẩm!"); }
     } 
   };
 
@@ -89,12 +126,7 @@ const ManagerPage = ({ onLogout, userData }) => {
 
   const handleCreateReport = async () => {
     if (!newReport.name) return alert("Vui lòng nhập tên báo cáo!");
-    try {
-      await api.createReport(newReport);
-      setShowCreateReport(false);
-      setNewReport({ name: "", type: "PDF", fromDate: "", toDate: "" });
-      loadData();
-    } catch (error) { alert("Lỗi tạo báo cáo!"); }
+    try { await api.createReport(newReport); setShowCreateReport(false); loadData(); } catch (error) { alert("Lỗi tạo báo cáo!"); }
   };
 
   // ==========================================
@@ -110,12 +142,7 @@ const ManagerPage = ({ onLogout, userData }) => {
 
   const handleSaveExpense = async () => {
     if (!newExpense.supplier || !newExpense.amount) return alert("Vui lòng nhập Nhà cung cấp và Số tiền!");
-    try {
-      await api.createExpense(newExpense);
-      setShowAddExpense(false);
-      setNewExpense({ category: "Nhập nguyên liệu", supplier: "", ref: "", amount: "", method: "Chuyển khoản" });
-      loadData();
-    } catch (error) { alert("Lỗi lưu phiếu chi!"); }
+    try { await api.createExpense(newExpense); setShowAddExpense(false); loadData(); } catch (error) { alert("Lỗi lưu phiếu chi!"); }
   };
 
   // ==========================================
@@ -180,7 +207,7 @@ const ManagerPage = ({ onLogout, userData }) => {
         {/* LEFT SIDEBAR */}
         <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ width: '20%', flexShrink: 0 }}>
           <ul className="ck-space-y-2 ck-flex-1 ck-mt-2" style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-            {['Bảng KPI', 'Quản lý sản phẩm', 'Tổng quan tồn kho', 'Phân tích chi phí', 'Báo cáo', 'Quản lý công thức', 'Chi phí nhập hàng'].map((item, idx) => (
+            {['Bảng KPI', 'Quản lý sản phẩm', 'Tổng quan tồn kho', 'Phân tích chi phí', 'Báo cáo', 'Quản lý công thức', 'Chi phí nhập hàng','Cửa hàng Franchise'].map((item, idx) => (
               <li key={idx}>
                 <button 
                   type="button"
@@ -719,6 +746,190 @@ const ManagerPage = ({ onLogout, userData }) => {
               </div>
             </div>
           )}
+
+          {/* ================== TAB CHÍNH: CỬA HÀNG FRANCHISE ================== */}
+{activeManagementTab === 'Cửa hàng Franchise' && (
+  <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
+    {!selectedStore ? (
+      /* VIEW 1: DANH SÁCH CỬA HÀNG (Dữ liệu từ biến stores) */
+      <div className="ck-grid ck-grid-cols-3 ck-gap-6">
+        {stores.map(store => (
+          <div key={store.id} 
+               onClick={() => setSelectedStore(store)} 
+               className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl hover:ck-border-red-500 ck-transition-all ck-cursor-pointer group shadow-xl">
+            <div className="ck-flex ck-justify-between ck-mb-4">
+              <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
+                <Store className="ck-text-red-400" size={32} />
+              </div>
+              <span className={`ck-badge ${store.is_active ? 'ck-badge-green' : 'ck-badge-red'} ck-h-fit`}>
+                {store.is_active ? 'Đang chạy' : 'Tạm dừng'}
+              </span>
+            </div>
+            <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1">{store.name}</h3>
+            <p className="ck-text-sm ck-text-gray-500 ck-mb-4 ck-line-clamp-1">{store.address}</p>
+            <div className="ck-flex ck-justify-between ck-items-center ck-pt-4 ck-border-t ck-border-gray-800">
+              <span className="ck-text-xs ck-font-mono ck-text-gray-600">{store.id}</span>
+              <span className="ck-text-red-400 ck-font-bold group-hover:ck-translate-x-1 ck-transition-transform">
+                Chi tiết →
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      /* VIEW 2 & 3: CHI TIẾT & ĐẶT HÀNG HỘ */
+      <div className="ck-flex ck-flex-col ck-gap-6">
+        <div className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900 ck-p-4 ck-rounded-2xl ck-border ck-border-gray-700">
+          <div className="ck-flex ck-items-center ck-gap-4">
+            <button onClick={() => {setSelectedStore(null); setIsOrderingForStore(false)}} 
+                    className="ck-w-10 ck-h-10 ck-flex ck-items-center ck-justify-center ck-bg-gray-800 ck-rounded-full ck-text-gray-400 hover:ck-text-white border-none ck-cursor-pointer">
+              ←
+            </button>
+            <div>
+              <h2 className="ck-text-2xl ck-font-black ck-text-white">Cửa hàng: {selectedStore.name}</h2>
+              <p className="ck-text-xs ck-text-gray-500 ck-mono">{selectedStore.id} | {selectedStore.address}</p>
+            </div>
+          </div>
+          {!isOrderingForStore && (
+            <button onClick={() => setIsOrderingForStore(true)} 
+                    className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold border-none shadow-lg shadow-red-500/20 ck-flex ck-items-center ck-gap-2">
+              <Plus size={20} /> Tạo đơn đặt hộ
+            </button>
+          )}
+        </div>
+
+        {isOrderingForStore ? (
+          /* VIEW 3: GIAO DIỆN ĐẶT HÀNG HỘ (Dữ liệu từ biến masterProducts) */
+          <div className="ck-grid ck-grid-cols-3 ck-gap-6 ck-animate-slide-up">
+            <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-p-8">
+              <div className="ck-flex ck-justify-between ck-mb-8 items-center">
+                <h3 className="ck-text-2xl ck-font-black ck-text-white">Thực đơn Bếp Tổng</h3>
+                <div className="ck-relative">
+                  <Search className="ck-absolute ck-left-4 ck-top-1/2 ck--translate-y-1/2 ck-text-gray-500" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Tìm tên món ăn..." 
+                    className="ck-input ck-pl-12 ck-w-64" 
+                    onChange={(e) => setSearchTermHộ(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="ck-grid ck-grid-cols-2 ck-gap-4 ck-max-h-[500px] ck-overflow-y-auto ck-scrollbar ck-pr-2">
+                {masterProducts
+                  .filter(p => p.name.toLowerCase().includes(searchTermHộ.toLowerCase()))
+                  .map(p => (
+                  <div key={p.sku} className="ck-bg-gray-800 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center hover:ck-bg-gray-700 ck-transition-colors ck-border ck-border-transparent hover:ck-border-red-500/50">
+                    <div className="ck-flex ck-gap-4">
+                      <span className="ck-text-4xl">{p.emoji}</span>
+                      <div>
+                        <p className="ck-font-bold ck-text-white text-sm">{p.name}</p>
+                        <p className="ck-text-xs ck-text-blue-400 ck-mono mt-1">{Number(p.price).toLocaleString()}đ</p>
+                      </div>
+                    </div>
+                    <button onClick={() => addToCart(p)} className="ck-w-10 ck-h-10 ck-bg-red-500 ck-rounded-xl border-none ck-text-white ck-font-black ck-cursor-pointer hover:ck-scale-110 ck-transition-transform">+</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* GIỎ HÀNG HỘ (Dữ liệu từ biến cart) */}
+            <div className="ck-bg-gray-900 ck-p-8 ck-rounded-3xl ck-border ck-border-red-500/20 shadow-2xl ck-flex ck-flex-col">
+              <h3 className="ck-text-xl ck-font-black ck-mb-6 ck-flex ck-items-center ck-gap-3">
+                <ShoppingCart className="ck-text-red-500" size={24}/> Giỏ hàng hộ
+              </h3>
+              <div className="ck-flex-1 ck-space-y-4 ck-mb-6 ck-max-h-64 ck-overflow-y-auto ck-scrollbar">
+                {cart.length === 0 ? (
+                  <div className="ck-text-center ck-py-10 ck-text-gray-600">
+                    <p className="ck-text-4xl ck-mb-2">📦</p>
+                    <p className="ck-text-xs uppercase font-bold">Chưa chọn món nào</p>
+                  </div>
+                ) : cart.map(item => (
+                  <div key={item.sku} className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800 ck-p-3 ck-rounded-xl">
+                    <div className="ck-flex-1">
+                      <p className="ck-text-white ck-font-bold text-xs">{item.name}</p>
+                      <p className="ck-text-[10px] ck-text-gray-500">{item.quantity} x {Number(item.price).toLocaleString()}đ</p>
+                    </div>
+                    <span className="ck-text-red-400 ck-font-black ck-mono">{(item.price * item.quantity).toLocaleString()}đ</span>
+                  </div>
+                ))}
+              </div>
+              <div className="ck-border-t ck-border-gray-800 ck-pt-6 ck-space-y-4">
+                <div>
+                  <label className="ck-text-[10px] ck-text-gray-500 ck-font-bold uppercase mb-2 block">Ngày giao hàng dự kiến</label>
+                  <input type="date" className="ck-input ck-w-full" onChange={(e) => setDeliveryDate(e.target.value)} />
+                </div>
+                <textarea 
+                  placeholder="Ghi chú quan trọng cho Bếp..." 
+                  className="ck-input ck-w-full ck-h-20" 
+                  onChange={(e) => setOrderNote(e.target.value)} 
+                />
+                <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
+                   <span className="ck-text-gray-400 ck-font-bold">TỔNG CỘNG:</span>
+                   <span className="ck-text-2xl ck-font-black ck-text-orange-400">
+                     {cart.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()}đ
+                   </span>
+                </div>
+                <button onClick={handleCreateOrderHộ} className="ck-w-full ck-py-4 ck-bg-red-600 ck-text-white ck-rounded-2xl ck-font-black ck-text-lg border-none shadow-lg ck-cursor-pointer hover:ck-bg-red-700 transition-colors">GỬI ĐƠN ĐẶT HỘ</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* VIEW 2: LỊCH SỬ ĐƠN HÀNG (Lọc từ allOrders theo selectedStore.id) */
+          <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-overflow-hidden shadow-2xl">
+            <div className="ck-p-6 ck-bg-gray-800/50 ck-border-b ck-border-gray-700 ck-flex ck-justify-between items-center">
+               <h3 className="ck-font-black ck-text-gray-300 ck-uppercase tracking-widest text-sm">Lịch sử giao dịch chi nhánh</h3>
+               <button className="ck-text-blue-400 ck-font-bold text-xs bg-transparent border-none ck-cursor-pointer">Xuất báo cáo Store</button>
+            </div>
+            <table className="ck-w-full ck-text-left ck-border-collapse">
+              <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-[10px] uppercase tracking-tighter">
+                <tr>
+                  <th className="ck-p-5">Mã đơn hàng</th>
+                  <th className="ck-p-5">Thời gian đặt</th>
+                  <th className="ck-p-5">Ngày giao dự kiến</th>
+                  <th className="ck-p-5 ck-text-right">Tổng giá trị</th>
+                  <th className="ck-p-5 ck-text-center">Trạng thái vận hành</th>
+                </tr>
+              </thead>
+              <tbody className="ck-text-sm">
+                {allOrders
+                  .filter(o => o.storeId === selectedStore.id)
+                  .map(order => (
+                  <tr key={order.id} className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors">
+                    <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">{order.id}</td>
+                    <td className="ck-p-5 ck-text-gray-400">{order.date}</td>
+                    <td className="ck-p-5 ck-text-white ck-font-medium">{order.deliveryDate}</td>
+                    <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
+                      {order.total?.toLocaleString()}đ
+                    </td>
+                    <td className="ck-p-5 ck-text-center">
+                      <span className={`ck-badge ${
+                        order.status === 'Hoàn thành' || order.status === 'completed' 
+                        ? 'ck-badge-green' 
+                        : order.status === 'Đã hủy' || order.status === 'cancelled' 
+                        ? 'ck-badge-red' 
+                        : 'ck-badge-blue'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {allOrders.filter(o => o.storeId === selectedStore.id).length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="ck-p-10 ck-text-center ck-text-gray-500 italic">
+                      Cửa hàng này chưa có dữ liệu đơn hàng.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+)}
+          
 
         </div>
       </div>
