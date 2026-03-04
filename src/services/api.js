@@ -1,7 +1,7 @@
 /**
  * ====================================================================
  * API SERVICE - ULTIMATE STABLE VERSION
- * Version: 2026 - Final Bug-Free Implementation
+ * Version: 2026 - Real API Integration (No more fake users)
  * ====================================================================
  */
 
@@ -21,7 +21,11 @@ const storage = {
 async function request(path, options = {}) {
   const url = `${BASE_URL.replace(/\/$/, "")}${path}`;
   const token = storage.getToken();
-  const headers = { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }), ...options.headers };
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...options.headers
+  };
 
   const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
@@ -31,37 +35,54 @@ async function request(path, options = {}) {
     storage.setUser(null);
     throw new Error("Hết hạn phiên làm việc.");
   }
-  if (!res.ok) throw new Error(data.message || "Lỗi kết nối");
+  if (!res.ok) throw new Error(data.message || data.error || "Lỗi kết nối server");
   return data;
 }
 
 // --- BẢO HIỂM MẢNG (CHỐNG LỖI .FILTER) ---
 const toArray = (res) => Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
 
+// --- CHUẨN HÓA ROLE (GIỐNG BẠN CỦA BẠN) ---
+function normalizeRole(role) {
+  if (!role) return "franchise";
+  const r = String(role).toUpperCase();
+  if (r === "ADMIN") return "admin";
+  if (r === "KITCHEN_STAFF" || r === "KITCHEN") return "kitchen";
+  if (r === "MANAGER") return "manager";
+  return r.toLowerCase();
+}
+
 // =========================================================
-// [API OBJECT CHÍNH] - TẬP TRUNG TẤT CẢ VÀO ĐÂY ĐỂ TRÁNH LỖI SCOPE
+// [API OBJECT CHÍNH]
 // =========================================================
 
 const api = {
-  // --- Hệ thống & Auth ---
-  init: () => console.log("System Ready"),
+  // --- Hệ thống & Auth (ĐÃ SET MỀM) ---
+  init: () => console.log("System Ready - Real API Mode"),
   isAuthenticated: () => !!storage.getToken(),
   getStoredUser: () => storage.getUser(),
 
   login: async (username, password) => {
-    const fakeUsers = [
-      { username: "admin", password: "123", role: "admin", name: "Sếp Tổng" },
-      { username: "manager", password: "123", role: "manager", name: "Quản lý" },
-      { username: "kitchen", password: "123", role: "kitchen", name: "Bếp Trưởng" },
-      { username: "supply", password: "123", role: "supply", name: "Điều Phối Cung Ứng" }
-    ];
-    const found = fakeUsers.find(u => u.username === username && u.password === password);
-    if (!found) throw new Error("Sai tài khoản!");
-    const user = { id: found.username, name: found.name, role: found.role };
-    storage.setToken("fake-token-2026");
+    // GỌI API THẬT
+    const res = await request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (!res.token) throw new Error("Không nhận được mã truy cập từ server");
+
+    // Map dữ liệu từ backend trả về vào format app đang dùng
+    const user = {
+      id: res.username || res.id,
+      name: res.fullName || res.username,
+      role: normalizeRole(res.role)
+    };
+
+    storage.setToken(res.token);
     storage.setUser(user);
     return user;
   },
+
   logout: () => { storage.setToken(null); storage.setUser(null); },
 
   // --- Quản lý Sản phẩm ---

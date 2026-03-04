@@ -6,6 +6,7 @@ import AdminPage from "./pages/Admin";
 import CentralKitchenPage from "./pages/CentralKitchen";
 // BƯỚC QUAN TRỌNG: IMPORT THÊM TRANG CỦA MANAGER VÀO ĐÂY NHA BẠN
 import ManagerPage from "./pages/Manager"; // Tí nhớ tạo file này nha!
+import SupplyCoordinatorPage from "./pages/SupplyCoordinator"; //
 
 import "./styles/ck-app.css";
 
@@ -59,6 +60,10 @@ function App() {
   // 4. NHÁNH 4: DÀNH RIÊNG CHO CHỦ CỬA HÀNG (FRANCHISE)
   if (currentUser.role === "franchise") {
     return <FranchiseStorePage onLogout={handleLogout} userData={userData} />;
+  }
+  // 5. NHÁNH 5: DÀNH RIÊNG CHO ĐIỀU PHỐI CUNG ỨNG (SUPPLY)
+  if (currentUser.role === "supply") {
+    return <SupplyCoordinatorPage onLogout={handleLogout} userData={userData} />;
   }
 
   // NẾU LỌT VÀO ROLE LẠ THÌ BÁO LỖI
