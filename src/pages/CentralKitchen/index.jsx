@@ -3,15 +3,12 @@ import { Plus, Eye, Trash2, Search, Filter, Download, X, ChefHat, LogOut } from 
 import api from "../../services/api"; 
 
 const CentralKitchenPage = ({ onLogout, userData }) => {
-  // ==========================================
-  // 1. STATE CHUNG (GIỮ NGUYÊN)
-  // ==========================================
+  // 1. STATE CHUNG
   const [activeKitchenTab, setActiveKitchenTab] = useState("Tổng Quan");
   const [kitchenSubTab, setKitchenSubTab] = useState("categories");
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState({ show: false, message: "" });
-
   const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
 
   // Dữ liệu từ API
@@ -22,7 +19,7 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
   const [incidents, setIncidents] = useState([]);
 
   // ==========================================
-  // 2. FETCH DATA TỪ API (RÁP API THẬT)
+  // 2. FETCH DATA TỪ API (ĐÃ BỎ MOCK DATA)
   // ==========================================
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
@@ -35,30 +32,8 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
         api.getIncidents().catch(() => [])
       ]);
 
-      // Logic backup: Nếu API chưa có dữ liệu, dùng data mẫu để demo UI Công thức
-      const mockRuns = [
-        { 
-            id: 'PR-001', name: 'Gà rán miếng lớn', totalQty: 120, cookedQty: 0, status: 'PENDING',
-            recipeInstructions: "1. Tẩm bột xù -> 2. Chiên ở 180°C trong 12p -> 3. Để ráo dầu 2p.",
-            bom: [
-                { name: 'Thịt gà tươi', unit: 'kg', qtyPerItem: 0.2 },
-                { name: 'Bột chiên xù', unit: 'kg', qtyPerItem: 0.05 }
-            ],
-            details: [{ store: 'CN Quận 1', qty: 50, timeOut: '10:15 AM' }, { store: 'CN Gò Vấp', qty: 70, timeOut: '10:30 AM' }] 
-        },
-        { 
-            id: 'PR-002', name: 'Burger Zinger', totalQty: 50, cookedQty: 30, status: 'COOKING',
-            recipeInstructions: "1. Nướng bánh -> 2. Phết sốt -> 3. Kẹp gà & rau -> 4. Đóng gói.",
-            bom: [
-                { name: 'Vỏ bánh Burger', unit: 'cái', qtyPerItem: 1 },
-                { name: 'Phi lê gà chiên', unit: 'miếng', qtyPerItem: 1 },
-                { name: 'Sốt Mayonnaise', unit: 'g', qtyPerItem: 15 }
-            ],
-            details: [{ store: 'CN Quận 3', qty: 50, timeOut: '10:45 AM' }] 
-        }
-      ];
-
-      setProductionRuns(runsData && runsData.length > 0 ? runsData : mockRuns);
+      // CHỈNH SỬA: Không dùng mockRuns nữa, lấy trực tiếp từ API
+      setProductionRuns(Array.isArray(runsData) ? runsData : []);
       setCategories(Array.isArray(catsData) ? catsData : []);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
       setIngredients(Array.isArray(ingsData) ? ingsData : []);
@@ -72,11 +47,15 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-    const intervalId = setInterval(() => { loadData(); }, 30000);
-    return () => clearInterval(intervalId);
-  }, [loadData]);
+  // ==========================================
+  // LÓGIC TÍNH TOÁN THỐNG KÊ (MỚI)
+  // ==========================================
+  const stats = {
+    totalRequested: productionRuns.reduce((sum, run) => sum + (run.totalQty || 0), 0),
+    cooking: productionRuns.filter(r => r.status === 'COOKING').length,
+    completed: productionRuns.filter(r => r.status === 'COMPLETED').length,
+    incidentCount: incidents.filter(i => i.status !== 'Đã giải quyết').length
+  };
 
 
   // ==========================================
@@ -238,10 +217,10 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
             <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
               <div className="ck-grid ck-grid-cols-4 ck-gap-4">
                 {[
-                  { label: 'Tổng xuất ăn cần làm', value: '124', color: 'ck-text-blue-400' },
-                  { label: 'Đang chế biến', value: '45', color: 'ck-text-orange-400' },
-                  { label: 'Đã đóng gói', value: '70', color: 'ck-text-green-400' },
-                  { label: 'Hao hụt / Hỏng', value: '9', color: 'ck-text-red-400' }
+                 { label: 'Tổng suất ăn yêu cầu', value: stats.totalRequested, color: 'ck-text-blue-400' },
+                  { label: 'Mẻ đang nấu', value: stats.cooking, color: 'ck-text-orange-400' },
+                  { label: 'Mẻ đã hoàn thành', value: stats.completed, color: 'ck-text-green-400' },
+                  { label: 'Sự cố cần xử lý', value: stats.incidentCount, color: 'ck-text-red-400' }
                 ].map((stat, idx) => (
                   <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-text-center ck-flex ck-flex-col ck-items-center ck-justify-center">
                     <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-2">{stat.label}</h4>
