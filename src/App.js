@@ -3,6 +3,11 @@ import api from "./services/api";
 import LoginPage from "./pages/Login";
 import FranchiseStorePage from "./pages/FranchiseStore";
 import AdminPage from "./pages/Admin";
+import CentralKitchenPage from "./pages/CentralKitchen";
+// BƯỚC QUAN TRỌNG: IMPORT THÊM TRANG CỦA MANAGER VÀO ĐÂY NHA BẠN
+import ManagerPage from "./pages/Manager"; // Tí nhớ tạo file này nha!
+import SupplyCoordinatorPage from "./pages/SupplyCoordinator"; //
+
 import "./styles/ck-app.css";
 
 function App() {
@@ -37,14 +42,31 @@ function App() {
       (currentUser.role === "kitchen" ? "Bếp trung tâm" : currentUser.username),
   };
 
-  if (currentUser.role === "franchise" || currentUser.role === "kitchen") {
-    return <FranchiseStorePage onLogout={handleLogout} userData={userData} />;
-  }
-
+  // 1. NHÁNH 1: DÀNH RIÊNG CHO SẾP TỔNG (ADMIN)
   if (currentUser.role === "admin") {
     return <AdminPage onLogout={handleLogout} userData={userData} />;
   }
 
+  // 2. NHÁNH 2: DÀNH RIÊNG CHO QUẢN LÝ (MANAGER)
+  if (currentUser.role === "manager") {
+    return <ManagerPage onLogout={handleLogout} userData={userData} />;
+  }
+
+  // 3. NHÁNH 3: DÀNH RIÊNG CHO BẾP TRƯỞNG (KITCHEN)
+  if (currentUser.role === "kitchen") {
+    return <CentralKitchenPage onLogout={handleLogout} userData={userData} />;
+  }
+
+  // 4. NHÁNH 4: DÀNH RIÊNG CHO CHỦ CỬA HÀNG (FRANCHISE)
+  if (currentUser.role === "franchise") {
+    return <FranchiseStorePage onLogout={handleLogout} userData={userData} />;
+  }
+  // 5. NHÁNH 5: DÀNH RIÊNG CHO ĐIỀU PHỐI CUNG ỨNG (SUPPLY)
+  if (currentUser.role === "supply") {
+    return <SupplyCoordinatorPage onLogout={handleLogout} userData={userData} />;
+  }
+
+  // NẾU LỌT VÀO ROLE LẠ THÌ BÁO LỖI
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black ck-flex ck-items-center ck-justify-center">
       <div className="ck-grain" />
@@ -53,7 +75,7 @@ function App() {
           Chức năng đang phát triển
         </h1>
         <p className="ck-text-gray-400 ck-mb-8">
-          Vai trò này chưa được hoàn thiện
+          Vai trò này chưa được hoàn thiện hoặc không hợp lệ.
         </p>
         <button
           type="button"
