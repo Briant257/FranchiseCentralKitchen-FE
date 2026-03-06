@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LogOut, LayoutDashboard, Search, Download, Filter, Plus, X, Eye, Trash2, Store, ShoppingCart, Send } from "../../components/icons/Icons";
+import { LogOut, LayoutDashboard, Search, Plus, Store, ShoppingCart } from "../../components/icons/Icons";
 import api from "../../services/api";
 
 const ManagerPage = ({ onLogout, userData }) => {
   const [activeManagementTab, setActiveManagementTab] = useState("Bảng KPI");
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
 
   const [masterProducts, setMasterProducts] = useState([]);
   const [reports, setReports] = useState([]);
@@ -148,7 +148,7 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [inventoryAppliedSearch, setInventoryAppliedSearch] = useState("");
   const [filterInventoryLocation, setFilterInventoryLocation] = useState("Tất cả Kho");
   const [filterInventoryCategory, setFilterInventoryCategory] = useState("Tất cả danh mục");
-  const [filterInventoryStatus, setFilterInventoryStatus] = useState("Cảnh báo tồn kho");
+  const [filterInventoryStatus] = useState("Cảnh báo tồn kho");
 
   const filteredInventory = inventory.filter(item => {
     let matchText = true;
@@ -162,7 +162,7 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [recipeSearchText, setRecipeSearchText] = useState("");
   const [recipeAppliedSearch, setRecipeAppliedSearch] = useState("");
-  const [filterRecipeCategory, setFilterRecipeCategory] = useState("Tất cả danh mục");
+  const [filterRecipeCategory] = useState("Tất cả danh mục");
   const filteredRecipes = recipes.filter(r => (filterRecipeCategory === "Tất cả danh mục" || r.category === filterRecipeCategory) && (recipeAppliedSearch ? r.name.toLowerCase().includes(recipeAppliedSearch.toLowerCase()) : true));
 
   // ==========================================

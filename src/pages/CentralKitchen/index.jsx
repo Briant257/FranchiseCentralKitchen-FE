@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, Trash2, Search, Filter, Download, X, ChefHat, LogOut } from "../../components/icons/Icons";
+import React, { useState, useCallback } from 'react';
+import { Eye, ChefHat, LogOut } from "../../components/icons/Icons";
 import api from "../../services/api"; 
 
 const CentralKitchenPage = ({ onLogout, userData }) => {
