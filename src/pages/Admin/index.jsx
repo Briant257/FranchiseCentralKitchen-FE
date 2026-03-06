@@ -470,7 +470,11 @@ const AdminPage = ({ onLogout, userData }) => {
       const updatedUsers = existingUsers.map((u) =>
         u.id === userId
           ? { ...u, status: u.status === "active" ? "inactive" : "active" }
+<<<<<<< HEAD
           : u
+=======
+          : u,
+>>>>>>> 84ecd4c (fix conflict)
       );
       await api.saveUsers(updatedUsers);
       await loadAdminData();
@@ -558,14 +562,23 @@ const AdminPage = ({ onLogout, userData }) => {
       const list = await api.getCategories();
       if (editingCategory) {
         const updated = list.map((c) =>
+<<<<<<< HEAD
           c.id === editingCategory.id ? { ...c, name } : c
+=======
+          c.id === editingCategory.id ? { ...c, name } : c,
+>>>>>>> 84ecd4c (fix conflict)
         );
         await api.saveCategories(updated);
         const prods = await api.getProducts();
         await api.saveProducts(
           prods.map((p) =>
+<<<<<<< HEAD
             p.category === editingCategory.name ? { ...p, category: name } : p
           )
+=======
+            p.category === editingCategory.name ? { ...p, category: name } : p,
+          ),
+>>>>>>> 84ecd4c (fix conflict)
         );
         setEditingCategory(null);
         window.alert("✅ Đã cập nhật danh mục!");
@@ -590,7 +603,11 @@ const AdminPage = ({ onLogout, userData }) => {
     const inCat = prods.filter((p) => p.category === cat.name);
     if (inCat.length > 0) {
       window.alert(
+<<<<<<< HEAD
         `Không thể xóa. Còn ${inCat.length} sản phẩm thuộc danh mục "${cat.name}". Hãy đổi danh mục sản phẩm trước.`
+=======
+        `Không thể xóa. Còn ${inCat.length} sản phẩm thuộc danh mục "${cat.name}". Hãy đổi danh mục sản phẩm trước.`,
+>>>>>>> 84ecd4c (fix conflict)
       );
       return;
     }
@@ -623,7 +640,11 @@ const AdminPage = ({ onLogout, userData }) => {
       min < 0
     ) {
       window.alert(
+<<<<<<< HEAD
         "Vui lòng điền đầy đủ thông tin hợp lệ (tên, danh mục, giá, tồn kho, min)."
+=======
+        "Vui lòng điền đầy đủ thông tin hợp lệ (tên, danh mục, giá, tồn kho, min).",
+>>>>>>> 84ecd4c (fix conflict)
       );
       return;
     }
@@ -641,7 +662,11 @@ const AdminPage = ({ onLogout, userData }) => {
                 min,
                 emoji: p.emoji || "🥪",
               }
+<<<<<<< HEAD
             : x
+=======
+            : x,
+>>>>>>> 84ecd4c (fix conflict)
         );
         await api.saveProducts(updated);
         setEditingProduct(null);
@@ -848,7 +873,10 @@ const AdminPage = ({ onLogout, userData }) => {
                                   handleChangeRole(user.id, e.target.value)
                                 }
                               >
+<<<<<<< HEAD
                                 <option value="admin">Quản trị viên</option>
+=======
+>>>>>>> 84ecd4c (fix conflict)
                                 <option value="franchise">
                                   Nhân viên cửa hàng
                                 </option>
@@ -3072,7 +3100,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   <option value="kitchen">Nhân viên bếp</option>
                   <option value="coordinator">Điều phối viên</option>
                   <option value="manager">Quản lý</option>
+<<<<<<< HEAD
                   <option value="admin">Quản trị viên</option>
+=======
+>>>>>>> 84ecd4c (fix conflict)
                 </select>
               </div>
               {newUser.role === "franchise" && (
