@@ -36,6 +36,7 @@ const AdminPage = ({ onLogout, userData }) => {
     role: "franchise",
     storeName: "",
     status: "active",
+    employeeCode: "",
   });
   const [newStore, setNewStore] = useState({
     username: "",
@@ -92,32 +93,30 @@ const AdminPage = ({ onLogout, userData }) => {
       window.alert("Vui lòng điền đầy đủ thông tin!");
       return;
     }
-    if (!newUser.email || !newUser.email.trim()) {
-      window.alert("Vui lòng nhập email!");
-      return;
-    }
-    const emailTrim = newUser.email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
-      window.alert("Email không đúng định dạng!");
-      return;
-    }
     if (newUser.role === "franchise" && !newUser.storeName) {
       window.alert("Vui lòng nhập tên cửa hàng!");
       return;
     }
+    const roleToBackend = {
+      admin: "ADMIN",
+      kitchen: "KITCHEN_STAFF",
+      franchise: "FRANCHISE",
+      coordinator: "COORDINATOR",
+      manager: "MANAGER",
+    };
     try {
       const existingUsers = await api.getUsers();
       if (existingUsers.find((u) => u.username === newUser.username)) {
         window.alert("Tên đăng nhập đã tồn tại!");
         return;
       }
-      const user = {
-        id: Date.now(),
-        ...newUser,
-        email: emailTrim,
-        createdAt: new Date().toLocaleDateString("vi-VN"),
-      };
-      await api.saveUsers([...existingUsers, user]);
+      const msg = await api.register({
+        username: newUser.username.trim(),
+        password: newUser.password,
+        fullName: newUser.name.trim(),
+        employeeCode: newUser.employeeCode?.trim() || undefined,
+        role: roleToBackend[newUser.role] || "KITCHEN_STAFF",
+      });
       await loadAdminData();
       setShowAddUser(false);
       setNewUser({
@@ -128,10 +127,11 @@ const AdminPage = ({ onLogout, userData }) => {
         role: "franchise",
         storeName: "",
         status: "active",
+        employeeCode: "",
       });
-      window.alert("✅ Thêm người dùng thành công!");
+      window.alert(typeof msg === "string" ? msg : "✅ Đăng ký thành công! Mã nhân viên đã được tạo.");
     } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không lưu được"));
+      window.alert("Lỗi: " + (err.message || "Không đăng ký được"));
     }
   };
 
