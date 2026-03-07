@@ -93,6 +93,15 @@ const AdminPage = ({ onLogout, userData }) => {
       window.alert("Vui lòng điền đầy đủ thông tin!");
       return;
     }
+    if (!newUser.email || !newUser.email.trim()) {
+      window.alert("Vui lòng nhập email!");
+      return;
+    }
+    const emailTrim = newUser.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      window.alert("Email không đúng định dạng!");
+      return;
+    }
     if (newUser.role === "franchise" && !newUser.storeName) {
       window.alert("Vui lòng nhập tên cửa hàng!");
       return;

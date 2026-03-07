@@ -192,25 +192,30 @@ const auth = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
-    const token = res.token ?? res.accessToken ?? res.access_token;
-    const needOtp =
-      res.message === "OTP_REQUIRED" ||
-      !token ||
-      typeof token !== "string";
+    const raw = res?.data ?? res;
+    const requiresOtp = Boolean(raw.requiresOtp ?? res.requiresOtp ?? res.message === "OTP_REQUIRED");
+    const token =
+      raw.token ??
+      raw.accessToken ??
+      raw.access_token ??
+      res.token ??
+      res.accessToken ??
+      res.access_token;
 
-    if (needOtp) {
+    if (requiresOtp || !token || typeof token !== "string") {
       return {
         requiresOtp: true,
         username: res.username ?? username,
       };
     }
     setToken(token);
+    const info = raw ?? res;
     const user = {
-      id: res.userId ?? res.username,
-      username: res.username,
-      name: res.fullName ?? res.username,
-      role: normalizeRole(res.role),
-      roleRaw: res.role,
+      id: info.userId ?? info.id ?? info.username,
+      username: info.username ?? res.username,
+      name: info.fullName ?? info.name ?? info.username ?? res.username,
+      role: normalizeRole(info.role ?? res.role),
+      roleRaw: info.role ?? res.role,
     };
     setStoredUser(user);
     return user;
@@ -400,11 +405,11 @@ const auth = {
     return toArray(res);
   },
 
-  /** Quên mật khẩu: gửi OTP về email. Body: { email }. */
-  async forgotPassword(email) {
+  /** Yêu cầu gửi OTP quên mật khẩu (email hoặc username) */
+  async forgotPassword(emailOrUsername) {
     const res = await request("/api/auth/forgot-password", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: emailOrUsername }),
     });
     return res.message ?? res.msg ?? res;
   },
