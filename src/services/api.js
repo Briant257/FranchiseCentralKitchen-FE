@@ -94,9 +94,6 @@ function messageByPath(path) {
   return null;
 }
 
-/**
- * Chuyển lỗi từ backend sang câu tiếng Việt theo đúng trường (email/mật khẩu/OTP...).
- */
 function toUserFriendlyError(res, data, path) {
   const status = res.status;
   const raw =
@@ -132,7 +129,7 @@ function toUserFriendlyError(res, data, path) {
   return "Đã xảy ra lỗi. Vui lòng thử lại.";
 }
 
-/** Gọi API: tự gắn Bearer token nếu có */
+/** Gọi API: tự gắn Bearer token nếu có. Hỗ trợ response JSON hoặc text (trả về { message } nếu là text). */
 function request(path, options = {}) {
   const url = `${BASE_URL.replace(/\/$/, "")}${path}`;
   const token = storage.getToken();
@@ -143,7 +140,13 @@ function request(path, options = {}) {
   };
 
   return fetch(url, { ...options, headers }).then(async (res) => {
-    const data = await res.json().catch(() => ({}));
+    const text = await res.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { message: text };
+    }
     const friendlyMessage = toUserFriendlyError(res, data, path);
     if (res.status === 401) {
       setToken(null);
@@ -181,8 +184,7 @@ const auth = {
 
   /**
    * Đăng nhập (bước 1).
-   * - Nếu backend trả token ngay → lưu token + user, trả về user.
-   * - Nếu backend yêu cầu OTP (không trả token / requiresOtp) → trả { requiresOtp: true, username } để UI chuyển sang màn OTP.
+   * Backend trả: { token, username, role } hoặc OTP: { token: null, message: "OTP_REQUIRED", username }.
    */
   async login(username, password) {
     const res = await request("/api/auth/login", {
@@ -190,7 +192,9 @@ const auth = {
       body: JSON.stringify({ username, password }),
     });
     const raw = res?.data ?? res;
-    const requiresOtp = Boolean(raw.requiresOtp ?? res.requiresOtp);
+    const requiresOtp = Boolean(
+      raw.requiresOtp ?? res.requiresOtp ?? res.message === "OTP_REQUIRED",
+    );
     const token =
       raw.token ??
       raw.accessToken ??
@@ -202,58 +206,73 @@ const auth = {
     if (requiresOtp || !token || typeof token !== "string") {
       return {
         requiresOtp: true,
-        username: raw.username ?? res.username ?? username,
+        username: res.username ?? username,
       };
     }
     setToken(token);
-    const info = raw.user ?? raw;
+    const info = raw ?? res;
     const user = {
-      id: info.id ?? info.username,
+      id: info.userId ?? info.id ?? info.username,
       username: info.username ?? res.username,
-      name: info.name ?? info.fullName ?? info.username ?? res.username,
+      name: info.fullName ?? info.name ?? info.username ?? res.username,
       role: normalizeRole(info.role ?? res.role),
       roleRaw: info.role ?? res.role,
     };
-
-    storage.setToken(res.token);
-    storage.setUser(user);
+    setStoredUser(user);
     return user;
   },
 
   /**
-   * Xác thực OTP (dùng cho cả luồng đăng nhập và quên mật khẩu).
-   * Nếu response có token → lưu token + user và trả về user (để đăng nhập vào app).
-   * Ngược lại trả response gốc (vd: luồng quên mật khẩu chuyển sang bước đặt lại mật khẩu).
+   * Xác nhận OTP đăng nhập. Backend nhận { username, otp }, trả { token, username, role, message }.
    */
   async verifyOtp(otp, emailOrUsername) {
     const res = await request("/api/auth/verify-otp", {
       method: "POST",
       body: JSON.stringify({
-        otp,
-        email: emailOrUsername,
         username: emailOrUsername,
+        otp,
       }),
     });
-    const raw = res?.data ?? res;
-    const token =
-      raw.token ??
-      raw.accessToken ??
-      raw.access_token ??
-      res.token ??
-      res.accessToken ??
-      res.access_token;
+    const token = res.token ?? res.accessToken ?? res.access_token;
     if (token && typeof token === "string") {
       setToken(token);
-      const info = raw.user ?? raw;
       const user = {
-        id: info.id ?? info.username,
-        username: info.username ?? res.username ?? emailOrUsername,
-        name: info.name ?? info.fullName ?? info.username ?? emailOrUsername,
-        role: normalizeRole(info.role ?? res.role),
-        roleRaw: info.role ?? res.role,
+        id: res.userId ?? res.username,
+        username: res.username ?? emailOrUsername,
+        name: res.fullName ?? res.username ?? emailOrUsername,
+        role: normalizeRole(res.role),
+        roleRaw: res.role,
       };
       setStoredUser(user);
       return user;
+    }
+    return res;
+  },
+
+  /** Đăng ký tài khoản. Body: { username, password, fullName, employeeCode, role }. Trả message (có thể kèm mã NV). */
+  async register(data) {
+    const res = await request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        username: data.username,
+        password: data.password,
+        fullName: data.fullName ?? data.name,
+        employeeCode: data.employeeCode || undefined,
+        role: (data.role || "KITCHEN_STAFF").toUpperCase().replace(" ", "_"),
+      }),
+    });
+    return res.message || res.msg || res;
+  },
+
+  /** Cập nhật hồ sơ (tên). Body: { fullName }. */
+  async updateProfile(data) {
+    const res = await request("/api/auth/update-profile", {
+      method: "PUT",
+      body: JSON.stringify({ fullName: data.fullName ?? data.name }),
+    });
+    const current = getStoredUser();
+    if (res && current) {
+      setStoredUser({ ...current, name: res.fullName ?? current.name });
     }
     return res;
   },
@@ -282,9 +301,24 @@ const auth = {
   // --- Quản lý Cửa hàng ---
   getStores: async () => toArray(await request("/api/stores")),
   createStore: (b) =>
-    request("/api/stores", { method: "POST", body: JSON.stringify(b) }),
+    request("/api/stores", {
+      method: "POST",
+      body: JSON.stringify({
+        name: b.name,
+        address: b.address || "",
+        phone: b.phone || "",
+        type: (b.type || "FLAGSHIP").toUpperCase(),
+      }),
+    }),
   updateStore: (id, b) =>
-    request(`/api/stores/${id}`, { method: "PUT", body: JSON.stringify(b) }),
+    request(`/api/stores/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: b.name,
+        phone: b.phone,
+        address: b.address,
+      }),
+    }),
   deleteStore: (id) => request(`/api/stores/${id}`, { method: "DELETE" }),
 
   // --- Quản lý Danh mục ---
@@ -374,26 +408,24 @@ const auth = {
 
   /** Yêu cầu gửi OTP quên mật khẩu (email hoặc username) */
   async forgotPassword(emailOrUsername) {
-    return request("/api/auth/forgot-password", {
+    const res = await request("/api/auth/forgot-password", {
       method: "POST",
-      body: JSON.stringify({
-        email: emailOrUsername,
-        username: emailOrUsername,
-      }),
+      body: JSON.stringify({ email: emailOrUsername }),
     });
+    return res.message ?? res.msg ?? res;
   },
 
-  /** Đặt lại mật khẩu mới bằng OTP */
+  /** Đặt lại mật khẩu bằng OTP. Body: { email, otp, newPassword }. */
   async resetPassword(otp, newPassword, emailOrUsername) {
-    return request("/api/auth/reset-password", {
+    const res = await request("/api/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({
+        email: emailOrUsername,
         otp,
         newPassword,
-        email: emailOrUsername,
-        username: emailOrUsername,
       }),
     });
+    return res.message ?? res.msg ?? res;
   },
 
   /** Lấy thông tin Role/Username hiện tại (Debug) */
@@ -463,11 +495,14 @@ const categoriesApi = {
     }
   },
 
-  /** Tạo danh mục */
+  /** Tạo danh mục. Body: { name, description }. */
   async create(body) {
     return request("/api/categories", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        name: body.name,
+        description: body.description || "",
+      }),
     });
   },
 };
@@ -485,21 +520,32 @@ const ingredientsApi = {
     }
   },
 
-  /** Tạo nguyên liệu */
+  /** Tạo nguyên liệu. Body: { ingredientId, ingredientName, unit }. */
   async create(body) {
     return request("/api/ingredients", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ingredientId: body.ingredientId ?? body.id,
+        ingredientName: body.ingredientName ?? body.name,
+        unit: body.unit || "kg",
+      }),
     });
   },
 };
 
 const inventoryApi = {
-  /** Nhập kho nguyên liệu */
+  /** Nhập kho. Body: { note, items: [{ ingredientId, quantity, importPrice }] }. */
   async import(body) {
     return request("/api/inventory/import", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        note: body.note || "",
+        items: (body.items || []).map((i) => ({
+          ingredientId: i.ingredientId ?? i.id,
+          quantity: Number(i.quantity) || 0,
+          importPrice: Number(i.importPrice) || 0,
+        })),
+      }),
     });
   },
 };
@@ -507,11 +553,14 @@ const inventoryApi = {
 // --- Kitchen ---
 
 const kitchenApi = {
-  /** Nấu / tạo thành phẩm (trừ nguyên liệu theo công thức) */
+  /** Nấu thành phẩm (tự trừ ingredient theo công thức). Body: { productId, quantity }. */
   async cook(body) {
     return request("/api/kitchen/cook", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        productId: body.productId ?? body.id,
+        quantity: Number(body.quantity) || 1,
+      }),
     });
   },
 };
@@ -519,23 +568,67 @@ const kitchenApi = {
 // --- API object thống nhất (tương thích code cũ) ---
 
 const api = {
-  init() {},
+  init() { },
 
   isAuthenticated: () => auth.isAuthenticated(),
   login: (username, password) => auth.login(username, password),
   logout: () => auth.logout(),
   getStoredUser: () => auth.getStoredUser(),
 
-  register: (data) => auth.register(data),
-  updateProfile: (data) => auth.updateProfile(data),
 
-  async getProducts(params) {
-    return productsApi.getList(params || {});
-  },
+  // --- Kitchen & Production ---
+  getProductionRuns: () => auth.getProductionRuns(),
+  updateProductionRunStatus: (id, s) => auth.updateProductionRunStatus(id, s),
+  getIncidents: () => auth.getIncidents(),
+  updateIncidentStatus: (id, s) => auth.updateIncidentStatus(id, s),
 
-  async getIngredients() {
-    return ingredientsApi.getList();
-  },
+  // --- Manager Page (Cần đủ các hàm này để hết lỗi đỏ) ---
+  getMasterProducts: async () => toArray(await request("/api/products")),
+  getReports: async () => toArray(await request("/api/dashboard/report")),
+  getKPIStats: async () => toArray(await request("/api/dashboard/kpi")),
+  getManagerInventory: async () => toArray(await request("/api/inventory/overview")),
+  getExpenses: async () => toArray(await request("/api/expenses")),
+  getManagerRecipes: async () => toArray(await request("/api/recipes")),
+  getStores: async () => toArray(await request("/api/stores")),
+  getAllOrders: async () => toArray(await request("/api/orders")),
+
+  // --- Actions & CRUD ---
+  createReport: (body) => request("/api/reports", { method: "POST", body: JSON.stringify(body) }),
+  createExpense: (body) => request("/api/expenses", { method: "POST", body: JSON.stringify(body) }),
+  createMasterProduct: (body) => request("/api/products", { method: "POST", body: JSON.stringify(body) }),
+  updateMasterProduct: (id, body) => request(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteMasterProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
+
+
+  // --- Các hàm bổ trợ khác ---
+  getProducts: (params) => productsApi.getList(params || {}),
+  getIngredients: () => ingredientsApi.getList(),
+
+  // --- BỔ SUNG CÁC HÀM UPDATE ---
+  updateCategory: (id, body) => request(`/api/categories/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ name: body.name })
+  }),
+
+  updateProduct: (id, body) => request(`/api/products/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body)
+  }),
+
+  updateIngredient: (id, body) => request(`/api/ingredients/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body)
+  }),
+
+  // --- BỔ SUNG CÁC HÀM DELETE ---
+  deleteCategory: (id) => request(`/api/categories/${id}`, { method: "DELETE" }),
+  deleteProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
+  deleteIngredient: (id) => request(`/api/ingredients/${id}`, { method: "DELETE" }),
+
+  // --- BỔ SUNG HÀM LẤY CÔNG THỨC (BOM) ---
+  getRecipeOfProduct: (pId) => request(`/api/recipes/${pId}`),
+
+
 
   checkMe: () => auth.checkMe(),
   forgotPassword: (emailOrUsername) => auth.forgotPassword(emailOrUsername),
@@ -561,18 +654,85 @@ const api = {
     return {};
   },
 
-  /** Users: backend chưa cung cấp danh sách, dùng cho Admin UI */
+  /** Danh sách tài khoản (Admin). GET /api/admin/list-accounts */
   async getUsers() {
-    return [];
+    try {
+      const list = await request("/api/admin/list-accounts");
+      const arr = Array.isArray(list) ? list : (list?.data ?? []);
+      return arr.map((a) => ({
+        id: a.accountId ?? a.userId,
+        username: a.username,
+        name: a.fullName ?? a.username,
+        role: normalizeRole(a.role),
+        status: a.active ? "active" : "inactive",
+        storeName: a.storeName ?? null,
+        email: a.email ?? null,
+        userId: a.userId,
+      }));
+    } catch {
+      return [];
+    }
   },
-  async saveUsers() {
-    return [];
+
+  /** Chỉ tài khoản active */
+  async getActiveAccounts() {
+    try {
+      const list = await request("/api/admin/list-accounts/active");
+      const arr = Array.isArray(list) ? list : (list?.data ?? []);
+      return arr.map((a) => ({
+        id: a.accountId ?? a.userId,
+        username: a.username,
+        name: a.fullName ?? a.username,
+        role: normalizeRole(a.role),
+        status: "active",
+      }));
+    } catch {
+      return [];
+    }
   },
+
+  /** Chỉ tài khoản inactive */
+  async getInactiveAccounts() {
+    try {
+      const list = await request("/api/admin/list-accounts/inactive");
+      const arr = Array.isArray(list) ? list : (list?.data ?? []);
+      return arr.map((a) => ({
+        id: a.accountId ?? a.userId,
+        username: a.username,
+        name: a.fullName ?? a.username,
+        role: normalizeRole(a.role),
+        status: "inactive",
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  /** Lưu/cập nhật user (Admin): backend chưa có API bulk, giữ tương thích */
+  async saveUsers(users) {
+    return users;
+  },
+
   async saveCategories() {
     return [];
   },
   async saveProducts() {
     return [];
+  },
+
+  /** Báo hoàn thành chuyến hàng. GET /api/shipments/{shipId}/report */
+  async reportShipment(shipId) {
+    const res = await request(`/api/shipments/${shipId}/report`);
+    return res.message ?? res.msg ?? res;
+  },
+
+  /** Giải quyết đơn bù cho chuyến hàng chưa giao thành công. */
+  async resolveReplacement(shipId) {
+    const res = await request(`/api/shipments/${shipId}/resolve-replacement`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    return res.message ?? res.msg ?? res;
   },
 };
 
