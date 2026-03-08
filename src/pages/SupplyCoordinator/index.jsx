@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  Plus, Eye, Search, Filter, LogOut, 
-  Package, FileText, AlertTriangle, CheckCircle, Clock, Store, Activity, Send
+
+  LogOut, 
+  Package, FileText, AlertTriangle, CheckCircle, Clock, Send
+
 } from "../../components/icons/Icons";
 
 const SupplyCoordinatorPage = ({ onLogout, userData }) => {
@@ -21,7 +23,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData }) => {
   ]);
 
   // Data Chuyến hàng - Khớp Khối 7 Logistics
-  const [shipments, setShipments] = useState([
+
+  const [shipments] = useState([
+
     { id: 'SHP-201', driver: 'Trần Văn Cường', plate: '51C-123.45', type: 'MAIN_ROUTE', status: 'DELIVERING', orderCount: 2 },
   ]);
 

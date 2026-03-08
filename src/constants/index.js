@@ -34,9 +34,9 @@ export const ADMIN_TABS = [
   { id: "franchise", label: "Cửa hàng franchise", icon: Store },
   { id: "kitchen", label: "Bếp trung tâm", icon: Package },
   // Đã sửa lại chữ "management" (bỏ chữ r)
-  { id: "management", label: "Quản lý", icon: LayoutDashboard, allowedRoles: ["admin", "manager"] },
-];
 
+
+];
 /** Nhãn vai trò người dùng */
 export const ROLE_LABELS = {
   admin: "Quản trị viên",

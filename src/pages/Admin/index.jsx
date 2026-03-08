@@ -373,9 +373,11 @@ const AdminPage = ({ onLogout, userData }) => {
     username: "",
     password: "",
     name: "",
+    email: "",
     role: "franchise",
     storeName: "",
     status: "active",
+    employeeCode: "",
   });
   const [newStore, setNewStore] = useState({
     username: "",
@@ -432,35 +434,58 @@ const AdminPage = ({ onLogout, userData }) => {
       window.alert("Vui lòng điền đầy đủ thông tin!");
       return;
     }
+    if (!newUser.email || !newUser.email.trim()) {
+      window.alert("Vui lòng nhập email!");
+      return;
+    }
+    const emailTrim = newUser.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      window.alert("Email không đúng định dạng!");
+      return;
+    }
     if (newUser.role === "franchise" && !newUser.storeName) {
       window.alert("Vui lòng nhập tên cửa hàng!");
       return;
     }
+    const roleToBackend = {
+      admin: "ADMIN",
+      kitchen: "KITCHEN_STAFF",
+      franchise: "FRANCHISE",
+      coordinator: "COORDINATOR",
+      manager: "MANAGER",
+    };
     try {
       const existingUsers = await api.getUsers();
       if (existingUsers.find((u) => u.username === newUser.username)) {
         window.alert("Tên đăng nhập đã tồn tại!");
         return;
       }
-      const user = {
-        id: Date.now(),
-        ...newUser,
-        createdAt: new Date().toLocaleDateString("vi-VN"),
-      };
-      await api.saveUsers([...existingUsers, user]);
+      const msg = await api.register({
+        username: newUser.username.trim(),
+        password: newUser.password,
+        fullName: newUser.name.trim(),
+        employeeCode: newUser.employeeCode?.trim() || undefined,
+        role: roleToBackend[newUser.role] || "KITCHEN_STAFF",
+      });
       await loadAdminData();
       setShowAddUser(false);
       setNewUser({
         username: "",
         password: "",
         name: "",
+        email: "",
         role: "franchise",
         storeName: "",
         status: "active",
+        employeeCode: "",
       });
-      window.alert("✅ Thêm người dùng thành công!");
+      window.alert(
+        typeof msg === "string"
+          ? msg
+          : "✅ Đăng ký thành công! Mã nhân viên đã được tạo.",
+      );
     } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không lưu được"));
+      window.alert("Lỗi: " + (err.message || "Không đăng ký được"));
     }
   };
 
@@ -470,7 +495,7 @@ const AdminPage = ({ onLogout, userData }) => {
       const updatedUsers = existingUsers.map((u) =>
         u.id === userId
           ? { ...u, status: u.status === "active" ? "inactive" : "active" }
-          : u
+          : u,
       );
       await api.saveUsers(updatedUsers);
       await loadAdminData();
@@ -558,14 +583,14 @@ const AdminPage = ({ onLogout, userData }) => {
       const list = await api.getCategories();
       if (editingCategory) {
         const updated = list.map((c) =>
-          c.id === editingCategory.id ? { ...c, name } : c
+          c.id === editingCategory.id ? { ...c, name } : c,
         );
         await api.saveCategories(updated);
         const prods = await api.getProducts();
         await api.saveProducts(
           prods.map((p) =>
-            p.category === editingCategory.name ? { ...p, category: name } : p
-          )
+            p.category === editingCategory.name ? { ...p, category: name } : p,
+          ),
         );
         setEditingCategory(null);
         window.alert("✅ Đã cập nhật danh mục!");
@@ -590,7 +615,7 @@ const AdminPage = ({ onLogout, userData }) => {
     const inCat = prods.filter((p) => p.category === cat.name);
     if (inCat.length > 0) {
       window.alert(
-        `Không thể xóa. Còn ${inCat.length} sản phẩm thuộc danh mục "${cat.name}". Hãy đổi danh mục sản phẩm trước.`
+        `Không thể xóa. Còn ${inCat.length} sản phẩm thuộc danh mục "${cat.name}". Hãy đổi danh mục sản phẩm trước.`,
       );
       return;
     }
@@ -623,7 +648,7 @@ const AdminPage = ({ onLogout, userData }) => {
       min < 0
     ) {
       window.alert(
-        "Vui lòng điền đầy đủ thông tin hợp lệ (tên, danh mục, giá, tồn kho, min)."
+        "Vui lòng điền đầy đủ thông tin hợp lệ (tên, danh mục, giá, tồn kho, min).",
       );
       return;
     }
@@ -641,7 +666,7 @@ const AdminPage = ({ onLogout, userData }) => {
                 min,
                 emoji: p.emoji || "🥪",
               }
-            : x
+            : x,
         );
         await api.saveProducts(updated);
         setEditingProduct(null);
@@ -848,7 +873,6 @@ const AdminPage = ({ onLogout, userData }) => {
                                   handleChangeRole(user.id, e.target.value)
                                 }
                               >
-                                <option value="admin">Quản trị viên</option>
                                 <option value="franchise">
                                   Nhân viên cửa hàng
                                 </option>
@@ -3059,6 +3083,20 @@ const AdminPage = ({ onLogout, userData }) => {
               </div>
               <div>
                 <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  className="ck-input ck-w-full"
+                  value={newUser.email}
+                  onChange={(e) =>
+                    setNewUser({ ...newUser, email: e.target.value })
+                  }
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div>
+                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
                   Vai trò *
                 </label>
                 <select
@@ -3072,7 +3110,6 @@ const AdminPage = ({ onLogout, userData }) => {
                   <option value="kitchen">Nhân viên bếp</option>
                   <option value="coordinator">Điều phối viên</option>
                   <option value="manager">Quản lý</option>
-                  <option value="admin">Quản trị viên</option>
                 </select>
               </div>
               {newUser.role === "franchise" && (

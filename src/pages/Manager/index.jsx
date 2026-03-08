@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+
 import { LogOut, LayoutDashboard, Search, Download, Filter, Plus, X, Eye, Trash2, Store, ShoppingCart, Send } from "../../components/icons/Icons";
+
 import api from "../../services/api";
 
 const ManagerPage = ({ onLogout, userData }) => {
   const [activeManagementTab, setActiveManagementTab] = useState("Bảng KPI");
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
 
-  // ==========================================
-  // STATE LƯU TRỮ DỮ LIỆU TỪ API
-  // ==========================================
   const [masterProducts, setMasterProducts] = useState([]);
   const [reports, setReports] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -16,20 +15,20 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [recipes, setRecipes] = useState([]);
   const [kpiStats, setKpiStats] = useState([]);
 
+
   const [selectedStore, setSelectedStore] = useState(null); // Cửa hàng đang xem
   const [isOrderingForStore, setIsOrderingForStore] = useState(false); // Trạng thái đang đặt hàng hộ
   const [stores, setStores] = useState([]); // Danh sách cửa hàng lấy từ API
   const [allOrders, setAllOrders] = useState([]); // Chứa tất cả đơn hàng để lọc theo store
 
   // State hỗ trợ cho việc đặt hàng hộ
+
   const [cart, setCart] = useState([]);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [orderNote, setOrderNote] = useState("");
   const [searchTermHộ, setSearchTermHộ] = useState("");
 
-  // ==========================================
-  // HÀM FETCH DỮ LIỆU TỪ API
-  // ==========================================
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -40,8 +39,10 @@ const ManagerPage = ({ onLogout, userData }) => {
         api.getManagerInventory().catch(() => []),
         api.getManagerRecipes().catch(() => []),
         api.getKPIStats().catch(() => []),
+
         // Fetch thêm danh sách cửa hàng và đơn hàng
         api.getStores?.().catch(() => [{id: 'ST001', name: 'CN Quận 1', address: '123 Lê Lợi', is_active: true}, {id: 'ST002', name: 'CN Quận 3', address: '456 Võ Văn Tần', is_active: true}]),
+
         api.getAllOrders?.().catch(() => []) 
       ]);
       setMasterProducts(prods);
@@ -59,11 +60,32 @@ const ManagerPage = ({ onLogout, userData }) => {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
-  // Logic giỏ hàng đặt hộ
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ==========================================
+  // LOGIC TÍNH TOÁN "MỀM" CHO CHI PHÍ
+  // ==========================================
+  const totalExpenseVal = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  
+  const ingredientExpenseVal = expenses
+    .filter(e => e.category === "Nhập nguyên liệu")
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    
+  const operationExpenseVal = totalExpenseVal - ingredientExpenseVal;
+
+  const costStructure = expenses.reduce((acc, cur) => {
+    const category = cur.category || "Khác";
+    acc[category] = (acc[category] || 0) + (Number(cur.amount) || 0);
+    return acc;
+  }, {});
+
+  const costStructureArray = Object.entries(costStructure).map(([name, value]) => ({ name, value }));
+
+  // ==========================================
+  // CÁC HÀM XỬ LÝ (GIỮ NGUYÊN LOGIC CỦA BẠN)
+  // ==========================================
+
   const addToCart = (product) => {
     const existing = cart.find(i => i.sku === product.sku);
     if (existing) setCart(cart.map(i => i.sku === product.sku ? { ...i, quantity: i.quantity + 1 } : i));
@@ -90,11 +112,13 @@ const ManagerPage = ({ onLogout, userData }) => {
     } catch (e) { alert("Lỗi đặt hàng hộ!"); }
   };
 
+
   const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
 
   // ==========================================
   // STATE & HÀM ĐIỀU KHIỂN UI (SẢN PHẨM MASTER)
   // ==========================================
+
   const [showAddMasterProduct, setShowAddMasterProduct] = useState(false);
   const [editingMasterProduct, setEditingMasterProduct] = useState(null);
   const [newMasterProduct, setNewMasterProduct] = useState({ sku: "", name: "", category: "Gà rán", cogs: "", price: "", status: "Đang bán", emoji: "🍔" });
@@ -107,8 +131,10 @@ const ManagerPage = ({ onLogout, userData }) => {
     try {
       if (editingMasterProduct) await api.updateMasterProduct(editingMasterProduct.sku, newMasterProduct);
       else await api.createMasterProduct(newMasterProduct);
+
       setShowAddMasterProduct(false);
       loadData();
+
     } catch (error) { alert("Lỗi lưu sản phẩm!"); }
   };
 
@@ -121,6 +147,7 @@ const ManagerPage = ({ onLogout, userData }) => {
   // ==========================================
   // STATE & HÀM ĐIỀU KHIỂN UI (BÁO CÁO)
   // ==========================================
+
   const [showCreateReport, setShowCreateReport] = useState(false);
   const [newReport, setNewReport] = useState({ name: "", type: "PDF", fromDate: "", toDate: "" });
 
@@ -129,9 +156,11 @@ const ManagerPage = ({ onLogout, userData }) => {
     try { await api.createReport(newReport); setShowCreateReport(false); loadData(); } catch (error) { alert("Lỗi tạo báo cáo!"); }
   };
 
+
   // ==========================================
   // STATE & HÀM ĐIỀU KHIỂN UI (PHIẾU CHI)
   // ==========================================
+
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [newExpense, setNewExpense] = useState({ category: "Nhập nguyên liệu", supplier: "", ref: "", amount: "", method: "Chuyển khoản" });
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -145,15 +174,19 @@ const ManagerPage = ({ onLogout, userData }) => {
     try { await api.createExpense(newExpense); setShowAddExpense(false); loadData(); } catch (error) { alert("Lỗi lưu phiếu chi!"); }
   };
 
+
   // ==========================================
   // BỘ LỌC TỒN KHO & CÔNG THỨC
   // ==========================================
+
   const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
   const [inventorySearchText, setInventorySearchText] = useState("");
   const [inventoryAppliedSearch, setInventoryAppliedSearch] = useState("");
   const [filterInventoryLocation, setFilterInventoryLocation] = useState("Tất cả Kho");
   const [filterInventoryCategory, setFilterInventoryCategory] = useState("Tất cả danh mục");
+
   const [filterInventoryStatus, setFilterInventoryStatus] = useState("Cảnh báo tồn kho");
+
 
   const filteredInventory = inventory.filter(item => {
     let matchText = true;
@@ -167,7 +200,9 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [recipeSearchText, setRecipeSearchText] = useState("");
   const [recipeAppliedSearch, setRecipeAppliedSearch] = useState("");
+
   const [filterRecipeCategory, setFilterRecipeCategory] = useState("Tất cả danh mục");
+
 
   const filteredRecipes = recipes.filter(r => (filterRecipeCategory === "Tất cả danh mục" || r.category === filterRecipeCategory) && (recipeAppliedSearch ? r.name.toLowerCase().includes(recipeAppliedSearch.toLowerCase()) : true));
 
@@ -231,52 +266,26 @@ const ManagerPage = ({ onLogout, userData }) => {
         {/* RIGHT CONTENT */}
         <div className="ck-flex ck-flex-col ck-gap-6" style={{ width: '80%' }}>
 
-          {/* ================== 1. TAB BẢNG KPI ================== */}
+
+          {/* ================== 1. TAB BẢNG KPI (ĐÃ MỀM HÓA) ================== */}
           {activeManagementTab === 'Bảng KPI' && (
             <div className="ck-flex ck-flex-col ck-gap-6">
               <div className="ck-grid ck-grid-cols-4 ck-gap-4">
-                {[
-                  { label: 'Giá trị xuất kho', value: '145.2M', sub: '₫ trong ngày', color: 'ck-text-blue-400' },
-                  { label: '% Chi phí thực phẩm', value: '32.5%', sub: 'Mục tiêu < 35%', color: 'ck-text-green-400' },
-                  { label: 'Tỷ lệ hao hụt', value: '2.8%', sub: 'Cảnh báo > 3%', color: 'ck-text-yellow-400' },
-                  { label: 'Tỷ lệ giao hàng', value: '98.5%', sub: 'Đúng giờ', color: 'ck-text-purple-400' }
-                ].map((stat, idx) => (
+                {kpiStats.length > 0 ? kpiStats.map((stat, idx) => (
                   <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-text-center ck-flex ck-flex-col ck-items-center ck-justify-center">
                     <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-2">{stat.label}</h4>
-                    <p className={`ck-text-3xl ck-font-black ${stat.color}`}>{stat.value}</p>
-                    <span className="ck-text-xs ck-text-gray-500 ck-mt-1">{stat.sub}</span>
+                    <p className={`ck-text-3xl ck-font-black ck-text-blue-400`}>{stat.value}</p>
+                    <span className="ck-text-xs ck-text-gray-500 ck-mt-1">{stat.sub || stat.change}</span>
                   </div>
-                ))}
+                )) : (
+                  <div className="ck-col-span-4 ck-text-center ck-py-10 ck-text-gray-500">Đang tải dữ liệu KPI...</div>
+                )}
               </div>
-
+              {/* Biểu đồ giữ nguyên text vì chưa tích hợp thư viện */}
               <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ minHeight: '350px' }}>
-                  <h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Sản lượng Sản xuất vs Nhu cầu</h3>
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-                    <span className="ck-text-gray-500">[Khu vực vẽ Biểu đồ Đường / Cột]</span>
-                  </div>
-                </div>
-                <div className="ck-col-span-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col">
-                  <h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Phân tích chi phí</h3>
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-                    <span className="ck-text-gray-500">[Biểu đồ Tròn]</span>
-                  </div>
-                </div>
-              </div>
+                <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ minHeight: '350px' }}><h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Sản lượng Sản xuất vs Nhu cầu</h3><div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center"><span className="ck-text-gray-500">[Khu vực vẽ Biểu đồ Đường / Cột]</span></div></div>
+                <div className="ck-col-span-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col"><h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Phân tích chi phí</h3><div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center"><span className="ck-text-gray-500">[Biểu đồ Tròn]</span></div></div>
 
-              <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                <div className="ck-col-span-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ minHeight: '250px' }}>
-                  <h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Phân tích hao hụt</h3>
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-                    <span className="ck-text-gray-500">[Top nguyên liệu hao hụt]</span>
-                  </div>
-                </div>
-                <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col">
-                  <h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Hiệu suất giao hàng nhượng quyền</h3>
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-                    <span className="ck-text-gray-500">[Bảng xếp hạng tài xế / Chi nhánh]</span>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -445,44 +454,76 @@ const ManagerPage = ({ onLogout, userData }) => {
             </div>
           )}
 
-          {/* ================== 4. TAB PHÂN TÍCH CHI PHÍ ================== */}
-          {activeManagementTab === 'Phân tích chi phí' && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
-              <div className="ck-flex ck-justify-between ck-items-center">
-                <h2 className="ck-text-2xl ck-font-black ck-text-white">Báo cáo Phân tích Chi phí</h2>
-                <div className="ck-flex ck-gap-3">
-                  <button className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600">📥 Tải Báo Cáo PDF</button>
-                </div>
-              </div>
 
-              <div className="ck-grid ck-grid-cols-4 ck-gap-4">
-                {kpiStats.map((stat, idx) => (
-                  <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-flex-col ck-justify-center">
-                    <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-2">{stat.label}</h4>
-                    <div className="ck-flex ck-items-end ck-gap-3">
-                      <p className="ck-text-3xl ck-font-black ck-text-white">{stat.value}</p>
-                      <span className={`ck-text-sm ck-font-bold ck-mb-1 ${stat.isUp ? 'ck-text-green-400' : 'ck-text-red-400'}`}>{stat.isUp ? '↑' : '↓'} {stat.change}</span>
+        {/* ================== 4. TAB PHÂN TÍCH CHI PHÍ ================== */}
+{activeManagementTab === 'Phân tích chi phí' && (
+  <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
+    <div className="ck-flex ck-justify-between ck-items-center">
+      <h2 className="ck-text-2xl ck-font-black ck-text-white">Báo cáo Phân tích Chi phí</h2>
+      <div className="ck-flex ck-gap-3">
+        <button className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600">
+          📥 Tải Báo Cáo ({expenses.length} phiếu chi)
+        </button>
+      </div>
+    </div>
+
+    {/* Các chỉ số KPI từ API - Dùng kpiStats */}
+    <div className="ck-grid ck-grid-cols-4 ck-gap-4">
+      {kpiStats.length > 0 ? kpiStats.map((stat, idx) => (
+        <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-flex-col ck-justify-center">
+          <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-2">{stat.label}</h4>
+          <div className="ck-flex ck-items-end ck-gap-3">
+            <p className="ck-text-3xl ck-font-black ck-text-white">{stat.value}</p>
+            <span className={`ck-text-sm ck-font-bold ck-mb-1 ${stat.isUp ? 'ck-text-green-400' : 'ck-text-red-400'}`}>
+              {stat.isUp ? '↑' : '↓'} {stat.change}
+            </span>
+          </div>
+        </div>
+      )) : (
+        <div className="ck-col-span-4 ck-text-center ck-text-gray-500 ck-py-4">Đang tải chỉ số phân tích...</div>
+      )}
+    </div>
+
+    <div className="ck-grid ck-grid-cols-3 ck-gap-6">
+      {/* Cột trái: Xu hướng */}
+      <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ minHeight: '350px' }}>
+        <h3 className="ck-text-lg ck-font-bold ck-text-white ck-mb-4">Xu hướng chi phí giao dịch</h3>
+        <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-bg-gray-800/50">
+          <span className="ck-text-gray-500">Dữ liệu sẵn sàng từ {expenses.length} bản ghi thực tế</span>
+        </div>
+      </div>
+
+      {/* Cột phải: Cơ cấu chi phí - ĐÃ MỀM HÓA THEO costStructureArray */}
+      <div className="ck-col-span-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col">
+        <h3 className="ck-text-lg ck-font-bold ck-text-white ck-mb-4">Cơ cấu Chi phí (%)</h3>
+        <div className="ck-flex-1 ck-overflow-y-auto ck-scrollbar ck-pr-2">
+          {costStructureArray.length > 0 && totalExpenseVal > 0 ? (
+            <div className="ck-space-y-4">
+              {costStructureArray.map((item, i) => {
+                const percent = ((item.value / totalExpenseVal) * 100).toFixed(1);
+                return (
+                  <div key={i}>
+                    <div className="ck-flex ck-justify-between ck-text-xs ck-mb-1">
+                      <span className="ck-text-gray-400">{item.name}</span>
+                      <span className="ck-text-white ck-font-bold">{percent}%</span>
+                    </div>
+                    <div className="ck-w-full ck-bg-gray-800 ck-rounded-full ck-h-1.5">
+                      <div className="ck-bg-blue-500 ck-h-1.5 ck-rounded-full" style={{ width: `${percent}%` }}></div>
                     </div>
                   </div>
-                ))}
-              </div>
-
-              <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ minHeight: '350px' }}>
-                  <h3 className="ck-text-lg ck-font-bold ck-text-white ck-mb-4">Xu hướng Giá trị xuất kho & Chi phí vốn (6 tháng)</h3>
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-flex-col ck-items-center ck-justify-center ck-bg-gray-800 ck-bg-opacity-50">
-                    <span className="ck-text-gray-500 ck-font-semibold">[Khu vực render Recharts - Bar Chart]</span>
-                  </div>
-                </div>
-                <div className="ck-col-span-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col">
-                  <h3 className="ck-text-lg ck-font-bold ck-text-white ck-mb-4">Cơ cấu Chi phí</h3>
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-flex-col ck-items-center ck-justify-center ck-bg-gray-800 ck-bg-opacity-50 ck-p-4">
-                    <div className="ck-w-32 ck-h-32 ck-rounded-full ck-border-8 ck-border-blue-500 ck-border-t-orange-500 ck-border-r-yellow-500 ck-border-b-green-500 ck-mb-4"></div>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="ck-h-full ck-flex ck-items-center ck-justify-center ck-text-gray-600 italic text-sm">
+              Chưa có dữ liệu phân bổ chi phí
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* ================== 5. TAB BÁO CÁO ================== */}
           {activeManagementTab === 'Báo cáo' && (
@@ -617,20 +658,37 @@ const ManagerPage = ({ onLogout, userData }) => {
             </div>
           )}
 
-          {/* ================== 7. TAB CHI PHÍ NHẬP HÀNG ================== */}
+
+          
+         {/* ================== 7. TAB CHI PHÍ NHẬP HÀNG (ĐÃ MỀM HÓA) ================== */}
+
           {activeManagementTab === 'Chi phí nhập hàng' && (
             <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
               <div className="ck-grid ck-grid-cols-3 ck-gap-4">
                 <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center">
-                  <div><h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">Tổng Chi (Tháng này)</h4><p className="ck-text-2xl ck-font-black ck-text-red-400">86.200.000 ₫</p></div><div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-red-500-20 ck-flex ck-items-center ck-justify-center ck-text-2xl">💸</div>
+                  <div>
+                    <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">Tổng Chi (Thực tế)</h4>
+                    <p className="ck-text-2xl ck-font-black ck-text-red-400">{totalExpenseVal.toLocaleString()} ₫</p>
+                  </div>
+                  <div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-red-500-20 ck-flex ck-items-center ck-justify-center ck-text-2xl">💸</div>
                 </div>
                 <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center">
-                  <div><h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">Chi phí Nguyên vật liệu</h4><p className="ck-text-2xl ck-font-black ck-text-white">68.500.000 ₫</p></div><div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-gray-800 ck-flex ck-items-center ck-justify-center ck-text-2xl">🥩</div>
+                  <div>
+                    <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">Chi phí Nguyên vật liệu</h4>
+                    <p className="ck-text-2xl ck-font-black ck-text-white">{ingredientExpenseVal.toLocaleString()} ₫</p>
+                  </div>
+                  <div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-gray-800 ck-flex ck-items-center ck-justify-center ck-text-2xl">🥩</div>
                 </div>
                 <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center">
-                  <div><h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">Chi phí Vận hành</h4><p className="ck-text-2xl ck-font-black ck-text-white">17.700.000 ₫</p></div><div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-gray-800 ck-flex ck-items-center ck-justify-center ck-text-2xl">⚡</div>
+                  <div>
+                    <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">Chi phí Vận hành</h4>
+                    <p className="ck-text-2xl ck-font-black ck-text-white">{operationExpenseVal.toLocaleString()} ₫</p>
+                  </div>
+                  <div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-gray-800 ck-flex ck-items-center ck-justify-center ck-text-2xl">⚡</div>
                 </div>
               </div>
+
+              {/* Phần tìm kiếm và bảng phía dưới giữ nguyên 100% logic của bạn */}
 
               <div className="ck-flex ck-gap-4 ck-items-center">
                 <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
@@ -641,13 +699,9 @@ const ManagerPage = ({ onLogout, userData }) => {
                   <option value="Hạng mục chi">Tất cả Hạng mục</option><option value="Nhập nguyên liệu">Nhập nguyên liệu</option><option value="Chi phí bao bì">Chi phí bao bì</option><option value="Vận hành / Điện nước">Vận hành / Điện nước</option>
                 </select>
                 <input type="date" value={filterExpenseDate} onChange={(e) => setFilterExpenseDate(e.target.value)} className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer" />
-                
-                <button 
-                  onClick={() => setShowAddExpense(true)} 
-                  className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-flex-shrink-0"
-                >
-                  + Tạo Phiếu Chi
-                </button>
+
+                <button onClick={() => setShowAddExpense(true)} className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-flex-shrink-0">+ Tạo Phiếu Chi</button>
+
               </div>
 
               <div className="ck-flex ck-gap-6 ck-flex-1 ck-items-start ck-transition-all">
