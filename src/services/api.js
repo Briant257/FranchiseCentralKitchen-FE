@@ -436,22 +436,18 @@ const auth = {
 
 // --- Products & Categories ---
 
-/** Map sản phẩm backend sang format UI (id, name, category, price, ...) */
+// --- Chuẩn hóa Object Product theo Database ---
 function mapProduct(p) {
   return {
-    id: p.productId || p.id,
-    productId: p.productId,
-    name: p.productName || p.name,
-    productName: p.productName || p.name,
-    category: p.categoryName || p.category || "",
-    categoryId: p.categoryId,
-    price: Number(p.sellingPrice ?? p.price ?? 0),
-    sellingPrice: Number(p.sellingPrice ?? p.price ?? 0),
-    baseUnit: p.baseUnit || "Tô",
-    stock: p.stock ?? 0,
-    min: p.min ?? 0,
-    emoji: p.emoji || "🍽️",
-    active: p.active !== false,
+    id: p.product_id, // Primary Key từ bảng Product
+    name: p.product_name,
+    category: p.category,
+    categoryId: p.category_id,
+    sellingPrice: Number(p.selling_price || 0),
+    costPrice: Number(p.cost_price || 0),
+    baseUnit: p.base_unit,
+    imageUrl: p.image_url,
+    active: p.is_active
   };
 }
 
@@ -583,18 +579,68 @@ const api = {
   updateIncidentStatus: (id, s) => auth.updateIncidentStatus(id, s),
 
   // --- Manager Page (Cần đủ các hàm này để hết lỗi đỏ) ---
-  getMasterProducts: async () => toArray(await request("/api/products")),
+  getMasterProducts: async () => {
+    const res = await request("/api/products");
+    const list = toArray(res);
+    // Lưu ý: ManagerPage đang dùng .product_name, nên ta map trả về đúng field name DB
+    return list;
+  },
   getReports: async () => toArray(await request("/api/dashboard/report")),
   getKPIStats: async () => toArray(await request("/api/dashboard/kpi")),
-  getManagerInventory: async () => toArray(await request("/api/inventory/overview")),
-  getExpenses: async () => toArray(await request("/api/expenses")),
-  getManagerRecipes: async () => toArray(await request("/api/recipes")),
-  getStores: async () => toArray(await request("/api/stores")),
-  getAllOrders: async () => toArray(await request("/api/orders")),
+  //getManagerInventory: async () => toArray(await request("/api/inventory/overview")),
+  getManagerInventory: async () => {
+    const res = await request("/api/ingredients");
+    return toArray(res).map(ing => ({
+      product_id: ing.ingredient_id,
+      name: ing.name,
+      stock: ing.kitchen_stock,
+      unit: ing.unit,
+      min: ing.min_threshold,
+      status: ing.kitchen_stock <= ing.min_threshold ? "Sắp hết" : "An toàn"
+    }));
+  },
+  // Thay vì gọi "expenses", hãy gọi đúng bản chất là Import Tickets
+  //getExpenses: async () => toArray(await request("/api/expenses")),
+  getExpenses: async () => {
+    const res = await request("/api/import-tickets");
+    return toArray(res).map(ticket => ({
+      id: ticket.ticket_id,
+      date: ticket.created_at,
+      supplier: ticket.supplier_id, // Cần Join với bảng Supplier để lấy tên
+      amount: ticket.total_amount,
+      status: ticket.status,
+      category: "Nhập nguyên liệu"
+    }));
+  },
+  //getManagerRecipes: async () => toArray(await request("/api/recipes")),
+  getManagerRecipes: async () => {
+    // API này cần gom nhóm Formula theo product_id
+    const res = await request("/api/formulas/summary");
+    return toArray(res);
+  },
+
+  //getStores: async () => toArray(await request("/api/stores")),
+  // --- Khối Cửa hàng (Table Store) ---
+  getStores: async () => {
+    const res = await request("/api/stores");
+    return toArray(res); // Trả về store_id, name, address, type, is_active
+  },
+  //getAllOrders: async () => toArray(await request("/api/orders")),
+
+  getAllOrders: async () => {
+    const res = await request("/api/orders");
+    return toArray(res); // Trả về order_id, store_id, status, total_amount...
+  },
 
   // --- Actions & CRUD ---
   createReport: (body) => request("/api/reports", { method: "POST", body: JSON.stringify(body) }),
-  createExpense: (body) => request("/api/expenses", { method: "POST", body: JSON.stringify(body) }),
+  // createExpense: (body) => request("/api/expenses", { method: "POST", body: JSON.stringify(body) }),
+  createExpense: (body) => request("/api/import-tickets", {
+    method: "POST",
+    body: JSON.stringify(body)
+  }),
+  // 4. Lấy tồn kho chi tiết (Join bảng Stock và Store)
+  getStoreStocks: () => request("/api/stocks/all-stores"),
   createMasterProduct: (body) => request("/api/products", { method: "POST", body: JSON.stringify(body) }),
   updateMasterProduct: (id, body) => request(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteMasterProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
@@ -627,9 +673,6 @@ const api = {
 
   // --- BỔ SUNG HÀM LẤY CÔNG THỨC (BOM) ---
   getRecipeOfProduct: (pId) => request(`/api/recipes/${pId}`),
-
-
-
   checkMe: () => auth.checkMe(),
   forgotPassword: (emailOrUsername) => auth.forgotPassword(emailOrUsername),
   verifyOtp: (otp, emailOrUsername) => auth.verifyOtp(otp, emailOrUsername),
@@ -650,8 +693,11 @@ const api = {
   async getOrders() {
     return [];
   },
-  async addOrder() {
-    return {};
+  async addOrder(orderData) {
+    return request("/api/orders", {
+      method: "POST",
+      body: JSON.stringify(orderData)
+    });
   },
 
   /** Danh sách tài khoản (Admin). GET /api/admin/list-accounts */
