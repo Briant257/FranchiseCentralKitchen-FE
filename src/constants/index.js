@@ -35,7 +35,6 @@ export const ADMIN_TABS = [
   { id: "kitchen", label: "Bếp trung tâm", icon: Package },
   // Đã sửa lại chữ "management" (bỏ chữ r)
 ];
-
 /** Nhãn vai trò người dùng */
 export const ROLE_LABELS = {
   admin: "Quản trị viên",
