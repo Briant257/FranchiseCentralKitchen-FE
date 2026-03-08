@@ -577,6 +577,35 @@ const ingredientsApi = {
   },
 };
 
+// =========================================================
+// [LOGISTICS & SUPPLY COORDINATOR API] - MỚI CẬP NHẬT
+// =========================================================
+const logisticsApi = {
+  /** GET /api/orders/ready: Lấy danh sách đơn hàng status = 'DONE' */
+  getReadyOrders: async () => toArray(await request("/api/orders/ready")),
+
+  /** GET /api/incidents/pending: Lấy danh sách sự cố status = 'PENDING' */
+  getPendingIncidents: async () => toArray(await request("/api/incidents/pending")),
+
+  /** GET /api/shipments/active: Lấy các chuyến xe đang hoạt động */
+  getActiveShipments: async () => toArray(await request("/api/shipments/active")),
+
+  /** POST /api/incidents/:id/resolve: Xử lý sự cố và tự tạo đơn COMPENSATION */
+  resolveIncident: (incidentId) =>
+    request(`/api/incidents/${incidentId}/resolve`, { method: "POST" }),
+
+  /** POST /api/shipments: Tạo chuyến hàng mới (Body: { driver, plate, orderIds: [] }) */
+  createShipment: (body) =>
+    request("/api/shipments", {
+      method: "POST",
+      body: JSON.stringify({
+        driver: body.driver,
+        plate: body.plate,
+        orderIds: body.orderIds,
+      }),
+    }),
+};
+
 const inventoryApi = {
   /**
    * Nhập kho (admin + manager). Request: { note, supplierId, items: [{ ingredientId, unit, quantity, importPrice }] }.
@@ -712,6 +741,13 @@ const api = {
     method: "PUT",
     body: JSON.stringify({ name: body.name })
   }),
+
+  // --- SUPPLY COORDINATOR & LOGISTICS (Gắn các API bạn yêu cầu vào đây) ---
+  getReadyOrders: () => logisticsApi.getReadyOrders(),
+  getPendingIncidents: () => logisticsApi.getPendingIncidents(),
+  getActiveShipments: () => logisticsApi.getActiveShipments(),
+  resolveIncident: (id) => logisticsApi.resolveIncident(id),
+  createShipment: (body) => logisticsApi.createShipment(body),
 
   updateProduct: (id, body) => request(`/api/products/${id}`, {
     method: "PUT",
