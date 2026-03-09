@@ -48,5 +48,5 @@ export const SYSTEM_ROLES = [
 
 /** Nhãn hiển thị theo enum (ADMIN, MANAGER, COORDINATOR, KITCHEN_MANAGER, STORE_MANAGER) */
 export const ROLE_LABELS = Object.fromEntries(
-  SYSTEM_ROLES.map((r) => [r.value, r.label])
+  SYSTEM_ROLES.map((r) => [r.value, r.label]),
 );
