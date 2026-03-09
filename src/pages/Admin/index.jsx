@@ -146,7 +146,7 @@ const AdminPage = ({ onLogout, userData }) => {
     }
     const roleToBackend = {
       admin: "ADMIN",
-      kitchen: "KITCHEN_STAFF",
+      kitchen: "KITCHEN_MANAGER",
       franchise: "FRANCHISE",
       coordinator: "COORDINATOR",
       manager: "MANAGER",
