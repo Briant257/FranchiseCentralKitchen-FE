@@ -5,6 +5,8 @@ import api from "../../services/api";
 const CentralKitchenPage = ({ onLogout, userData }) => {
   // 1. STATE CHUNG
   const [activeKitchenTab, setActiveKitchenTab] = useState("Tổng Quan");
+  const [aggregationData, setAggregationData] = useState(null); // Lưu dữ liệu gom đơn
+  const [showAggModal, setShowAggModal] = useState(false);
   const [kitchenSubTab, setKitchenSubTab] = useState("categories");
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -55,6 +57,41 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
     cooking: productionRuns.filter(r => r.status === 'COOKING').length,
     completed: productionRuns.filter(r => r.status === 'COMPLETED').length,
     incidentCount: incidents.filter(i => i.status !== 'Đã giải quyết').length
+  };
+
+  const handleGetAggregation = async () => {
+    try {
+      const data = await api.getKitchenAggregation();
+      setAggregationData(data);
+      setShowAggModal(true);
+    } catch (err) {
+      alert("Hiện tại chưa có đơn hàng nào từ chi nhánh để tổng hợp.");
+    }
+  };
+
+  const handleConfirmCook = async () => {
+    try {
+      await api.confirmAggregation();
+      setShowAggModal(false);
+      loadData();
+      alert("✅ Đã chốt đơn và tạo mẻ nấu thành công!");
+    } catch (err) {
+      alert("Lỗi: " + err.message);
+    }
+  };
+
+  const handleReportWastage = async (runId) => {
+    const qty = prompt("Số lượng thành phẩm bị hỏng/lỗi:");
+    const reason = prompt("Lý do hỏng (VD: Nấu quá lửa, rơi vãi):");
+    if (qty && reason) {
+      try {
+        await api.reportWastage({ runId, wasteQty: qty, reason });
+        loadData();
+        alert("Đã ghi nhận hao hụt và trừ kho nguyên liệu.");
+      } catch (err) {
+        alert("Lỗi: " + err.message);
+      }
+    }
   };
 
 
