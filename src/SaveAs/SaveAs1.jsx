@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-
-import { LogOut, LayoutDashboard, Search, Download, Filter, Plus, X, Eye, Trash2, Store, ShoppingCart, Send } from "../../components/icons/Icons";
-
+import { LogOut, LayoutDashboard, Search, Plus, Store, ShoppingCart } from "../../components/icons/Icons";
 import api from "../../services/api";
 
 const ManagerPage = ({ onLogout, userData }) => {
@@ -14,20 +12,15 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [kpiStats, setKpiStats] = useState([]);
-
-
-  const [selectedStore, setSelectedStore] = useState(null); // Cửa hàng đang xem
-  const [isOrderingForStore, setIsOrderingForStore] = useState(false); // Trạng thái đang đặt hàng hộ
-  const [stores, setStores] = useState([]); // Danh sách cửa hàng lấy từ API
-  const [allOrders, setAllOrders] = useState([]); // Chứa tất cả đơn hàng để lọc theo store
-
-  // State hỗ trợ cho việc đặt hàng hộ
+  const [selectedStore, setSelectedStore] = useState(null);
+  const [isOrderingForStore, setIsOrderingForStore] = useState(false);
+  const [stores, setStores] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
 
   const [cart, setCart] = useState([]);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [orderNote, setOrderNote] = useState("");
   const [searchTermHộ, setSearchTermHộ] = useState("");
-
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -39,10 +32,7 @@ const ManagerPage = ({ onLogout, userData }) => {
         api.getManagerInventory().catch(() => []),
         api.getManagerRecipes().catch(() => []),
         api.getKPIStats().catch(() => []),
-
-        // Fetch thêm danh sách cửa hàng và đơn hàng
-        api.getStores?.().catch(() => [{id: 'ST001', name: 'CN Quận 1', address: '123 Lê Lợi', is_active: true}, {id: 'ST002', name: 'CN Quận 3', address: '456 Võ Văn Tần', is_active: true}]),
-
+        api.getStores?.().catch(() => []),
         api.getAllOrders?.().catch(() => []) 
       ]);
       setMasterProducts(prods);
@@ -59,7 +49,6 @@ const ManagerPage = ({ onLogout, userData }) => {
       setIsLoading(false);
     }
   }, []);
-
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -85,7 +74,6 @@ const ManagerPage = ({ onLogout, userData }) => {
   // ==========================================
   // CÁC HÀM XỬ LÝ (GIỮ NGUYÊN LOGIC CỦA BẠN)
   // ==========================================
-
   const addToCart = (product) => {
     const existing = cart.find(i => i.product_id === product.product_id);
     if (existing) setCart(cart.map(i => i.product_id === product.product_id ? { ...i, quantity: i.quantity + 1 } : i));
@@ -112,13 +100,6 @@ const ManagerPage = ({ onLogout, userData }) => {
     } catch (e) { alert("Lỗi đặt hàng hộ!"); }
   };
 
-
-  const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
-
-  // ==========================================
-  // STATE & HÀM ĐIỀU KHIỂN UI (SẢN PHẨM MASTER)
-  // ==========================================
-
   const [showAddMasterProduct, setShowAddMasterProduct] = useState(false);
   const [editingMasterProduct, setEditingMasterProduct] = useState(null);
   const [newMasterProduct, setNewMasterProduct] = useState({ product_id: "", name: "", category_id: 1, cost_price: "", selling_price: "", status: "Đang bán", emoji: "🍔" });
@@ -131,10 +112,7 @@ const ManagerPage = ({ onLogout, userData }) => {
     try {
       if (editingMasterProduct) await api.updateMasterProduct(editingMasterProduct.product_id, newMasterProduct);
       else await api.createMasterProduct(newMasterProduct);
-
-      setShowAddMasterProduct(false);
-      loadData();
-
+      setShowAddMasterProduct(false); loadData();
     } catch (error) { alert("Lỗi lưu sản phẩm!"); }
   };
 
@@ -144,10 +122,6 @@ const ManagerPage = ({ onLogout, userData }) => {
     } 
   };
 
-  // ==========================================
-  // STATE & HÀM ĐIỀU KHIỂN UI (BÁO CÁO)
-  // ==========================================
-
   const [showCreateReport, setShowCreateReport] = useState(false);
   const [newReport, setNewReport] = useState({ name: "", type: "PDF", fromDate: "", toDate: "" });
 
@@ -155,11 +129,6 @@ const ManagerPage = ({ onLogout, userData }) => {
     if (!newReport.name) return alert("Vui lòng nhập tên báo cáo!");
     try { await api.createReport(newReport); setShowCreateReport(false); loadData(); } catch (error) { alert("Lỗi tạo báo cáo!"); }
   };
-
-
-  // ==========================================
-  // STATE & HÀM ĐIỀU KHIỂN UI (PHIẾU CHI)
-  // ==========================================
 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [newExpense, setNewExpense] = useState({ category: "Nhập nguyên liệu", supplier: "", ref: "", amount: "", method: "Chuyển khoản" });
@@ -174,19 +143,12 @@ const ManagerPage = ({ onLogout, userData }) => {
     try { await api.createExpense(newExpense); setShowAddExpense(false); loadData(); } catch (error) { alert("Lỗi lưu phiếu chi!"); }
   };
 
-
-  // ==========================================
-  // BỘ LỌC TỒN KHO & CÔNG THỨC
-  // ==========================================
-
   const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
   const [inventorySearchText, setInventorySearchText] = useState("");
   const [inventoryAppliedSearch, setInventoryAppliedSearch] = useState("");
   const [filterInventoryLocation, setFilterInventoryLocation] = useState("Tất cả Kho");
   const [filterInventoryCategory, setFilterInventoryCategory] = useState("Tất cả danh mục");
-
-  const [filterInventoryStatus, setFilterInventoryStatus] = useState("Cảnh báo tồn kho");
-
+  const [filterInventoryStatus] = useState("Cảnh báo tồn kho");
 
   const filteredInventory = inventory.filter(item => {
     let matchText = true;
@@ -200,10 +162,7 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [recipeSearchText, setRecipeSearchText] = useState("");
   const [recipeAppliedSearch, setRecipeAppliedSearch] = useState("");
-
-  const [filterRecipeCategory, setFilterRecipeCategory] = useState("Tất cả danh mục");
-
-
+  const [filterRecipeCategory] = useState("Tất cả danh mục");
   const filteredRecipes = recipes.filter(r => (filterRecipeCategory === "Tất cả danh mục" || r.category === filterRecipeCategory) && (recipeAppliedSearch ? r.name.toLowerCase().includes(recipeAppliedSearch.toLowerCase()) : true));
 
   // ==========================================
@@ -266,7 +225,6 @@ const ManagerPage = ({ onLogout, userData }) => {
         {/* RIGHT CONTENT */}
         <div className="ck-flex ck-flex-col ck-gap-6" style={{ width: '80%' }}>
 
-
           {/* ================== 1. TAB BẢNG KPI (ĐÃ MỀM HÓA) ================== */}
           {activeManagementTab === 'Bảng KPI' && (
             <div className="ck-flex ck-flex-col ck-gap-6">
@@ -285,7 +243,6 @@ const ManagerPage = ({ onLogout, userData }) => {
               <div className="ck-grid ck-grid-cols-3 ck-gap-6">
                 <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col" style={{ minHeight: '350px' }}><h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Sản lượng Sản xuất vs Nhu cầu</h3><div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center"><span className="ck-text-gray-500">[Khu vực vẽ Biểu đồ Đường / Cột]</span></div></div>
                 <div className="ck-col-span-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col"><h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-4">Phân tích chi phí</h3><div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center"><span className="ck-text-gray-500">[Biểu đồ Tròn]</span></div></div>
-
               </div>
             </div>
           )}
@@ -477,7 +434,6 @@ const ManagerPage = ({ onLogout, userData }) => {
             </div>
           )}
 
-
         {/* ================== 4. TAB PHÂN TÍCH CHI PHÍ ================== */}
 {activeManagementTab === 'Phân tích chi phí' && (
   <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
@@ -547,7 +503,6 @@ const ManagerPage = ({ onLogout, userData }) => {
     </div>
   </div>
 )}
-
           {/* ================== 5. TAB BÁO CÁO ================== */}
           {activeManagementTab === 'Báo cáo' && (
             <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
@@ -681,10 +636,8 @@ const ManagerPage = ({ onLogout, userData }) => {
             </div>
           )}
 
-
           
          {/* ================== 7. TAB CHI PHÍ NHẬP HÀNG (ĐÃ MỀM HÓA) ================== */}
-
           {activeManagementTab === 'Chi phí nhập hàng' && (
             <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
               <div className="ck-grid ck-grid-cols-3 ck-gap-4">
@@ -712,7 +665,6 @@ const ManagerPage = ({ onLogout, userData }) => {
               </div>
 
               {/* Phần tìm kiếm và bảng phía dưới giữ nguyên 100% logic của bạn */}
-
               <div className="ck-flex ck-gap-4 ck-items-center">
                 <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
                   <input type="text" placeholder="🔍 Tìm mã phiếu chi, nhà cung cấp..." className="ck-w-full ck-px-4 ck-py-2 ck-outline-none" style={{ backgroundColor: '#111827', color: 'white' }} defaultValue={expenseSearchText} onChange={(e) => setExpenseSearchText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setExpenseAppliedSearch(e.target.value); }} />
@@ -722,9 +674,7 @@ const ManagerPage = ({ onLogout, userData }) => {
                   <option value="Hạng mục chi">Tất cả Hạng mục</option><option value="Nhập nguyên liệu">Nhập nguyên liệu</option><option value="Chi phí bao bì">Chi phí bao bì</option><option value="Vận hành / Điện nước">Vận hành / Điện nước</option>
                 </select>
                 <input type="date" value={filterExpenseDate} onChange={(e) => setFilterExpenseDate(e.target.value)} className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer" />
-
                 <button onClick={() => setShowAddExpense(true)} className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-flex-shrink-0">+ Tạo Phiếu Chi</button>
-
               </div>
 
               <div className="ck-flex ck-gap-6 ck-flex-1 ck-items-start ck-transition-all">

@@ -293,6 +293,7 @@ function LoginPage({ onLogin }) {
                   <input
                     type="text"
                     className="ck-input"
+                    autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Nhập tên đăng nhập"
@@ -311,6 +312,7 @@ function LoginPage({ onLogin }) {
                   <input
                     type={showPassword ? "text" : "password"}
                     className="ck-input"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Nhập mật khẩu"
@@ -476,6 +478,7 @@ function LoginPage({ onLogin }) {
                       <input
                         type="password"
                         className="ck-input"
+                        autoComplete="new-password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Nhập lại mật khẩu mới"
@@ -519,6 +522,7 @@ function LoginPage({ onLogin }) {
                   <input
                     type={showNewPassword ? "text" : "password"}
                     className="ck-input"
+                    autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Tối thiểu 6 ký tự"
@@ -546,6 +550,7 @@ function LoginPage({ onLogin }) {
                   <input
                     type="password"
                     className="ck-input"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Nhập lại mật khẩu mới"
