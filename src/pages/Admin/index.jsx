@@ -14,7 +14,7 @@ import {
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import StatCard from "../../components/common/StatCard";
-import { ADMIN_TABS, ROLE_LABELS, SYSTEM_ROLES } from "../../constants";
+import { ADMIN_TABS } from "../../constants";
 
 const AdminPage = ({ onLogout, userData }) => {
   const [adminTab, setAdminTab] = useState("dashboard");
@@ -37,7 +37,7 @@ const AdminPage = ({ onLogout, userData }) => {
     password: "",
     name: "",
     email: "",
-    role: "STORE_MANAGER",
+    role: "franchise",
     storeName: "",
     status: "active",
     employeeCode: "",
@@ -140,10 +140,17 @@ const AdminPage = ({ onLogout, userData }) => {
       window.alert("Email không đúng định dạng!");
       return;
     }
-    if (newUser.role === "STORE_MANAGER" && !newUser.storeName) {
+    if (newUser.role === "franchise" && !newUser.storeName) {
       window.alert("Vui lòng nhập tên cửa hàng!");
       return;
     }
+    const roleToBackend = {
+      admin: "ADMIN",
+      kitchen: "KITCHEN_STAFF",
+      franchise: "FRANCHISE",
+      coordinator: "COORDINATOR",
+      manager: "MANAGER",
+    };
     try {
       const existingUsers = await api.getUsers();
       if (existingUsers.find((u) => u.username === newUser.username)) {
@@ -156,8 +163,8 @@ const AdminPage = ({ onLogout, userData }) => {
         email: emailTrim,
         fullName: newUser.name.trim(),
         employeeCode: newUser.employeeCode?.trim() || undefined,
-        role: newUser.role,
-        storeName: newUser.role === "STORE_MANAGER" ? newUser.storeName?.trim() : undefined,
+        role: roleToBackend[newUser.role] || "KITCHEN_STAFF",
+        storeName: newUser.role === "franchise" ? newUser.storeName?.trim() : undefined,
       });
       await loadAdminData();
       setShowAddUser(false);
@@ -166,7 +173,7 @@ const AdminPage = ({ onLogout, userData }) => {
         password: "",
         name: "",
         email: "",
-        role: "STORE_MANAGER",
+        role: "franchise",
         storeName: "",
         status: "active",
         employeeCode: "",
@@ -521,7 +528,7 @@ const AdminPage = ({ onLogout, userData }) => {
                         <tr key={user.id ?? user.accountId}>
                           <td className="ck-mono ck-text-gray-400 ck-text-xs">{user.accountId ?? user.id}</td>
                           <td className="ck-font-bold ck-text-white ck-mono">{user.username}</td>
-                          <td className="ck-text-gray-400">{ROLE_LABELS[user.roleRaw ?? user.role] ?? (user.roleRaw ?? user.role)}</td>
+                          <td className="ck-text-gray-400">{user.roleRaw ?? user.role}</td>
                           <td>
                             <span className={`ck-px-2 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold ${user.status === "active" ? "ck-bg-green-500-20 ck-text-green-400" : "ck-bg-gray-500-20 ck-text-gray-400"}`}>
                               {user.status === "active" ? "true" : "false"}
@@ -1093,14 +1100,13 @@ const AdminPage = ({ onLogout, userData }) => {
                     setNewUser({ ...newUser, role: e.target.value })
                   }
                 >
-                  {SYSTEM_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
+                  <option value="franchise">Nhân viên cửa hàng</option>
+                  <option value="kitchen">Nhân viên bếp</option>
+                  <option value="coordinator">Điều phối viên</option>
+                  <option value="manager">Quản lý</option>
                 </select>
               </div>
-              {newUser.role === "STORE_MANAGER" && (
+              {newUser.role === "franchise" && (
                 <div>
                   <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
                     Tên cửa hàng *
