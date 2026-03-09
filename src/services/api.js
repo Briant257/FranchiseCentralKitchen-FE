@@ -164,13 +164,14 @@ function request(path, options = {}) {
 const toArray = (res) =>
   Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
 
-// --- CHUẨN HÓA ROLE (GIỐNG BẠN CỦA BẠN) ---
+/** Map enum SystemRole (BE) sang role routing FE: admin | manager | supply | kitchen | franchise */
 function normalizeRole(role) {
   if (!role) return "franchise";
   const r = String(role).toUpperCase().replace(/-/g, "_");
   if (r === "ADMIN") return "admin";
-  if (r === "KITCHEN_MANAGER" || r === "MANAGER") return "manager";
-  if (r === "KITCHEN_STAFF" || r === "KITCHEN") return "kitchen";
+  if (r === "MANAGER") return "manager";
+  if (r === "COORDINATOR") return "supply";
+  if (r === "KITCHEN_MANAGER") return "kitchen";
   if (r === "STORE_MANAGER") return "franchise";
   return r.toLowerCase();
 }
@@ -261,7 +262,9 @@ const auth = {
         username: data.username?.trim(),
         password: data.password,
         fullName: data.fullName ?? data.name?.trim(),
-        role: (data.role || "KITCHEN_STAFF").toUpperCase().replace(/[\s-]/g, "_"),
+        role: (data.role || "KITCHEN_STAFF")
+          .toUpperCase()
+          .replace(/[\s-]/g, "_"),
         email: data.email?.trim() || undefined,
         storeId: data.storeId?.trim() || undefined,
       }),
@@ -658,7 +661,7 @@ const api = {
   async getStores() {
     try {
       const res = await request("/api/stores");
-      return Array.isArray(res) ? res : res?.data ?? [];
+      return Array.isArray(res) ? res : (res?.data ?? []);
     } catch {
       return [];
     }
@@ -693,7 +696,8 @@ const api = {
   },
 
   createCategory: (body) => categoriesApi.create(body),
-  deleteCategory: (id) => request(`/api/categories/${id}`, { method: "DELETE" }),
+  deleteCategory: (id) =>
+    request(`/api/categories/${id}`, { method: "DELETE" }),
   createIngredient: (body) => ingredientsApi.create(body),
   createProduct: (body) => productsApi.create(body),
   deleteProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
@@ -713,14 +717,16 @@ const api = {
    * Response: AccountResponse (accountId, username, role, isActive, userId, fullName, email).
    */
   async createUser(data) {
-    const res = await request("/api/admin/users", {
+    const res = await request("/api/admin/register", {
       method: "POST",
       body: JSON.stringify({
         username: data.username?.trim(),
         password: data.password,
         email: data.email?.trim(),
         fullName: data.fullName ?? data.name?.trim(),
-        role: (data.role || "KITCHEN_STAFF").toUpperCase().replace(/[\s-]/g, "_"),
+        role: (data.role || "KITCHEN_STAFF")
+          .toUpperCase()
+          .replace(/[\s-]/g, "_"),
         storeId: data.storeId?.trim() || undefined,
         storeName: data.storeName?.trim() || undefined,
       }),
@@ -742,7 +748,8 @@ const api = {
         name: a.fullName ?? a.username,
         role: normalizeRole(a.role),
         roleRaw: a.role,
-        status: a.isActive !== false && a.active !== false ? "active" : "inactive",
+        status:
+          a.isActive !== false && a.active !== false ? "active" : "inactive",
         storeName: a.storeName ?? null,
         email: a.email ?? null,
         userId: a.userId,
@@ -826,9 +833,9 @@ const api = {
     });
   },
 
-  /**
-   * Phân tuyến tự động (admin). Request: { deliveryDate, maxOrdersPerTrip, maxUrgentPerTrip }.
-   * Response: { urgentOrders, standardOrders, urgentTripsCreated, standardTripsCreated, totalTripsCreated }.
+  /*
+    Phân tuyến tự động (admin). Request: { deliveryDate, maxOrdersPerTrip, maxUrgentPerTrip }.
+    Response: { urgentOrders, standardOrders, urgentTripsCreated, standardTripsCreated, totalTripsCreated }.
    */
   async autoRouting(body) {
     return request("/api/routing/auto", {
@@ -841,7 +848,7 @@ const api = {
     });
   },
 
-  /** Giải quyết đơn bù cho chuyến hàng chưa giao thành công. */
+  // Giải quyết đơn bù cho chuyến hàng chưa giao thành công.
   async resolveReplacement(shipId) {
     const res = await request(`/api/shipments/${shipId}/resolve-replacement`, {
       method: "POST",
