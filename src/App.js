@@ -53,9 +53,7 @@ function App() {
   }
 
   // 3. NHÁNH 3: DÀNH RIÊNG CHO BẾP TRƯỞNG (KITCHEN)
-
-  if (currentUser.role === "kitchen" || currentUser.role === "kitchen_manager") {
-
+  if (currentUser.role === "kitchen") {
     return <CentralKitchenPage onLogout={handleLogout} userData={userData} />;
   }
 
