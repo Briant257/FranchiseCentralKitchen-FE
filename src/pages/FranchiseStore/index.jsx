@@ -9,7 +9,6 @@ import {
   FileText,
   Store,
   Bell,
-  LogOut,
   Plus,
   Search,
   Filter,

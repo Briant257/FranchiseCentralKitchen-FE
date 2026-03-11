@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  LogOut,
   LayoutDashboard,
   Search,
   Plus,
   Store,
   ShoppingCart,
-  KeyRound,
-  User,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
@@ -21,18 +18,19 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [, setIsLoading] = useState(false);
 
   const [masterProducts, setMasterProducts] = useState([]);
+  const [, setCategoriesList] = useState([]);
   const [reports, setReports] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [inventory, setInventory] = useState([]);
-  const [recipes, setRecipes] = useState([]);
   const [kpiStats, setKpiStats] = useState([]);
   const [selectedStore, setSelectedStore] = useState(null);
   const [isOrderingForStore, setIsOrderingForStore] = useState(false);
   const [stores, setStores] = useState([]);
   const [allOrders, setAllOrders] = useState([]);
+  const [recipes, setRecipes] = useState([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
 
   const [cart, setCart] = useState([]);
-  const [deliveryDate, setDeliveryDate] = useState("");
   const [orderNote, setOrderNote] = useState("");
   const [searchTermHộ, setSearchTermHộ] = useState("");
 
@@ -51,10 +49,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           api.getAllOrders?.().catch(() => []),
         ]);
       setMasterProducts(prods);
+      setCategoriesList([]);
+      setRecipes(recs || []);
       setReports(reps);
       setExpenses(exps);
       setInventory(invs);
-      setRecipes(recs);
       setKpiStats(kpis);
       setStores(sts);
       setAllOrders(ords);
@@ -94,7 +93,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   );
 
   // ==========================================
-  // CÁC HÀM XỬ LÝ (GIỮ NGUYÊN LOGIC CỦA BẠN)
+  // CÁC HÀM XỬ LÝ CHUNG
   // ==========================================
   const addToCart = (product) => {
     const existing = cart.find((i) => i.sku === product.sku);
@@ -114,18 +113,17 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       id: `MGR-${Date.now().toString().slice(-4)}`,
       storeId: selectedStore.id,
       storeName: selectedStore.name,
-      items: cart.map((i) => ({
-        productId: i.sku,
-        name: i.name,
-        quantity: i.quantity,
-        price: i.price,
-      })),
       status: "pending",
       date: new Date().toLocaleString("vi-VN"),
       deliveryDate: new Date(deliveryDate).toLocaleDateString("vi-VN"),
       total: cart.reduce((s, i) => s + i.price * i.quantity, 0),
       note: `[MANAGER ĐẶT HỘ] ${orderNote}`,
+      items: cart.map((i) => ({
+        productId: i.product_id || i.productId || i.id,
+        quantity: Number(i.quantity),
+      })),
     };
+
     try {
       await api.addOrder(newOrder);
       alert("✅ Đã tạo đơn đặt hàng hộ thành công!");
@@ -137,6 +135,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
+  // ==========================================
+  // HÀM XỬ LÝ SẢN PHẨM MASTER
+  // ==========================================
   const [showAddMasterProduct, setShowAddMasterProduct] = useState(false);
   const [editingMasterProduct, setEditingMasterProduct] = useState(null);
   const [newMasterProduct, setNewMasterProduct] = useState({
@@ -181,6 +182,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
+  // ==========================================
+  // HÀM XỬ LÝ KHÁC
+  // ==========================================
   const [showCreateReport, setShowCreateReport] = useState(false);
   const [newReport, setNewReport] = useState({
     name: "",
@@ -406,7 +410,6 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                   </div>
                 )}
               </div>
-              {/* Biểu đồ giữ nguyên text vì chưa tích hợp thư viện */}
               <div className="ck-grid ck-grid-cols-3 ck-gap-6">
                 <div
                   className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col"
@@ -1615,13 +1618,19 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
 
-                {/* XEM CHI TIẾT PHIẾU CHI */}
-                {selectedExpense && !showAddExpense && (
-                  <div
-                    className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-animate-fade-in"
-                    style={{ width: "33.33%" }}
-                  >
+          <div className="ck-flex ck-gap-6 ck-flex-wrap">
+            {/* XEM CHI TIẾT PHIẾU CHI */}
+            {selectedExpense && !showAddExpense ? (
+              <div className="ck-flex ck-gap-4 ck-flex-wrap">
+                <div
+                  className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-animate-fade-in"
+                  style={{ width: "33.33%" }}
+                >
+                  <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
                     <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
                       <h3 className="ck-text-xl ck-font-bold ck-text-white">
                         Chi tiết Phiếu Chi
@@ -1689,296 +1698,419 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                       </button>
                     </div>
                   </div>
-                )}
+                  <div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-red-500/20 ck-flex ck-items-center ck-justify-center ck-text-2xl">
+                    💰
+                  </div>
+                </div>
+                <div className="ck-grid ck-grid-cols-2 ck-gap-4">
+                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center shadow-lg">
+                    <div>
+                      <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">
+                        Số lượng Nguyên liệu
+                      </h4>
+                      <p className="ck-text-2xl ck-font-black ck-text-white">
+                        {inventory.length} Loại
+                      </p>
+                    </div>
+                    <div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-gray-800 ck-flex ck-items-center ck-justify-center ck-text-2xl">
+                      📦
+                    </div>
+                  </div>
+                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center shadow-lg">
+                    <div>
+                      <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-1">
+                        Biên lợi nhuận dự kiến
+                      </h4>
+                      <p className="ck-text-2xl ck-font-black ck-text-green-400">
+                        ~ 35%
+                      </p>
+                    </div>
+                    <div className="ck-w-12 ck-h-12 ck-rounded-full ck-bg-gray-800 ck-flex ck-items-center ck-justify-center ck-text-2xl">
+                      📈
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* THANH TÌM KIẾM - Đã Mở Rộng Kích Thước và Cập Nhật UI */}
+            <div className="ck-flex ck-gap-4 ck-items-center">
+              <div className="ck-flex ck-flex-1 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
+                <input
+                  type="text"
+                  placeholder="🔍 Tra cứu giá vốn theo tên món ăn..."
+                  className="ck-w-full ck-px-4 ck-py-3 ck-outline-none ck-text-white placeholder-gray-400 text-sm"
+                  style={{ backgroundColor: "#1f2937" }}
+                  onChange={(e) => setExpenseSearchText(e.target.value)}
+                />
+                <button className="ck-bg-gray-900 hover:ck-bg-gray-700 ck-text-red-400 ck-px-8 ck-font-bold ck-border-l ck-border-gray-700 ck-transition-colors ck-flex-shrink-0 ck-cursor-pointer">
+                  Tìm kiếm
+                </button>
+              </div>
+              <button
+                onClick={() => setActiveManagementTab("Tổng quan tồn kho")}
+                className="ck-btn ck-px-6 ck-py-3 ck-bg-red-500 hover:ck-bg-red-600 ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-cursor-pointer shadow-lg shadow-red-500/20 transition-colors"
+              >
+                + Đi tới Nhập kho (API)
+              </button>
+            </div>
+
+            {/* BẢNG DỮ LIỆU */}
+            <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden shadow-2xl">
+              <div className="ck-p-5 ck-border-b ck-border-gray-700 ck-bg-gray-800/50">
+                <h3 className="ck-text-lg ck-font-bold ck-text-white">
+                  Phân tích Giá vốn Sản phẩm Master
+                </h3>
+              </div>
+              <div className="ck-overflow-x-auto">
+                <table className="ck-w-full ck-text-left ck-border-collapse min-w-full">
+                  <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-xs ck-uppercase tracking-wider">
+                    <tr>
+                      <th className="ck-p-5 whitespace-nowrap">Mã Món</th>
+                      <th className="ck-p-5 min-w-[200px]">Tên Sản Phẩm</th>
+                      <th className="ck-p-5 ck-text-center whitespace-nowrap">
+                        Giá Vốn (Cost)
+                      </th>
+                      <th className="ck-p-5 ck-text-center whitespace-nowrap">
+                        Giá Franchise
+                      </th>
+                      <th className="ck-p-5 ck-text-right whitespace-nowrap">
+                        Chênh lệch
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="ck-text-white ck-text-sm">
+                    {masterProducts
+                      .filter((p) =>
+                        (p.product_name || "")
+                          .toLowerCase()
+                          .includes(expenseSearchText.toLowerCase()),
+                      )
+                      .map((p, idx) => {
+                        const margin =
+                          (p.selling_price || 0) - (p.cost_price || 0);
+                        return (
+                          <tr
+                            key={idx}
+                            className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800 ck-transition-colors"
+                          >
+                            <td className="ck-p-5 ck-font-mono ck-text-gray-400">
+                              {p.product_id}
+                            </td>
+                            <td className="ck-p-5 ck-font-bold">
+                              {p.emoji} {p.product_name}
+                            </td>
+                            <td className="ck-p-5 ck-text-center ck-text-red-400 ck-font-bold">
+                              {Number(p.cost_price).toLocaleString()} ₫
+                            </td>
+                            <td className="ck-p-5 ck-text-center ck-text-blue-400">
+                              {Number(p.selling_price).toLocaleString()} ₫
+                            </td>
+                            <td className="ck-p-5 ck-text-right">
+                              <span
+                                className={`ck-font-bold ${margin > 0 ? "ck-text-green-400" : "ck-text-red-400"}`}
+                              >
+                                +{margin.toLocaleString()} ₫
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {masterProducts.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="ck-p-10 ck-text-center ck-text-gray-500 italic"
+                        >
+                          Chưa có dữ liệu sản phẩm để phân tích.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
+          </div>
+        </div>
 
-          {/* ================== TAB CHÍNH: CỬA HÀNG FRANCHISE ================== */}
-          {activeManagementTab === "Cửa hàng Franchise" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
-              {!selectedStore ? (
-                /* VIEW 1: DANH SÁCH CỬA HÀNG (Dữ liệu từ biến stores) */
-                <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                  {stores.map((store) => (
-                    <div
-                      key={store.id}
-                      onClick={() => setSelectedStore(store)}
-                      className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl hover:ck-border-red-500 ck-transition-all ck-cursor-pointer group shadow-xl"
-                    >
-                      <div className="ck-flex ck-justify-between ck-mb-4">
-                        <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
-                          <Store className="ck-text-red-400" size={32} />
-                        </div>
-                        <span
-                          className={`ck-badge ${store.is_active ? "ck-badge-green" : "ck-badge-red"} ck-h-fit`}
-                        >
-                          {store.is_active ? "Đang chạy" : "Tạm dừng"}
-                        </span>
+        {/* ================== TAB CHÍNH: CỬA HÀNG FRANCHISE ================== */}
+        {activeManagementTab === "Cửa hàng Franchise" && (
+          <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
+            {!selectedStore ? (
+              /* VIEW 1: DANH SÁCH CỬA HÀNG (Dữ liệu từ biến stores) */
+              <div className="ck-grid ck-grid-cols-3 ck-gap-6">
+                {stores.map((store) => (
+                  <div
+                    key={store.id}
+                    onClick={() => setSelectedStore(store)}
+                    className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl hover:ck-border-red-500 ck-transition-all ck-cursor-pointer group shadow-xl"
+                  >
+                    <div className="ck-flex ck-justify-between ck-mb-4">
+                      <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
+                        <Store className="ck-text-red-400" size={32} />
                       </div>
-                      <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1">
-                        {store.name}
-                      </h3>
-                      <p className="ck-text-sm ck-text-gray-500 ck-mb-4 ck-line-clamp-1">
-                        {store.address}
-                      </p>
-                      <div className="ck-flex ck-justify-between ck-items-center ck-pt-4 ck-border-t ck-border-gray-800">
-                        <span className="ck-text-xs ck-font-mono ck-text-gray-600">
-                          {store.id}
-                        </span>
-                        <span className="ck-text-red-400 ck-font-bold group-hover:ck-translate-x-1 ck-transition-transform">
-                          Chi tiết →
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /* VIEW 2 & 3: CHI TIẾT & ĐẶT HÀNG HỘ */
-                <div className="ck-flex ck-flex-col ck-gap-6">
-                  <div className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900 ck-p-4 ck-rounded-2xl ck-border ck-border-gray-700">
-                    <div className="ck-flex ck-items-center ck-gap-4">
-                      <button
-                        onClick={() => {
-                          setSelectedStore(null);
-                          setIsOrderingForStore(false);
-                        }}
-                        className="ck-w-10 ck-h-10 ck-flex ck-items-center ck-justify-center ck-bg-gray-800 ck-rounded-full ck-text-gray-400 hover:ck-text-white border-none ck-cursor-pointer"
+                      <span
+                        className={`ck-badge ${store.is_active ? "ck-badge-green" : "ck-badge-red"} ck-h-fit`}
                       >
-                        ←
-                      </button>
-                      <div>
-                        <h2 className="ck-text-2xl ck-font-black ck-text-white">
-                          Cửa hàng: {selectedStore.name}
-                        </h2>
-                        <p className="ck-text-xs ck-text-gray-500 ck-mono">
-                          {selectedStore.id} | {selectedStore.address}
-                        </p>
-                      </div>
+                        {store.is_active ? "Đang chạy" : "Tạm dừng"}
+                      </span>
                     </div>
-                    {!isOrderingForStore && (
-                      <button
-                        onClick={() => setIsOrderingForStore(true)}
-                        className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold border-none shadow-lg shadow-red-500/20 ck-flex ck-items-center ck-gap-2"
-                      >
-                        <Plus size={20} /> Tạo đơn đặt hộ
-                      </button>
-                    )}
+                    <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1">
+                      {store.name}
+                    </h3>
+                    <p className="ck-text-sm ck-text-gray-500 ck-mb-4 ck-line-clamp-1">
+                      {store.address}
+                    </p>
+                    <div className="ck-flex ck-justify-between ck-items-center ck-pt-4 ck-border-t ck-border-gray-800">
+                      <span className="ck-text-xs ck-font-mono ck-text-gray-600">
+                        {store.id}
+                      </span>
+                      <span className="ck-text-red-400 ck-font-bold group-hover:ck-translate-x-1 ck-transition-transform">
+                        Chi tiết →
+                      </span>
+                    </div>
                   </div>
-
-                  {isOrderingForStore ? (
-                    /* VIEW 3: GIAO DIỆN ĐẶT HÀNG HỘ (Dữ liệu từ biến masterProducts) */
-                    <div className="ck-grid ck-grid-cols-3 ck-gap-6 ck-animate-slide-up">
-                      <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-p-8">
-                        <div className="ck-flex ck-justify-between ck-mb-8 items-center">
-                          <h3 className="ck-text-2xl ck-font-black ck-text-white">
-                            Thực đơn Bếp Tổng
-                          </h3>
-                          <div className="ck-relative">
-                            <Search
-                              className="ck-absolute ck-left-4 ck-top-1/2 ck--translate-y-1/2 ck-text-gray-500"
-                              size={18}
-                            />
-                            <input
-                              type="text"
-                              placeholder="Tìm tên món ăn..."
-                              className="ck-input ck-pl-12 ck-w-64"
-                              onChange={(e) => setSearchTermHộ(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="ck-grid ck-grid-cols-2 ck-gap-4 ck-max-h-[500px] ck-overflow-y-auto ck-scrollbar ck-pr-2">
-                          {masterProducts
-                            .filter((p) =>
-                              p.name
-                                .toLowerCase()
-                                .includes(searchTermHộ.toLowerCase()),
-                            )
-                            .map((p) => (
-                              <div
-                                key={p.sku}
-                                className="ck-bg-gray-800 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center hover:ck-bg-gray-700 ck-transition-colors ck-border ck-border-transparent hover:ck-border-red-500/50"
-                              >
-                                <div className="ck-flex ck-gap-4">
-                                  <span className="ck-text-4xl">{p.emoji}</span>
-                                  <div>
-                                    <p className="ck-font-bold ck-text-white text-sm">
-                                      {p.name}
-                                    </p>
-                                    <p className="ck-text-xs ck-text-blue-400 ck-mono mt-1">
-                                      {Number(p.price).toLocaleString()}đ
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => addToCart(p)}
-                                  className="ck-w-10 ck-h-10 ck-bg-red-500 ck-rounded-xl border-none ck-text-white ck-font-black ck-cursor-pointer hover:ck-scale-110 ck-transition-transform"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-
-                      {/* GIỎ HÀNG HỘ (Dữ liệu từ biến cart) */}
-                      <div className="ck-bg-gray-900 ck-p-8 ck-rounded-3xl ck-border ck-border-red-500/20 shadow-2xl ck-flex ck-flex-col">
-                        <h3 className="ck-text-xl ck-font-black ck-mb-6 ck-flex ck-items-center ck-gap-3">
-                          <ShoppingCart className="ck-text-red-500" size={24} />{" "}
-                          Giỏ hàng hộ
-                        </h3>
-                        <div className="ck-flex-1 ck-space-y-4 ck-mb-6 ck-max-h-64 ck-overflow-y-auto ck-scrollbar">
-                          {cart.length === 0 ? (
-                            <div className="ck-text-center ck-py-10 ck-text-gray-600">
-                              <p className="ck-text-4xl ck-mb-2">📦</p>
-                              <p className="ck-text-xs uppercase font-bold">
-                                Chưa chọn món nào
-                              </p>
-                            </div>
-                          ) : (
-                            cart.map((item) => (
-                              <div
-                                key={item.sku}
-                                className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800 ck-p-3 ck-rounded-xl"
-                              >
-                                <div className="ck-flex-1">
-                                  <p className="ck-text-white ck-font-bold text-xs">
-                                    {item.name}
-                                  </p>
-                                  <p className="ck-text-[10px] ck-text-gray-500">
-                                    {item.quantity} x{" "}
-                                    {Number(item.price).toLocaleString()}đ
-                                  </p>
-                                </div>
-                                <span className="ck-text-red-400 ck-font-black ck-mono">
-                                  {(
-                                    item.price * item.quantity
-                                  ).toLocaleString()}
-                                  đ
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <div className="ck-border-t ck-border-gray-800 ck-pt-6 ck-space-y-4">
-                          <div>
-                            <label className="ck-text-[10px] ck-text-gray-500 ck-font-bold uppercase mb-2 block">
-                              Ngày giao hàng dự kiến
-                            </label>
-                            <input
-                              type="date"
-                              className="ck-input ck-w-full"
-                              onChange={(e) => setDeliveryDate(e.target.value)}
-                            />
-                          </div>
-                          <textarea
-                            placeholder="Ghi chú quan trọng cho Bếp..."
-                            className="ck-input ck-w-full ck-h-20"
-                            onChange={(e) => setOrderNote(e.target.value)}
-                          />
-                          <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
-                            <span className="ck-text-gray-400 ck-font-bold">
-                              TỔNG CỘNG:
-                            </span>
-                            <span className="ck-text-2xl ck-font-black ck-text-orange-400">
-                              {cart
-                                .reduce((s, i) => s + i.price * i.quantity, 0)
-                                .toLocaleString()}
-                              đ
-                            </span>
-                          </div>
-                          <button
-                            onClick={handleCreateOrderHộ}
-                            className="ck-w-full ck-py-4 ck-bg-red-600 ck-text-white ck-rounded-2xl ck-font-black ck-text-lg border-none shadow-lg ck-cursor-pointer hover:ck-bg-red-700 transition-colors"
-                          >
-                            GỬI ĐƠN ĐẶT HỘ
-                          </button>
-                        </div>
-                      </div>
+                ))}
+              </div>
+            ) : (
+              /* VIEW 2 & 3: CHI TIẾT & ĐẶT HÀNG HỘ */
+              <div className="ck-flex ck-flex-col ck-gap-6">
+                <div className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900 ck-p-4 ck-rounded-2xl ck-border ck-border-gray-700">
+                  <div className="ck-flex ck-items-center ck-gap-4">
+                    <button
+                      onClick={() => {
+                        setSelectedStore(null);
+                        setIsOrderingForStore(false);
+                      }}
+                      className="ck-w-10 ck-h-10 ck-flex ck-items-center ck-justify-center ck-bg-gray-800 ck-rounded-full ck-text-gray-400 hover:ck-text-white border-none ck-cursor-pointer"
+                    >
+                      ←
+                    </button>
+                    <div>
+                      <h2 className="ck-text-2xl ck-font-black ck-text-white">
+                        Cửa hàng: {selectedStore.name}
+                      </h2>
+                      <p className="ck-text-xs ck-text-gray-500 ck-mono">
+                        {selectedStore.id} | {selectedStore.address}
+                      </p>
                     </div>
-                  ) : (
-                    /* VIEW 2: LỊCH SỬ ĐƠN HÀNG (Lọc từ allOrders theo selectedStore.id) */
-                    <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-overflow-hidden shadow-2xl">
-                      <div className="ck-p-6 ck-bg-gray-800/50 ck-border-b ck-border-gray-700 ck-flex ck-justify-between items-center">
-                        <h3 className="ck-font-black ck-text-gray-300 ck-uppercase tracking-widest text-sm">
-                          Lịch sử giao dịch chi nhánh
-                        </h3>
-                        <button className="ck-text-blue-400 ck-font-bold text-xs bg-transparent border-none ck-cursor-pointer">
-                          Xuất báo cáo Store
-                        </button>
-                      </div>
-                      <table className="ck-w-full ck-text-left ck-border-collapse">
-                        <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-[10px] uppercase tracking-tighter">
-                          <tr>
-                            <th className="ck-p-5">Mã đơn hàng</th>
-                            <th className="ck-p-5">Thời gian đặt</th>
-                            <th className="ck-p-5">Ngày giao dự kiến</th>
-                            <th className="ck-p-5 ck-text-right">
-                              Tổng giá trị
-                            </th>
-                            <th className="ck-p-5 ck-text-center">
-                              Trạng thái vận hành
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="ck-text-sm">
-                          {allOrders
-                            .filter((o) => o.storeId === selectedStore.id)
-                            .map((order) => (
-                              <tr
-                                key={order.id}
-                                className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors"
-                              >
-                                <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">
-                                  {order.id}
-                                </td>
-                                <td className="ck-p-5 ck-text-gray-400">
-                                  {order.date}
-                                </td>
-                                <td className="ck-p-5 ck-text-white ck-font-medium">
-                                  {order.deliveryDate}
-                                </td>
-                                <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
-                                  {order.total?.toLocaleString()}đ
-                                </td>
-                                <td className="ck-p-5 ck-text-center">
-                                  <span
-                                    className={`ck-badge ${
-                                      order.status === "Hoàn thành" ||
-                                      order.status === "completed"
-                                        ? "ck-badge-green"
-                                        : order.status === "Đã hủy" ||
-                                            order.status === "cancelled"
-                                          ? "ck-badge-red"
-                                          : "ck-badge-blue"
-                                    }`}
-                                  >
-                                    {order.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          {allOrders.filter(
-                            (o) => o.storeId === selectedStore.id,
-                          ).length === 0 && (
-                            <tr>
-                              <td
-                                colSpan="5"
-                                className="ck-p-10 ck-text-center ck-text-gray-500 italic"
-                              >
-                                Cửa hàng này chưa có dữ liệu đơn hàng.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                  </div>
+                  {!isOrderingForStore && (
+                    <button
+                      onClick={() => setIsOrderingForStore(true)}
+                      className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold border-none shadow-lg shadow-red-500/20 ck-flex ck-items-center ck-gap-2"
+                    >
+                      <Plus size={20} /> Tạo đơn đặt hộ
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+
+                {isOrderingForStore ? (
+                  /* VIEW 3: GIAO DIỆN ĐẶT HÀNG HỘ (Dữ liệu từ biến masterProducts) */
+                  <div className="ck-grid ck-grid-cols-3 ck-gap-6 ck-animate-slide-up">
+                    <div className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-p-8">
+                      <div className="ck-flex ck-justify-between ck-mb-8 items-center">
+                        <h3 className="ck-text-2xl ck-font-black ck-text-white">
+                          Thực đơn Bếp Tổng
+                        </h3>
+                        <div className="ck-relative">
+                          <Search
+                            className="ck-absolute ck-left-4 ck-top-1/2 ck--translate-y-1/2 ck-text-gray-500"
+                            size={18}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Tìm tên món ăn..."
+                            className="ck-input ck-pl-12 ck-w-64"
+                            onChange={(e) => setSearchTermHộ(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="ck-grid ck-grid-cols-2 ck-gap-4 ck-max-h-[500px] ck-overflow-y-auto ck-scrollbar ck-pr-2">
+                        {masterProducts
+                          .filter((p) =>
+                            p.name
+                              .toLowerCase()
+                              .includes(searchTermHộ.toLowerCase()),
+                          )
+                          .map((p) => (
+                            <div
+                              key={p.sku}
+                              className="ck-bg-gray-800 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center hover:ck-bg-gray-700 ck-transition-colors ck-border ck-border-transparent hover:ck-border-red-500/50"
+                            >
+                              <div className="ck-flex ck-gap-4">
+                                <span className="ck-text-4xl">{p.emoji}</span>
+                                <div>
+                                  <p className="ck-font-bold ck-text-white text-sm">
+                                    {p.name}
+                                  </p>
+                                  <p className="ck-text-xs ck-text-blue-400 ck-mono mt-1">
+                                    {Number(p.price).toLocaleString()}đ
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => addToCart(p)}
+                                className="ck-w-10 ck-h-10 ck-bg-red-500 ck-rounded-xl border-none ck-text-white ck-font-black ck-cursor-pointer hover:ck-scale-110 ck-transition-transform"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* GIỎ HÀNG HỘ (Dữ liệu từ biến cart) */}
+                    <div className="ck-bg-gray-900 ck-p-8 ck-rounded-3xl ck-border ck-border-red-500/20 shadow-2xl ck-flex ck-flex-col">
+                      <h3 className="ck-text-xl ck-font-black ck-mb-6 ck-flex ck-items-center ck-gap-3">
+                        <ShoppingCart className="ck-text-red-500" size={24} />{" "}
+                        Giỏ hàng hộ
+                      </h3>
+                      <div className="ck-flex-1 ck-space-y-4 ck-mb-6 ck-max-h-64 ck-overflow-y-auto ck-scrollbar">
+                        {cart.length === 0 ? (
+                          <div className="ck-text-center ck-py-10 ck-text-gray-600">
+                            <p className="ck-text-4xl ck-mb-2">📦</p>
+                            <p className="ck-text-xs uppercase font-bold">
+                              Chưa chọn món nào
+                            </p>
+                          </div>
+                        ) : (
+                          cart.map((item) => (
+                            <div
+                              key={item.sku}
+                              className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800 ck-p-3 ck-rounded-xl"
+                            >
+                              <div className="ck-flex-1">
+                                <p className="ck-text-white ck-font-bold text-xs">
+                                  {item.name}
+                                </p>
+                                <p className="ck-text-[10px] ck-text-gray-500">
+                                  {item.quantity} x{" "}
+                                  {Number(item.price).toLocaleString()}đ
+                                </p>
+                              </div>
+                              <span className="ck-text-red-400 ck-font-black ck-mono">
+                                {(item.price * item.quantity).toLocaleString()}đ
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div className="ck-border-t ck-border-gray-800 ck-pt-6 ck-space-y-4">
+                        <div>
+                          <label className="ck-text-[10px] ck-text-gray-500 ck-font-bold uppercase mb-2 block">
+                            Ngày giao hàng dự kiến
+                          </label>
+                          <input
+                            type="date"
+                            className="ck-input ck-w-full"
+                            onChange={(e) => setDeliveryDate(e.target.value)}
+                          />
+                        </div>
+                        <textarea
+                          placeholder="Ghi chú quan trọng cho Bếp..."
+                          className="ck-input ck-w-full ck-h-20"
+                          onChange={(e) => setOrderNote(e.target.value)}
+                        />
+                        <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
+                          <span className="ck-text-gray-400 ck-font-bold">
+                            TỔNG CỘNG:
+                          </span>
+                          <span className="ck-text-2xl ck-font-black ck-text-orange-400">
+                            {cart
+                              .reduce((s, i) => s + i.price * i.quantity, 0)
+                              .toLocaleString()}
+                            đ
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleCreateOrderHộ}
+                          className="ck-w-full ck-py-4 ck-bg-red-600 ck-text-white ck-rounded-2xl ck-font-black ck-text-lg border-none shadow-lg ck-cursor-pointer hover:ck-bg-red-700 transition-colors"
+                        >
+                          GỬI ĐƠN ĐẶT HỘ
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* VIEW 2: LỊCH SỬ ĐƠN HÀNG (Lọc từ allOrders theo selectedStore.id) */
+                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-overflow-hidden shadow-2xl">
+                    <div className="ck-p-6 ck-bg-gray-800/50 ck-border-b ck-border-gray-700 ck-flex ck-justify-between items-center">
+                      <h3 className="ck-font-black ck-text-gray-300 ck-uppercase tracking-widest text-sm">
+                        Lịch sử giao dịch chi nhánh
+                      </h3>
+                      <button className="ck-text-blue-400 ck-font-bold text-xs bg-transparent border-none ck-cursor-pointer">
+                        Xuất báo cáo Store
+                      </button>
+                    </div>
+                    <table className="ck-w-full ck-text-left ck-border-collapse">
+                      <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-[10px] uppercase tracking-tighter">
+                        <tr>
+                          <th className="ck-p-5">Mã đơn hàng</th>
+                          <th className="ck-p-5">Thời gian đặt</th>
+                          <th className="ck-p-5">Ngày giao dự kiến</th>
+                          <th className="ck-p-5 ck-text-right">Tổng giá trị</th>
+                          <th className="ck-p-5 ck-text-center">
+                            Trạng thái vận hành
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="ck-text-sm">
+                        {allOrders
+                          .filter((o) => o.storeId === selectedStore.id)
+                          .map((order) => (
+                            <tr
+                              key={order.id}
+                              className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors"
+                            >
+                              <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">
+                                {order.id}
+                              </td>
+                              <td className="ck-p-5 ck-text-gray-400">
+                                {order.date}
+                              </td>
+                              <td className="ck-p-5 ck-text-white ck-font-medium">
+                                {order.deliveryDate}
+                              </td>
+                              <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
+                                {order.total?.toLocaleString()}đ
+                              </td>
+                              <td className="ck-p-5 ck-text-center">
+                                <span
+                                  className={`ck-badge ${
+                                    order.status === "Hoàn thành" ||
+                                    order.status === "completed"
+                                      ? "ck-badge-green"
+                                      : order.status === "Đã hủy" ||
+                                          order.status === "cancelled"
+                                        ? "ck-badge-red"
+                                        : "ck-badge-blue"
+                                  }`}
+                                >
+                                  {order.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        {allOrders.filter((o) => o.storeId === selectedStore.id)
+                          .length === 0 && (
+                          <tr>
+                            <td
+                              colSpan="5"
+                              className="ck-p-10 ck-text-center ck-text-gray-500 italic"
+                            >
+                              Cửa hàng này chưa có dữ liệu đơn hàng.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

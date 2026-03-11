@@ -213,18 +213,6 @@ const AdminPage = ({ onLogout, userData }) => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa người dùng này?")) return;
-    try {
-      const existingUsers = await api.getUsers();
-      await api.saveUsers(existingUsers.filter((u) => u.id !== userId));
-      await loadAdminData();
-      window.alert("✅ Đã xóa người dùng!");
-    } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không xóa được"));
-    }
-  };
-
   const handleSaveStore = async () => {
     const { name, address, phone, type } = newStore;
     if (!name?.trim() || !address?.trim() || !phone?.trim()) {

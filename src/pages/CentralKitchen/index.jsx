@@ -1,10 +1,7 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Eye,
   ChefHat,
-  LogOut,
-  KeyRound,
-  User,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
@@ -16,22 +13,21 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
   // 1. STATE CHUNG
   const [activeKitchenTab, setActiveKitchenTab] = useState("Tổng Quan");
+  const [aggregationData] = useState(null);
+  const [showAggModal, setShowAggModal] = useState(false);
   const [kitchenSubTab, setKitchenSubTab] = useState("categories");
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState({ show: false, message: "" });
   const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
 
-  // Dữ liệu từ API
   const [productionRuns, setProductionRuns] = useState([]);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [ingredients, setIngredients] = useState([]);
+
   const [incidents, setIncidents] = useState([]);
 
-  // ==========================================
-  // 2. FETCH DATA TỪ API (ĐÃ BỎ MOCK DATA)
-  // ==========================================
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -59,9 +55,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   }, []);
 
-  // ==========================================
-  // LÓGIC TÍNH TOÁN THỐNG KÊ (MỚI)
-  // ==========================================
   const stats = {
     totalRequested: productionRuns.reduce(
       (sum, run) => sum + (run.totalQty || 0),
@@ -87,9 +80,22 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  // ==========================================
-  // 4. CRUD KHO BẾP & SỰ CỐ (CHUYỂN HÀM SANG GỌI API)
-  // ==========================================
+  const handleConfirmCook = async () => {
+    try {
+      await api.confirmAggregation();
+      setShowAggModal(false);
+      loadData();
+      alert("✅ Đã chốt đơn và tạo mẻ nấu thành công!");
+    } catch (err) {
+      alert("Lỗi chốt đơn, thử lại sau!");
+      setShowAggModal(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -255,9 +261,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     );
   });
 
-  // ==========================================
-  // RENDER GIAO DIỆN (GIỮ NGUYÊN 100% UI GỐC CỦA BẠN)
-  // ==========================================
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6">
       <div className="ck-grain" />
@@ -604,6 +607,22 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 </td>
                               </tr>
                             ))}
+                            {products.filter(
+                              (p) =>
+                                !(
+                                  String(p.is_active) === "0" ||
+                                  p.isActive === false
+                                ),
+                            ).length === 0 && (
+                              <tr>
+                                <td
+                                  colSpan="5"
+                                  className="ck-py-8 ck-text-center ck-text-gray-500"
+                                >
+                                  Chưa có sản phẩm nào đang hoạt động.
+                                </td>
+                              </tr>
+                            )}
                           </tbody>
                         </table>
                       </>
@@ -674,6 +693,9 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                     {ing.status}
                                   </span>
                                 </td>
+                                <td className="ck-py-4 ck-px-6 ck-text-orange-400">
+                                  {Number(ing.unit_cost || 0).toLocaleString()}₫
+                                </td>
                                 <td className="ck-py-4 ck-px-6 ck-text-center">
                                   <div className="ck-flex ck-justify-center ck-gap-3">
                                     <button
@@ -713,17 +735,15 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                             ? editingCategory
                               ? "Sửa Danh Mục"
                               : "Thêm Danh Mục"
-                            : ""}
-                          {showAddProduct
-                            ? editingProduct
-                              ? "Sửa Sản Phẩm"
-                              : "Thêm Sản Phẩm"
-                            : ""}
-                          {showAddIngredient
-                            ? editingIngredient
-                              ? "Sửa Lô Nguyên Liệu"
-                              : "Nhập Lô Nguyên Liệu"
-                            : ""}
+                            : showAddProduct
+                              ? editingProduct
+                                ? "Sửa Sản Phẩm"
+                                : "Thêm Sản Phẩm"
+                              : showAddIngredient
+                                ? editingIngredient
+                                  ? "Sửa Lô Nguyên Liệu"
+                                  : "Nhập Lô Nguyên Liệu"
+                                : ""}
                         </h3>
                         <button
                           onClick={() => {
@@ -1145,7 +1165,9 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
           {/* ======================= TAB XỬ LÝ SỰ CỐ ======================= */}
           {activeKitchenTab === "Xử lý sự cố" && (
             <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
+              {/* THANH CÔNG CỤ TRÊN CÙNG */}
               <div className="ck-flex ck-gap-4 ck-items-center">
+                {/* Ô TÌM KIẾM ĐÃ FIX MÀU ĐEN (DARK MODE) */}
                 <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
                   <input
                     type="text"
@@ -1255,6 +1277,26 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 {inc.status}
                               </span>
                             </td>
+                            <td className="ck-py-4 ck-px-4">
+                              {inc.status !== "Đã giải quyết" ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Không mở bảng chi tiết khi bấm nút này
+                                    handleUpdateIncidentStatus(
+                                      inc.id,
+                                      "Đã giải quyết",
+                                    );
+                                  }}
+                                  className="ck-px-3 ck-py-1.5 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-text-[10px] ck-font-black ck-rounded-lg ck-border-none ck-cursor-pointer shadow-lg shadow-green-500/20 transition-all active:ck-scale-90"
+                                >
+                                  XỬ LÝ XONG
+                                </button>
+                              ) : (
+                                <span className="ck-text-green-500 ck-text-xs ck-font-bold">
+                                  ✨ Đã chốt
+                                </span>
+                              )}
+                            </td>
                           </tr>
                         ))
                       ) : (
@@ -1271,6 +1313,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                   </table>
                 </div>
 
+                {/* FORM BÁO CÁO SỰ CỐ MỚI */}
                 {showAddIncidentForm && (
                   <div
                     className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6 ck-animate-fade-in"
@@ -1384,6 +1427,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                   </div>
                 )}
 
+                {/* CHI TIẾT SỰ CỐ ĐÃ CHỌN */}
                 {selectedIncident && !showAddIncidentForm && (
                   <div
                     className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-animate-fade-in"
@@ -1477,6 +1521,48 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
           )}
         </div>
       </div>
+
+      {/* MODAL XÁC NHẬN GOM ĐƠN NẤU */}
+      {showAggModal && (
+        <div className="ck-fixed ck-inset-0 ck-bg-black/80 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
+          <div className="ck-bg-gray-900 ck-border ck-border-blue-500 ck-rounded-2xl ck-p-8 ck-w-full ck-max-w-md ck-shadow-2xl">
+            <h2 className="ck-text-xl ck-font-black ck-text-white ck-mb-2">
+              Gom đơn chi nhánh
+            </h2>
+            <p className="ck-text-gray-300 ck-mb-4">
+              Hệ thống đã quét các đơn hàng mới. Bạn có muốn chốt tổng hợp thành
+              mẻ nấu không?
+            </p>
+
+            {aggregationData && (
+              <div className="ck-bg-gray-800 ck-border ck-border-gray-700 ck-p-3 ck-rounded-lg ck-mb-6 ck-text-sm ck-text-gray-400">
+                Có{" "}
+                <strong className="ck-text-blue-400">
+                  {Array.isArray(aggregationData)
+                    ? aggregationData.length
+                    : Object.keys(aggregationData).length}
+                </strong>{" "}
+                loại sản phẩm cần nấu.
+              </div>
+            )}
+
+            <div className="ck-flex ck-gap-4">
+              <button
+                onClick={() => setShowAggModal(false)}
+                className="ck-w-full ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors ck-cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmCook}
+                className="ck-w-full ck-bg-blue-600 hover:ck-bg-blue-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-blue-500/30"
+              >
+                Chốt Nấu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL HIỂN THỊ CÔNG THỨC & ĐỊNH MỨC */}
       {selectedRecipeRun && (

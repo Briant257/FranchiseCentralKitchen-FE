@@ -1,14 +1,11 @@
 import React, { useState } from "react";
 import {
-  LogOut,
   Package,
   FileText,
   AlertTriangle,
   CheckCircle,
   Clock,
   Send,
-  KeyRound,
-  User,
 } from "../../components/icons/Icons";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
@@ -22,6 +19,11 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
   // ==========================================
   const [activeTab, setActiveTab] = useState("Điều phối đơn");
   const [showShipmentModal, setShowShipmentModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [deliveryInfo] = useState({ driver: "", plate: "" });
+
+  const fetchAllData = () => { setLoading(true); setTimeout(() => setLoading(false), 500); };
 
   // Data Đơn hàng - Đầy đủ thông tin để Thầy soi Khối 6
   const [orders, setOrders] = useState([
@@ -95,11 +97,99 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
     alert("Đã gom đơn thành công! Trạng thái hệ thống: AGGREGATED.");
   };
 
+  // Xác nhận xuất kho -> Tạo chuyến hàng mới
+  const handleConfirmShipment = async () => {
+    if (selectedOrders.length === 0) return alert("Vui lòng chọn ít nhất 1 đơn hàng!");
+
+    try {
+      const response = await fetch('/api/shipments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driver: deliveryInfo.driver || "Tài xế mặc định",
+          plate: deliveryInfo.plate || "Chưa gán xe",
+          orderIds: selectedOrders
+        })
+      });
+
+      if (response.ok) {
+        alert("Lập lệnh vận chuyển thành công!");
+        setShowShipmentModal(false);
+        setSelectedOrders([]);
+        fetchAllData();
+      }
+    } catch (error) {
+      alert("Lỗi khi tạo lệnh vận chuyển.");
+    }
+  };
+
+  // ==========================================
+  // 4. GIAO DIỆN (UI GIỮ NGUYÊN)
+  // ==========================================
+  const shipmentModalEl = showShipmentModal ? (
+    <div className="ck-fixed ck-inset-0 ck-bg-black/95 ck-flex ck-items-center ck-justify-center ck-z-50 ck-p-4">
+      <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-w-full ck-max-w-2xl ck-shadow-2xl ck-animate-fade-in">
+        <div className="ck-p-6 ck-border-b ck-border-gray-800 ck-flex ck-justify-between ck-items-center">
+          <div className="ck-flex ck-items-center ck-gap-3">
+            <div className="ck-p-2 ck-bg-gradient-btn-admin ck-rounded-lg ck-text-white">
+              <Package size={24} />
+            </div>
+            <h3 className="ck-text-xl ck-font-black">Khởi tạo chuyến giao hàng mới</h3>
+          </div>
+          <button onClick={() => setShowShipmentModal(false)} className="ck-text-gray-500 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-2xl">✕</button>
+        </div>
+        <div className="ck-p-8 ck-grid ck-grid-cols-2 ck-gap-8">
+          <div className="ck-space-y-5">
+            <p className="ck-text-red-400 ck-text-xs ck-font-bold uppercase tracking-widest">1. Phương tiện &amp; Tài xế</p>
+            <div>
+              <label className="ck-block ck-text-gray-500 ck-text-[10px] uppercase mb-1">Chọn tài xế điều phối *</label>
+              <select className="ck-w-full ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-xl ck-p-4 ck-text-white ck-outline-none">
+                <option>Nguyễn Văn Hùng (ID: TX001)</option>
+                <option>Lê Minh Tâm (ID: TX002)</option>
+              </select>
+            </div>
+            <div>
+              <label className="ck-block ck-text-gray-500 ck-text-[10px] uppercase mb-1">Biển số xe *</label>
+              <input type="text" className="ck-w-full ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-xl ck-p-4 ck-text-white" defaultValue="51C-888.66" />
+            </div>
+          </div>
+          <div className="ck-space-y-5">
+            <p className="ck-text-red-400 ck-text-xs ck-font-bold uppercase tracking-widest">2. Danh sách đơn bốc xếp (DONE)</p>
+            <div className="ck-bg-black/40 ck-rounded-2xl ck-p-4 ck-border ck-border-gray-800 ck-max-h-60 ck-overflow-y-auto">
+              <div className="ck-space-y-3">
+                {orders.filter((o) => o.status === "DONE").map((o) => (
+                  <label key={o.id} className="ck-flex ck-items-center ck-gap-3 ck-p-3 ck-bg-gray-800/50 ck-rounded-xl ck-cursor-pointer hover:ck-bg-gray-800">
+                    <input type="checkbox" defaultChecked className="ck-accent-red-500 ck-w-4 ck-h-4" />
+                    <div>
+                      <p className="ck-text-sm ck-font-bold">{o.id}</p>
+                      <p className="ck-text-[10px] ck-text-gray-500">{o.store} - {o.items} món</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="ck-p-8 ck-bg-gray-800/30 ck-rounded-b-3xl ck-flex ck-gap-4">
+          <button onClick={() => setShowShipmentModal(false)} className="ck-flex-1 ck-py-4 ck-bg-transparent ck-text-gray-500 ck-font-bold ck-border-none">Hủy bỏ</button>
+          <button onClick={handleConfirmShipment} className="ck-flex-1 ck-py-4 ck-bg-gradient-btn-admin ck-text-white ck-rounded-2xl ck-font-black ck-border-none shadow-xl">XÁC NHẬN XUẤT KHO</button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  if (loading) return (
+    <div className="ck-root ck-min-h-screen ck-bg-black ck-flex ck-items-center ck-justify-center">
+      <p className="ck-text-red-500 ck-font-black ck-animate-pulse">ĐANG KẾT NỐI HỆ THỐNG LOGISTICS...</p>
+    </div>
+  );
+
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6">
+    <div className="ck-supply-coordinator-root">
+    <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6" style={{ position: "relative" }}>
       <div className="ck-grain" />
 
-      {/* HEADER - ĐỒNG BỘ MÀU RED GRADIENT */}
+      {/* HEADER */}
       <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-z-10 ck-pb-4 ck-border-b ck-border-gray-800">
         <div className="ck-flex ck-items-center ck-gap-4">
           <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
@@ -174,7 +264,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                     background: activeTab === item.name ? "" : "transparent",
                   }}
                 >
-                  {item.icon} {item.name}
+                  <div className="ck-flex ck-items-center ck-gap-3">
+                    {item.icon} {item.name}
+                  </div>
+                  {item.count > 0 && <span className="ck-text-[10px] ck-bg-black/30 ck-px-2 ck-py-0.5 ck-rounded-full">{item.count}</span>}
                 </button>
               </li>
             ))}
@@ -239,7 +332,6 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                   <Send size={18} /> Gom đơn & Gửi Bếp
                 </button>
               </div>
-
               <div className="ck-p-4">
                 <table className="ck-w-full ck-border-collapse">
                   <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-xs ck-uppercase">
@@ -348,115 +440,14 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                       Theo dõi lộ trình
                     </button>
                   </div>
-                ))}
-              </div>
+               ))}
+            </div>
             </div>
           )}
+      {shipmentModalEl}
         </div>
       </div>
-
-      {/* ========================================== */}
-      {/* KIỆT TÁC MODAL LẬP CHUYẾN HÀNG MỚI */}
-      {/* ========================================== */}
-      {showShipmentModal && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/95 ck-flex ck-items-center ck-justify-center ck-z-50 ck-p-4">
-          <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-w-full ck-max-w-2xl ck-shadow-2xl ck-animate-fade-in">
-            <div className="ck-p-6 ck-border-b ck-border-gray-800 ck-flex ck-justify-between ck-items-center">
-              <div className="ck-flex ck-items-center ck-gap-3">
-                <div className="ck-p-2 ck-bg-gradient-btn-admin ck-rounded-lg ck-text-white">
-                  <Package size={24} />
-                </div>
-                <h3 className="ck-text-xl ck-font-black">
-                  Khởi tạo chuyến giao hàng mới
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowShipmentModal(false)}
-                className="ck-text-gray-500 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="ck-p-8 ck-grid ck-grid-cols-2 ck-gap-8">
-              {/* Cột 1: Thông tin (Shipment Table) */}
-              <div className="ck-space-y-5">
-                <p className="ck-text-red-400 ck-text-xs ck-font-bold uppercase tracking-widest">
-                  1. Phương tiện & Tài xế
-                </p>
-                <div>
-                  <label className="ck-block ck-text-gray-500 ck-text-[10px] uppercase mb-1">
-                    Chọn tài xế điều phối *
-                  </label>
-                  <select className="ck-w-full ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-xl ck-p-4 ck-text-white ck-outline-none">
-                    <option>Nguyễn Văn Hùng (ID: TX001)</option>
-                    <option>Lê Minh Tâm (ID: TX002)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="ck-block ck-text-gray-500 ck-text-[10px] uppercase mb-1">
-                    Biển số xe *
-                  </label>
-                  <input
-                    type="text"
-                    className="ck-w-full ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-xl ck-p-4 ck-text-white"
-                    defaultValue="51C-888.66"
-                  />
-                </div>
-              </div>
-
-              {/* Cột 2: Chọn đơn (Shipment_Details Table) */}
-              <div className="ck-space-y-5">
-                <p className="ck-text-red-400 ck-text-xs ck-font-bold uppercase tracking-widest">
-                  2. Danh sách đơn bốc xếp (DONE)
-                </p>
-                <div className="ck-bg-black/40 ck-rounded-2xl ck-p-4 ck-border ck-border-gray-800 ck-max-h-60 ck-overflow-y-auto">
-                  <div className="ck-space-y-3">
-                    {orders
-                      .filter((o) => o.status === "DONE")
-                      .map((o) => (
-                        <label
-                          key={o.id}
-                          className="ck-flex ck-items-center ck-gap-3 ck-p-3 ck-bg-gray-800/50 ck-rounded-xl ck-cursor-pointer hover:ck-bg-gray-800"
-                        >
-                          <input
-                            type="checkbox"
-                            defaultChecked
-                            className="ck-accent-red-500 ck-w-4 ck-h-4"
-                          />
-                          <div>
-                            <p className="ck-text-sm ck-font-bold">{o.id}</p>
-                            <p className="ck-text-[10px] ck-text-gray-500">
-                              {o.store} - {o.items} món
-                            </p>
-                          </div>
-                        </label>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="ck-p-8 ck-bg-gray-800/30 ck-rounded-b-3xl ck-flex ck-gap-4">
-              <button
-                onClick={() => setShowShipmentModal(false)}
-                className="ck-flex-1 ck-py-4 ck-bg-transparent ck-text-gray-500 ck-font-bold ck-border-none"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={() => {
-                  setShowShipmentModal(false);
-                  alert("Đã lập lệnh xuất kho thành công!");
-                }}
-                className="ck-flex-1 ck-py-4 ck-bg-gradient-btn-admin ck-text-white ck-rounded-2xl ck-font-black ck-border-none shadow-xl"
-              >
-                XÁC NHẬN XUẤT KHO
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
