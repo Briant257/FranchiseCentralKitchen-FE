@@ -20,11 +20,16 @@ import {
   X,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
+import ChangePasswordModal from "../../components/common/ChangePasswordModal";
+import UpdateProfileModal from "../../components/common/UpdateProfileModal";
+import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import StatCard from "../../components/common/StatCard";
 import OrderCard from "../../components/common/OrderCard";
 import { FRANCHISE_MENU } from "../../constants";
 
-const FranchiseStorePage = ({ onLogout, userData }) => {
+const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
@@ -34,30 +39,80 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
   const [orderNote, setOrderNote] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [storeProfile, setStoreProfile] = useState({
+    name: "",
+    address: "",
+    phone: "",
+  });
+  const [storeProfileSaving, setStoreProfileSaving] = useState(false);
+
+  const loadCart = useCallback(async (productsList = []) => {
+    try {
+      const raw = await api.getStoreCart();
+      const items = Array.isArray(raw) ? raw : (raw?.items ?? []);
+      const byId = (p) => p?.id ?? p?.productId;
+      const merged = items.map((line) => {
+        const productId = line.productId ?? line.id;
+        const product = productsList.find(
+          (p) => byId(p) === productId || String(byId(p)) === String(productId),
+        );
+        const quantity = Number(line.quantity) || 0;
+        return {
+          id: productId,
+          productId,
+          name: product?.name ?? line.productName ?? productId,
+          price: Number(product?.price ?? line.unitPrice ?? line.price ?? 0),
+          quantity,
+          emoji: product?.emoji ?? "🍽️",
+        };
+      });
+      setCart(merged.filter((i) => i.quantity > 0));
+    } catch (err) {
+      console.error("loadCart:", err);
+      setCart([]);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
       const [productsList, ordersList] = await Promise.all([
         api.getProducts(),
-        api.getOrders(userData.id),
+        api.getStoreOrders(),
       ]);
-      setProducts(Array.isArray(productsList) ? productsList : []);
+      const prods = Array.isArray(productsList) ? productsList : [];
+      setProducts(prods);
       setOrders(Array.isArray(ordersList) ? ordersList : []);
+      await loadCart(prods);
     } catch (err) {
       console.error("loadData:", err);
       setProducts([]);
       setOrders([]);
+      setCart([]);
     }
-  }, [userData.id]);
+  }, [loadCart]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (activeTab === "settings") {
+      api.getStoreProfile().then((p) => {
+        setStoreProfile({
+          name: p.name ?? "",
+          address: p.address ?? "",
+          phone: p.phone ?? "",
+        });
+      });
+    }
+  }, [activeTab]);
+
   const stats = [
     {
       label: "Đơn hàng tháng này",
-      value: orders.filter((o) => (o.date || "").includes("01/2026")).length.toString(),
+      value: orders
+        .filter((o) => (o.date || "").includes("01/2026"))
+        .length.toString(),
       change: "",
       icon: ShoppingCart,
       color: "ck-icon-box-blue",
@@ -85,35 +140,38 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
     },
   ];
 
-  const addToCart = (product) => {
-    const existing = cart.find((item) => item.id === product.id);
-    if (existing) {
-      setCart(
-        cart.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      );
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+  const addToCart = async (product) => {
+    const productId = product.id ?? product.productId;
+    try {
+      await api.addToStoreCart({ productId, quantity: 1 });
+      await loadCart(products);
+    } catch (err) {
+      window.alert("Thêm món thất bại: " + (err.message || "Lỗi kết nối"));
     }
   };
 
-  const updateQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      setCart(cart.filter((item) => item.id !== productId));
-    } else {
-      setCart(
-        cart.map((item) =>
-          item.id === productId ? { ...item, quantity } : item
-        )
+  const updateQuantity = async (productId, quantity) => {
+    try {
+      if (quantity <= 0) {
+        await api.removeFromStoreCart(productId);
+      } else {
+        await api.updateStoreCartItem({ productId, quantity });
+      }
+      await loadCart(products);
+    } catch (err) {
+      window.alert(
+        "Cập nhật giỏ hàng thất bại: " + (err.message || "Lỗi kết nối"),
       );
     }
   };
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter((item) => item.id !== productId));
+  const removeFromCart = async (productId) => {
+    try {
+      await api.removeFromStoreCart(productId);
+      await loadCart(products);
+    } catch (err) {
+      window.alert("Xóa món thất bại: " + (err.message || "Lỗi kết nối"));
+    }
   };
 
   const handleCreateOrder = async () => {
@@ -126,34 +184,19 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
       return;
     }
 
-    const newOrder = {
-      id: `ORD${Date.now().toString().slice(-6)}`,
-      storeId: userData.id,
-      storeName: userData.storeName,
-      items: cart.map((item) => ({
-        productId: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      })),
-      status: "pending",
-      date: new Date().toLocaleString("vi-VN"),
-      deliveryDate: new Date(deliveryDate).toLocaleDateString("vi-VN"),
-      total: cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
-      note: orderNote,
-      createdBy: userData.name,
-    };
-
     try {
-      await api.addOrder(newOrder);
-      setCart([]);
+      await api.checkoutStoreCart({
+        orderType: "STANDARD",
+        note: orderNote.trim() || undefined,
+      });
       setDeliveryDate("");
       setOrderNote("");
+      await loadCart(products);
       await loadData();
       setActiveTab("orders");
-      window.alert("✅ Đơn hàng đã được tạo thành công!");
+      window.alert("✅ Đơn hàng đã được chốt thành công!");
     } catch (err) {
-      window.alert("Tạo đơn thất bại: " + (err.message || "Lỗi kết nối"));
+      window.alert("Chốt đơn thất bại: " + (err.message || "Lỗi kết nối"));
     }
   };
 
@@ -161,15 +204,22 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
     const term = (searchTerm || "").toLowerCase();
     const matchSearch =
       (p.name || "").toLowerCase().includes(term) ||
-      String(p.id || "").toLowerCase().includes(term);
+      String(p.id || "")
+        .toLowerCase()
+        .includes(term);
     const matchCategory =
       categoryFilter === "all" || p.category === categoryFilter;
     return matchSearch && matchCategory;
   });
 
   const minVal = (p) => Number(p.min) || 0;
-  const lowStockProducts = products.filter((p) => (p.stock ?? 0) < minVal(p) * 1.5);
-  const categories = ["all", ...new Set(products.map((p) => p.category).filter(Boolean))];
+  const lowStockProducts = products.filter(
+    (p) => (p.stock ?? 0) < minVal(p) * 1.5,
+  );
+  const categories = [
+    "all",
+    ...new Set(products.map((p) => p.category).filter(Boolean)),
+  ];
 
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black">
@@ -182,10 +232,10 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
           </div>
           <div>
             <h1 className="ck-text-lg ck-font-bold ck-text-white">
-              {userData.storeName}
+              Franchise Store
             </h1>
             <p className="ck-text-xs ck-text-gray-400 ck-mono">
-              {userData.name} - Nhân viên cửa hàng
+              Nhân viên cửa hàng
             </p>
           </div>
         </div>
@@ -200,17 +250,30 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
               <span className="ck-bell-badge">{lowStockProducts.length}</span>
             )}
           </button>
-          <button
-            type="button"
-            className="ck-btn ck-flex ck-items-center ck-gap-2 ck-px-4 ck-py-2 ck-bg-red-500-20 ck-text-red-400 ck-rounded-xl ck-font-semibold"
-            style={{ border: "none" }}
-            onClick={onLogout}
-          >
-            <LogOut size={18} />
-            Đăng xuất
-          </button>
+          <HeaderSettingsMenu
+            userData={userData}
+            showProfile={true}
+            onOpenProfile={() => setShowUpdateProfileModal(true)}
+            onChangePassword={() => setShowChangePasswordModal(true)}
+            onLogout={onLogout}
+          />
         </div>
       </header>
+
+      <ChangePasswordModal
+        open={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
+      <UpdateProfileModal
+        open={showUpdateProfileModal}
+        onClose={() => setShowUpdateProfileModal(false)}
+        initialFullName={userData?.name ?? ""}
+        initialEmail={userData?.email ?? ""}
+        onSuccess={() => {
+          onProfileUpdated?.();
+          setShowUpdateProfileModal(false);
+        }}
+      />
 
       <div className="ck-flex">
         <aside className="ck-sidebar">
@@ -534,7 +597,7 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                             {cart
                               .reduce(
                                 (sum, item) => sum + item.price * item.quantity,
-                                0
+                                0,
                               )
                               .toLocaleString()}
                             ₫
@@ -714,13 +777,14 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                     <tbody>
                       {filteredProducts.map((product) => {
                         const minP = Number(product.min) || 0;
-                        const percent = minP > 0 ? ((product.stock ?? 0) / minP) * 100 : 100;
+                        const percent =
+                          minP > 0 ? ((product.stock ?? 0) / minP) * 100 : 100;
                         const status =
                           percent < 100
                             ? "low"
                             : percent < 150
-                            ? "warn"
-                            : "good";
+                              ? "warn"
+                              : "good";
                         return (
                           <tr key={product.id}>
                             <td>
@@ -760,15 +824,15 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                                   status === "good"
                                     ? "ck-badge-green"
                                     : status === "warn"
-                                    ? "ck-badge-yellow"
-                                    : "ck-badge-red"
+                                      ? "ck-badge-yellow"
+                                      : "ck-badge-red"
                                 }`}
                               >
                                 {status === "good"
                                   ? "✓ Đủ hàng"
                                   : status === "warn"
-                                  ? "⚠ Sắp hết"
-                                  : "✗ Thiếu"}
+                                    ? "⚠ Sắp hết"
+                                    : "✗ Thiếu"}
                               </span>
                             </td>
                             <td className="ck-text-center">
@@ -834,7 +898,8 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                       </p>
                       <p className="ck-text-3xl ck-font-black ck-text-white ck-mono">
                         {(
-                          orders.reduce((sum, o) => sum + (o.total ?? 0), 0) / 1000000
+                          orders.reduce((sum, o) => sum + (o.total ?? 0), 0) /
+                          1000000
                         ).toFixed(1)}
                         M
                       </p>
@@ -862,7 +927,10 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                       <p className="ck-text-3xl ck-font-black ck-text-white ck-mono">
                         {orders.length > 0
                           ? (
-                              orders.reduce((sum, o) => sum + (o.total ?? 0), 0) /
+                              orders.reduce(
+                                (sum, o) => sum + (o.total ?? 0),
+                                0,
+                              ) /
                               orders.length /
                               1000
                             ).toFixed(0)
@@ -906,6 +974,94 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === "settings" && (
+            <>
+              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
+                Cài đặt thông tin tiệm
+              </h2>
+              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6 ck-max-w-xl">
+                <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-mb-6 ck-flex ck-items-center ck-gap-3">
+                  <Store size={28} className="ck-text-orange-400" />
+                  Profile tiệm
+                </h3>
+                <form
+                  className="ck-space-y-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (storeProfileSaving) return;
+                    setStoreProfileSaving(true);
+                    try {
+                      await api.updateStoreProfile(storeProfile);
+                      window.alert("✅ Đã lưu thông tin tiệm!");
+                    } catch (err) {
+                      window.alert(
+                        "Lưu thất bại: " + (err.message || "Lỗi kết nối"),
+                      );
+                    } finally {
+                      setStoreProfileSaving(false);
+                    }
+                  }}
+                >
+                  <div>
+                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
+                      Tên cửa hàng
+                    </label>
+                    <input
+                      type="text"
+                      className="ck-input ck-w-full"
+                      value={storeProfile.name}
+                      onChange={(e) =>
+                        setStoreProfile((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="VD: CH Mới"
+                    />
+                  </div>
+                  <div>
+                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
+                      Địa chỉ
+                    </label>
+                    <input
+                      type="text"
+                      className="ck-input ck-w-full"
+                      value={storeProfile.address}
+                      onChange={(e) =>
+                        setStoreProfile((p) => ({
+                          ...p,
+                          address: e.target.value,
+                        }))
+                      }
+                      placeholder="VD: 123 Lộ"
+                    />
+                  </div>
+                  <div>
+                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
+                      Điện thoại
+                    </label>
+                    <input
+                      type="text"
+                      className="ck-input ck-w-full"
+                      value={storeProfile.phone}
+                      onChange={(e) =>
+                        setStoreProfile((p) => ({
+                          ...p,
+                          phone: e.target.value,
+                        }))
+                      }
+                      placeholder="VD: 0987654321"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={storeProfileSaving}
+                    className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-primary ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
+                  >
+                    {storeProfileSaving ? "Đang lưu…" : "Lưu thay đổi"}
+                  </button>
+                </form>
               </div>
             </>
           )}
@@ -955,19 +1111,19 @@ const FranchiseStorePage = ({ onLogout, userData }) => {
                     selectedOrder.status === "pending"
                       ? "ck-badge-yellow"
                       : selectedOrder.status === "processing"
-                      ? "ck-badge-blue"
-                      : selectedOrder.status === "completed"
-                      ? "ck-badge-green"
-                      : "ck-badge-red"
+                        ? "ck-badge-blue"
+                        : selectedOrder.status === "completed"
+                          ? "ck-badge-green"
+                          : "ck-badge-red"
                   }`}
                 >
                   {selectedOrder.status === "pending"
                     ? "Chờ xử lý"
                     : selectedOrder.status === "processing"
-                    ? "Đang xử lý"
-                    : selectedOrder.status === "completed"
-                    ? "Hoàn thành"
-                    : "Đã hủy"}
+                      ? "Đang xử lý"
+                      : selectedOrder.status === "completed"
+                        ? "Hoàn thành"
+                        : "Đã hủy"}
                 </span>
               </div>
               <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">

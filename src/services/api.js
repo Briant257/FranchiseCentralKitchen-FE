@@ -255,13 +255,22 @@ const auth = {
    * Trả message hoặc AccountResponse (accountId, username, role, isActive, userId, fullName, email).
    */
   async register(data) {
+    const raw = (data.role || "KITCHEN_MANAGER")
+      .toUpperCase()
+      .replace(/[\s-]/g, "_");
+    const roleEnum =
+      {
+        FRANCHISE: "STORE_MANAGER",
+        KITCHEN_STAFF: "KITCHEN_MANAGER",
+        KITCHEN: "KITCHEN_MANAGER",
+      }[raw] || raw;
     const res = await request("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({
         username: data.username?.trim(),
         password: data.password,
         fullName: data.fullName ?? data.name?.trim(),
-        role: (data.role || "KITCHEN_STAFF").toUpperCase().replace(/[\s-]/g, "_"),
+        role: roleEnum,
         email: data.email?.trim() || undefined,
         storeId: data.storeId?.trim() || undefined,
       }),
@@ -269,14 +278,21 @@ const auth = {
     return res.message ?? res.msg ?? res;
   },
 
-  /** Cập nhật hồ sơ. Request: { fullName, email }. */
+  /**
+   * Cập nhật hồ sơ cá nhân (các role trừ Admin).
+   * PUT /api/auth/update-profile
+   * @typedef {Object} UpdateProfileRequest
+   * @property {string} fullName - Họ tên (vd: "Nguyễn Văn B (Đã đổi tên)")
+   * @property {string} email - Email (vd: "nguyenvanb_new@gmail.com")
+   */
   async updateProfile(data) {
+    const body = {
+      fullName: (data.fullName ?? data.name ?? "").trim(),
+      email: (data.email ?? "").trim(),
+    };
     const res = await request("/api/auth/update-profile", {
       method: "PUT",
-      body: JSON.stringify({
-        fullName: data.fullName ?? data.name?.trim(),
-        email: data.email?.trim(),
-      }),
+      body: JSON.stringify(body),
     });
     const current = getStoredUser();
     if (res && current) {
@@ -290,15 +306,20 @@ const auth = {
   },
 
   /**
-   * Đổi mật khẩu (khi đã đăng nhập). Request: { oldPassword, newPassword, confirmPassword }.
+   * Đổi mật khẩu trong Settings (khi đã đăng nhập).
+   * PUT /api/settings/change-password
+   * @typedef {Object} ChangePasswordRequest
+   * @property {string} oldPassword - Mật khẩu hiện tại (vd: "123")
+   * @property {string} newPassword - Mật khẩu mới (vd: "MatKhaumoi@2026")
+   * @property {string} confirmPassword - Xác nhận mật khẩu mới (vd: "MatKhaumoi@2026")
    */
   async changePassword(oldPassword, newPassword, confirmPassword) {
-    const res = await request("/api/auth/change-password", {
+    const res = await request("/api/settings/change-password", {
       method: "PUT",
       body: JSON.stringify({
-        oldPassword,
-        newPassword,
-        confirmPassword,
+        oldPassword: oldPassword ?? "",
+        newPassword: newPassword ?? "",
+        confirmPassword: confirmPassword ?? "",
       }),
     });
     return res.message ?? res.msg ?? res;
@@ -378,7 +399,7 @@ const auth = {
       body: JSON.stringify(b),
     }),
 
-  // --- Đơn hàng ---
+  // --- Đơn hàng (kênh Admin / bếp trung tâm) ---
   getAllOrders: async () => toArray(await request("/api/orders")),
   getOrdersHistory: async (sId) =>
     toArray(await request(`/api/orders/history?storeId=${sId}`)),
@@ -392,10 +413,21 @@ const auth = {
   cancelOrder: (id) => request(`/api/orders/${id}/cancel`, { method: "PUT" }),
 
   // --- Công thức (BOM) ---
+  /** Lấy toàn bộ công thức (dùng cho màn hình quản lý/ADMIN). */
   getManagerRecipes: async () => toArray(await request("/api/recipes")),
+  /** Xem công thức của 1 sản phẩm theo productId. */
   getRecipeOfProduct: (pId) => request(`/api/recipes/${pId}`),
+  /**
+   * Lưu / Sửa công thức.
+   * POST /api/recipes
+   * body ví dụ:
+   * { productId: "PRD_GA_RAN", ingredients: [{ ingredientId: "ING_THIT_GA", amountNeeded: 0.25 }] }
+   */
   saveRecipe: (b) =>
     request("/api/recipes", { method: "POST", body: JSON.stringify(b) }),
+  /** Xóa công thức của 1 sản phẩm. DELETE /api/recipes/{productId} */
+  deleteRecipe: (productId) =>
+    request(`/api/recipes/${productId}`, { method: "DELETE" }),
 
   // --- Bếp (Kitchen) ---
   getKitchenAggregation: () => request("/api/kitchen/aggregation"),
@@ -658,33 +690,61 @@ const api = {
   async getStores() {
     try {
       const res = await request("/api/stores");
-      return Array.isArray(res) ? res : res?.data ?? [];
+      return Array.isArray(res) ? res : (res?.data ?? []);
     } catch {
       return [];
     }
   },
 
-  /** Tạo cửa hàng (admin). Request: { name, address, phone, type }. Response: StoreResponse */
+  /**
+   * Lấy danh sách tất cả cửa hàng — dùng cho Bảng (Table) và Dropdown trong Admin.
+   * GET /api/stores/all
+   * Response: Array<{ storeId, name, address, phone, type, isActive }>
+   */
+  async getStoresAll() {
+    try {
+      const res = await request("/api/stores/all");
+      return Array.isArray(res) ? res : (res?.data ?? []);
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Tạo cửa hàng mới. POST /api/stores
+   * @typedef {Object} StoreRequest
+   * @property {string} name - Tên cửa hàng (vd: "Cửa hàng Quận 1 - Chi nhánh A")
+   * @property {string} address - Địa chỉ (vd: "123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM")
+   * @property {string} phone - Số điện thoại (vd: "0901234567")
+   * @property {string} type - Loại: "FRANCHISE" | "FLAGSHIP" | "KIOSK"
+   * Ví dụ: { "name": "Cửa hàng Quận 1 - Chi nhánh A", "address": "123 Lê Lợi...", "phone": "0901234567", "type": "FRANCHISE" }
+   */
   createStore(b) {
+    const body = {
+      name: (b.name ?? "").trim(),
+      address: (b.address ?? "").trim(),
+      phone: (b.phone ?? "").trim(),
+      type: (b.type || "FRANCHISE").toUpperCase(),
+    };
     return request("/api/stores", {
       method: "POST",
-      body: JSON.stringify({
-        name: b.name?.trim(),
-        address: (b.address || "").trim(),
-        phone: (b.phone || "").trim(),
-        type: (b.type || "FLAGSHIP").toUpperCase(),
-      }),
+      body: JSON.stringify(body),
     });
   },
 
+  /**
+   * Cập nhật cửa hàng. PUT /api/stores/{id} — Body: StoreRequest (name, address, phone, type)
+   */
   updateStore(id, b) {
+    const body = {
+      name: (b.name ?? "").trim(),
+      address: (b.address ?? "").trim(),
+      phone: (b.phone ?? "").trim(),
+      type: (b.type || "FRANCHISE").toUpperCase(),
+    };
     return request(`/api/stores/${id}`, {
       method: "PUT",
-      body: JSON.stringify({
-        name: b.name,
-        phone: b.phone,
-        address: b.address,
-      }),
+      body: JSON.stringify(body),
     });
   },
 
@@ -692,38 +752,194 @@ const api = {
     return request(`/api/stores/${id}`, { method: "DELETE" });
   },
 
+  // --- Giỏ hàng cửa hàng (STORE_MANAGER) ---
+  /** Xem giỏ hàng. GET /api/store/cart */
+  async getStoreCart() {
+    try {
+      const res = await request("/api/store/cart");
+      const items = Array.isArray(res) ? res : (res?.items ?? res?.data ?? []);
+      return items;
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Thêm món vào giỏ. POST /api/store/cart/add
+   * Body: { productId, quantity } (quantity mặc định 1)
+   */
+  addToStoreCart(body) {
+    return request("/api/store/cart/add", {
+      method: "POST",
+      body: JSON.stringify({
+        productId: body.productId ?? body.id,
+        quantity: Number(body.quantity) ?? 1,
+      }),
+    });
+  },
+
+  /**
+   * Sửa số lượng 1 món. PUT /api/store/cart/update
+   * Body: { productId, quantity }
+   */
+  updateStoreCartItem(body) {
+    return request("/api/store/cart/update", {
+      method: "PUT",
+      body: JSON.stringify({
+        productId: body.productId ?? body.id,
+        quantity: Number(body.quantity) ?? 0,
+      }),
+    });
+  },
+
+  /** Xóa 1 món khỏi giỏ. DELETE /api/store/cart/remove/{productId} */
+  removeFromStoreCart(productId) {
+    return request(`/api/store/cart/remove/${productId}`, {
+      method: "DELETE",
+    });
+  },
+
+  /**
+   * Chốt đơn từ giỏ. POST /api/store/cart/checkout
+   * Body: { orderType: "STANDARD", note?: string }
+   */
+  checkoutStoreCart(body) {
+    return request("/api/store/cart/checkout", {
+      method: "POST",
+      body: JSON.stringify({
+        orderType: body.orderType ?? "STANDARD",
+        note: (body.note ?? "").trim() || undefined,
+      }),
+    });
+  },
+
+  /** Xem profile tiệm. GET /api/store/settings/profile */
+  async getStoreProfile() {
+    try {
+      const res = await request("/api/store/settings/profile");
+      return res ?? {};
+    } catch {
+      return {};
+    }
+  },
+
+  /**
+   * Sửa profile tiệm. PUT /api/store/settings/profile
+   * Body: { name, address, phone }
+   */
+  updateStoreProfile(body) {
+    return request("/api/store/settings/profile", {
+      method: "PUT",
+      body: JSON.stringify({
+        name: (body.name ?? "").trim(),
+        address: (body.address ?? "").trim(),
+        phone: (body.phone ?? "").trim(),
+      }),
+    });
+  },
+
   createCategory: (body) => categoriesApi.create(body),
-  deleteCategory: (id) => request(`/api/categories/${id}`, { method: "DELETE" }),
+  deleteCategory: (id) =>
+    request(`/api/categories/${id}`, { method: "DELETE" }),
   createIngredient: (body) => ingredientsApi.create(body),
   createProduct: (body) => productsApi.create(body),
   deleteProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
   importInventory: (body) => inventoryApi.import(body),
   cook: (body) => kitchenApi.cook(body),
 
-  /** Orders: backend chưa cung cấp API */
-  async getOrders() {
-    return [];
-  },
-  async addOrder() {
-    return {};
+  // =========================================================
+  // Đơn hàng STORE_MANAGER (cửa hàng)
+  // =========================================================
+
+  /**
+   * Danh sách đơn hàng của tiệm hiện tại (STORE_MANAGER).
+   * GET /api/store/orders
+   */
+  async getStoreOrders() {
+    try {
+      const res = await request("/api/store/orders");
+      return Array.isArray(res) ? res : (res?.data ?? []);
+    } catch {
+      return [];
+    }
   },
 
   /**
-   * Admin tạo tài khoản nhân viên. Request: username, password, email, fullName, role, storeId (hoặc storeName).
+   * Chi tiết 1 đơn hàng của tiệm.
+   * GET /api/store/orders/{orderId}
+   */
+  getStoreOrderDetail(orderId) {
+    return request(`/api/store/orders/${orderId}`);
+  },
+
+  /**
+   * Tạo đơn nhanh (không qua giỏ) cho tiệm.
+   * - orderType: "STANDARD" hoặc "URGENT"
+   * - body dùng JSON giống luồng cửa hàng:
+   *   { deliveryDate, note, items: [{ productId, quantity, price }] }
+   */
+  createStoreOrder(body, orderType = "STANDARD") {
+    const path =
+      orderType === "URGENT"
+        ? "/api/store/orders/urgent"
+        : "/api/store/orders/standard";
+    return request(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // Giữ tương thích với code cũ: getOrders() trả danh sách đơn của tiệm
+  async getOrders() {
+    return this.getStoreOrders();
+  },
+
+  /**
+   * Tạo tài khoản mới bởi Admin.
+   * POST /api/admin/register
+   *
+   * @typedef {Object} RegisterRequest
+   * @property {string} username - Tên đăng nhập (vd: "q1_store")
+   * @property {string} password - Mật khẩu (vd: "123")
+   * @property {string} fullName - Họ tên (vd: "Quản lý Quận 1")
+   * @property {string} role - Vai trò: "STORE_MANAGER" | "KITCHEN_MANAGER" | "ADMIN" | "MANAGER" | "COORDINATOR"
+   * @property {string} email - Email (vd: "quanlyq1@centralkitchen.com")
+   * @property {string} [storeId] - Mã cửa hàng, bắt buộc khi role = STORE_MANAGER (vd: "ST01")
+   * @property {string} [storeName] - Tên cửa hàng (tùy chọn)
+   *
+   * Ví dụ RegisterRequest:
+   * { "username": "q1_store", "password": "123", "fullName": "Quản lý Quận 1", "role": "STORE_MANAGER", "email": "quanlyq1@centralkitchen.com", "storeId": "ST01" }
+   *
    * Response: AccountResponse (accountId, username, role, isActive, userId, fullName, email).
+   *
+   * @param {RegisterRequest & { name?: string }} data - Dữ liệu đăng ký (name được map sang fullName)
+   * @returns {Promise<string|object>}
    */
   async createUser(data) {
-    const res = await request("/api/admin/users", {
+    const raw = (data.role || "KITCHEN_MANAGER")
+      .toUpperCase()
+      .replace(/[\s-]/g, "_");
+    const roleEnum =
+      {
+        FRANCHISE: "STORE_MANAGER",
+        KITCHEN_STAFF: "KITCHEN_MANAGER",
+        KITCHEN: "KITCHEN_MANAGER",
+      }[raw] || raw;
+    /** @type {RegisterRequest} */
+    const body = {
+      username: (data.username ?? "").trim(),
+      password: data.password ?? "",
+      fullName: (data.fullName ?? data.name ?? "").trim(),
+      role: roleEnum,
+      email: (data.email ?? "").trim(),
+    };
+    if (data.storeId != null && String(data.storeId).trim())
+      body.storeId = String(data.storeId).trim();
+    if (data.storeName != null && String(data.storeName).trim())
+      body.storeName = String(data.storeName).trim();
+    const res = await request("/api/admin/register", {
       method: "POST",
-      body: JSON.stringify({
-        username: data.username?.trim(),
-        password: data.password,
-        email: data.email?.trim(),
-        fullName: data.fullName ?? data.name?.trim(),
-        role: (data.role || "KITCHEN_STAFF").toUpperCase().replace(/[\s-]/g, "_"),
-        storeId: data.storeId?.trim() || undefined,
-        storeName: data.storeName?.trim() || undefined,
-      }),
+      body: JSON.stringify(body),
     });
     return res.message ?? res.msg ?? res;
   },
@@ -742,7 +958,8 @@ const api = {
         name: a.fullName ?? a.username,
         role: normalizeRole(a.role),
         roleRaw: a.role,
-        status: a.isActive !== false && a.active !== false ? "active" : "inactive",
+        status:
+          a.isActive !== false && a.active !== false ? "active" : "inactive",
         storeName: a.storeName ?? null,
         email: a.email ?? null,
         userId: a.userId,
@@ -792,6 +1009,20 @@ const api = {
     }
   },
 
+  /**
+   * Khóa / Mở khóa tài khoản (Admin).
+   * PUT /api/admin/accounts/{accountId}/status
+   * @param {string} accountId - Mã tài khoản (accountId)
+   * @param {boolean} isActive - true = mở khóa, false = khóa
+   * @returns {Promise<object>} Response từ backend
+   */
+  async updateAccountStatus(accountId, isActive) {
+    return request(`/api/admin/accounts/${accountId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ isActive: !!isActive }),
+    });
+  },
+
   /** Lưu/cập nhật user (Admin): backend chưa có API bulk, giữ tương thích */
   async saveUsers(users) {
     return users;
@@ -822,6 +1053,44 @@ const api = {
           receivedQuantity: Number(i.receivedQuantity ?? i.quantity ?? 0),
           note: i.note || undefined,
         })),
+      }),
+    });
+  },
+
+  /**
+   * Báo cáo xe giao THIẾU hàng (STORE_MANAGER).
+   * POST /api/shipments/{shipmentId}/report
+   * Body: { reportedItems: [{ productId, receivedQuantity, note }] }
+   */
+  reportShipmentShortage(shipmentId, body) {
+    return request(`/api/shipments/${shipmentId}/report`, {
+      method: "POST",
+      body: JSON.stringify({
+        reportedItems: (body.reportedItems || []).map((i) => ({
+          productId: i.productId ?? i.id,
+          receivedQuantity: Number(i.receivedQuantity ?? i.quantity ?? 0),
+          note: (i.note ?? "").trim() || undefined,
+        })),
+      }),
+    });
+  },
+
+  /**
+   * Chốt nhận ĐỦ HÀNG (STORE_MANAGER).
+   * PATCH /api/store/orders/{orderId}/confirm-receipt?updateStock=true
+   * Body: { note?: string }
+   */
+  confirmOrderReceipt(orderId, body = {}, updateStock = true) {
+    const q = new URLSearchParams();
+    if (updateStock !== undefined) q.set("updateStock", String(updateStock));
+    const query = q.toString();
+    const path = query
+      ? `/api/store/orders/${orderId}/confirm-receipt?${query}`
+      : `/api/store/orders/${orderId}/confirm-receipt`;
+    return request(path, {
+      method: "PATCH",
+      body: JSON.stringify({
+        note: (body.note ?? "").trim() || undefined,
       }),
     });
   },
