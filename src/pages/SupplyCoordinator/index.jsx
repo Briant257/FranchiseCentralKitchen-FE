@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
+
   LogOut, Package, FileText, AlertTriangle, CheckCircle, Clock, Send, Plus, Shield, Activity
+
 } from "../../components/icons/Icons";
 
 const SupplyCoordinatorPage = ({ onLogout, userData }) => {
@@ -19,6 +21,7 @@ const SupplyCoordinatorPage = ({ onLogout, userData }) => {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [deliveryInfo, setDeliveryInfo] = useState({ driver: '', plate: '' });
 
+
   // ==========================================
   // 2. HÀM FETCH DATA TỔNG THỂ (SYNC VỚI DATABASE)
   // ==========================================
@@ -31,6 +34,7 @@ const SupplyCoordinatorPage = ({ onLogout, userData }) => {
         fetch('/api/incidents/pending'),
         fetch('/api/shipments/active')
       ]);
+
 
       const ordersData = await ordersRes.json();
       const incidentsData = await incidentsRes.json();

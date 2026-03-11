@@ -32,10 +32,12 @@ export const FRANCHISE_MENU = [
 /** Tab trang Admin — theo cấu trúc API */
 export const ADMIN_TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+
   { id: "accounts", label: "Tài khoản", icon: Users },
   { id: "stores", label: "Cửa hàng", icon: Store },
   { id: "kitchen", label: "Danh mục & Sản phẩm", icon: Package },
   { id: "inventory", label: "Nhập kho", icon: FileText },
+
 ];
 /** Nhãn vai trò người dùng (khớp API: ADMIN, STORE_MANAGER, KITCHEN_STAFF, KITCHEN_MANAGER, ...) */
 export const ROLE_LABELS = {
