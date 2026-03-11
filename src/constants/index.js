@@ -27,6 +27,7 @@ export const FRANCHISE_MENU = [
   { id: "orders", name: "Đơn hàng của tôi", icon: FileText },
   { id: "inventory", name: "Tồn kho", icon: Package },
   { id: "reports", name: "Báo cáo", icon: BarChart3 },
+  { id: "settings", name: "Cài đặt tiệm", icon: Store },
 ];
 
 /** Tab trang Admin — theo cấu trúc API */
@@ -39,13 +40,16 @@ export const ADMIN_TABS = [
   { id: "inventory", label: "Nhập kho", icon: FileText },
 
 ];
-/** Nhãn vai trò người dùng (khớp API: ADMIN, STORE_MANAGER, KITCHEN_STAFF, KITCHEN_MANAGER, ...) */
-export const ROLE_LABELS = {
-  admin: "Quản trị viên",
-  franchise: "Nhân viên cửa hàng",
-  store_manager: "Quản lý cửa hàng",
-  kitchen: "Nhân viên bếp",
-  kitchen_manager: "Quản lý bếp",
-  coordinator: "Điều phối viên",
-  manager: "Quản lý",
-};
+/** Enum SystemRole (BE) — trùng tên và nhãn */
+export const SYSTEM_ROLES = [
+  { value: "ADMIN", label: "Quản trị hệ thống" },
+  { value: "MANAGER", label: "Quản lý vận hành" },
+  { value: "COORDINATOR", label: "Điều phối cung ứng" },
+  { value: "KITCHEN_MANAGER", label: "Nhân viên quản lý bếp trung tâm" },
+  { value: "STORE_MANAGER", label: "Nhân viên quản lý cửa hàng (Franchise)" },
+];
+
+/** Nhãn hiển thị theo enum (key = ADMIN | MANAGER | COORDINATOR | KITCHEN_MANAGER | STORE_MANAGER) */
+export const ROLE_LABELS = Object.fromEntries(
+  SYSTEM_ROLES.map((r) => [r.value, r.label]),
+);
