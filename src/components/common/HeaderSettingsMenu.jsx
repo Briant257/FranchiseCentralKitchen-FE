@@ -101,6 +101,8 @@ function HeaderSettingsMenu({
             background: "rgb(55 65 81)",
             border: "1px solid rgba(148, 163, 184, 0.4)",
             boxShadow: "0 25px 50px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
+            maxHeight: "80vh",
+            overflowY: "auto",
           }}
           role="menu"
         >

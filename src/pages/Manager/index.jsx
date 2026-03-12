@@ -280,7 +280,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       <div className="ck-grain" />
 
       {/* HEADER QUẢN LÝ */}
-      <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-z-10 ck-pb-4 ck-border-b ck-border-gray-800">
+      <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-pb-4 ck-border-b ck-border-gray-800" style={{ zIndex: 50 }}>
         <div className="ck-flex ck-items-center ck-gap-4">
           <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
             <LayoutDashboard className="ck-text-white" size={28} />
@@ -307,7 +307,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
             showProfile={true}
             onOpenProfile={() => setShowUpdateProfileModal(true)}
             onChangePassword={() => setShowChangePasswordModal(true)}
-            onLogout={onLogout}
+            onLogout={onLogout ?? (() => { api.logout(); window.location.reload(); })}
           />
         </div>
       </header>
