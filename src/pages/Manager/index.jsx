@@ -126,7 +126,7 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [editingMasterProduct, setEditingMasterProduct] = useState(null);
   
   const [newMasterProduct, setNewMasterProduct] = useState({ 
-      product_id: "", product_name: "", categoryId: "", base_unit: "CAI", cost_price: "", selling_price: "", emoji: "🍔" 
+      product_id: "", product_name: "", categoryId: "", base_unit: "CAI", cost_price: "", selling_price: "" 
   });
   
   const [productSearchText, setProductSearchText] = useState("");
@@ -134,7 +134,7 @@ const ManagerPage = ({ onLogout, userData }) => {
   const [filterProductCategory, setFilterProductCategory] = useState("Tất cả danh mục");
 
   const handleSaveMasterProduct = async () => {
-    if (!newMasterProduct.product_name || !newMasterProduct.selling_price) return alert("Vui lòng điền Tên và Giá bán!");
+    if (!newMasterProduct.product_name) return alert("Vui lòng điền Tên sản phẩm!");
     if (!newMasterProduct.categoryId && categoriesList.length > 0) {
         newMasterProduct.categoryId = categoriesList[0].id || categoriesList[0].categoryId;
     }
@@ -157,8 +157,7 @@ const ManagerPage = ({ onLogout, userData }) => {
         base_unit: newMasterProduct.base_unit || "CAI",
         active: true,
         isActive: true,
-        is_active: true, 
-        emoji: newMasterProduct.emoji || "🍔"
+        is_active: true
     };
 
     try {
@@ -211,7 +210,7 @@ const ManagerPage = ({ onLogout, userData }) => {
     try { await api.createReport(newReport); setShowCreateReport(false); loadData(); } catch (error) { alert("Lỗi tạo báo cáo!"); }
   };
 
-  // BIẾN CHO TÌM KIẾM CHI PHÍ NHẬP HÀNG (Đã xóa các biến thừa theo ESLint)
+  // BIẾN CHO TÌM KIẾM CHI PHÍ NHẬP HÀNG
   const [expenseSearchText, setExpenseSearchText] = useState("");
   const [recipeSearchText, setRecipeSearchText] = useState("");
   const [recipeAppliedSearch, setRecipeAppliedSearch] = useState("");
@@ -315,7 +314,6 @@ const ManagerPage = ({ onLogout, userData }) => {
             <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full">
               <div className="ck-flex ck-gap-4 ck-items-center">
                 <div className="ck-flex ck-flex-1 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
-                  {/* ĐÃ FIX: Ép cứng nền đen xám và chữ trắng */}
                   <input 
                     type="text" 
                     placeholder="🔍 Tìm kiếm mã Món, Tên sản phẩm..." 
@@ -342,7 +340,7 @@ const ManagerPage = ({ onLogout, userData }) => {
                   style={{ border: 'none' }}
                   onClick={() => {
                     setEditingMasterProduct(null);
-                    setNewMasterProduct({ product_id: "", product_name: "", categoryId: "", base_unit: "CAI", cost_price: "", selling_price: "", status: "Đang bán", emoji: "🍔" });
+                    setNewMasterProduct({ product_id: "", product_name: "", categoryId: "", base_unit: "CAI", cost_price: "", selling_price: "", status: "Đang bán" });
                     setShowAddMasterProduct(true);
                   }}
                 >
@@ -354,7 +352,14 @@ const ManagerPage = ({ onLogout, userData }) => {
                 <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-duration-300" style={{ width: showAddMasterProduct ? '66.66%' : '100%' }}>
                   <table className="ck-w-full ck-text-left ck-border-collapse">
                     <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
-                      <tr><th className="ck-py-4 ck-px-4">Mã Món</th><th className="ck-py-4 ck-px-4">Sản phẩm</th><th className="ck-py-4 ck-px-4">Danh mục</th><th className="ck-py-4 ck-px-4">Đơn vị</th><th className="ck-py-4 ck-px-4">Giá vốn</th><th className="ck-py-4 ck-px-4">Giá Franchise</th><th className="ck-py-4 ck-px-4 ck-text-center">Hành động</th></tr>
+                      <tr>
+                        <th className="ck-py-4 ck-px-4">Mã Món</th>
+                        <th className="ck-py-4 ck-px-4">Sản phẩm</th>
+                        <th className="ck-py-4 ck-px-4">Danh mục</th>
+                        <th className="ck-py-4 ck-px-4">Đơn vị</th>
+                        <th className="ck-py-4 ck-px-4">Giá vốn</th>
+                        <th className="ck-py-4 ck-px-4 ck-text-center">Hành động</th>
+                      </tr>
                     </thead>
                     <tbody className="ck-text-white ck-text-sm">
                       {masterProducts.filter(prod => {
@@ -376,11 +381,10 @@ const ManagerPage = ({ onLogout, userData }) => {
                       }).map((prod, idx) => (
                         <tr key={idx} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
                           <td className="ck-py-4 ck-px-4 ck-font-mono ck-text-gray-400">{prod.product_id || prod.productId || prod.id}</td>
-                          <td className="ck-py-4 ck-px-4 ck-font-bold">{prod.emoji} {prod.product_name || prod.productName || prod.name}</td>
+                          <td className="ck-py-4 ck-px-4 ck-font-bold">{prod.product_name || prod.productName || prod.name}</td>
                           <td className="ck-py-4 ck-px-4">{prod.category || prod.categoryName || 'Chưa phân loại'}</td>
                           <td className="ck-py-4 ck-px-4 ck-text-gray-400">{prod.base_unit || prod.baseUnit || 'CAI'}</td>
                           <td className="ck-py-4 ck-px-4 ck-text-blue-400 ck-font-mono">{Number(prod.cost_price || prod.costPrice || 0).toLocaleString()} ₫</td>
-                          <td className="ck-py-4 ck-px-4 ck-text-green-400 ck-font-mono">{Number(prod.selling_price || prod.sellingPrice || prod.price || 0).toLocaleString()} ₫</td>
                           <td className="ck-py-4 ck-px-4 ck-text-center">
                             <button onClick={() => { setEditingMasterProduct(prod); setNewMasterProduct({...prod, categoryId: prod.category_id || prod.categoryId}); setShowAddMasterProduct(true); }} className="ck-mr-3 ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-cursor-pointer">✏️</button>
                             <button onClick={() => handleDeleteMasterProduct(prod)} className="ck-text-red-500 hover:ck-text-red-400 ck-bg-transparent ck-border-none ck-cursor-pointer">🗑️</button>
@@ -404,10 +408,13 @@ const ManagerPage = ({ onLogout, userData }) => {
                       </div>
                       <div>
                         <label className="ck-block ck-text-gray-400 ck-mb-1">Tên sản phẩm *</label>
-                        <div className="ck-flex ck-gap-2">
-                          <input type="text" value={newMasterProduct.emoji} onChange={e=>setNewMasterProduct({...newMasterProduct, emoji: e.target.value})} className="ck-w-12 ck-bg-gray-800 ck-text-white ck-px-2 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-text-center ck-outline-none" />
-                          <input type="text" value={newMasterProduct.product_name || newMasterProduct.productName || newMasterProduct.name} onChange={e=>setNewMasterProduct({...newMasterProduct, product_name: e.target.value})} className="ck-flex-1 ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none" placeholder="Tên SP..." />
-                        </div>
+                        <input 
+                          type="text" 
+                          value={newMasterProduct.product_name || newMasterProduct.productName || newMasterProduct.name} 
+                          onChange={e=>setNewMasterProduct({...newMasterProduct, product_name: e.target.value})} 
+                          className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none" 
+                          placeholder="Tên SP..." 
+                        />
                       </div>
                       <div className="ck-grid ck-grid-cols-2 ck-gap-3">
                         <div>
@@ -433,9 +440,9 @@ const ManagerPage = ({ onLogout, userData }) => {
                             </select>
                         </div>
                       </div>
-                      <div className="ck-grid ck-grid-cols-2 ck-gap-3">
-                        <div><label className="ck-block ck-text-gray-400 ck-mb-1">Giá vốn (COGS)</label><input type="number" value={newMasterProduct.cost_price || newMasterProduct.costPrice} onChange={e=>setNewMasterProduct({...newMasterProduct, cost_price: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-blue-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-blue-400 ck-outline-none" placeholder="0" /></div>
-                        <div><label className="ck-block ck-text-gray-400 ck-mb-1">Giá Franchise</label><input type="number" value={newMasterProduct.selling_price || newMasterProduct.sellingPrice || newMasterProduct.price} onChange={e=>setNewMasterProduct({...newMasterProduct, selling_price: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none" placeholder="0" /></div>
+                      <div>
+                        <label className="ck-block ck-text-gray-400 ck-mb-1">Giá vốn (COGS)</label>
+                        <input type="number" value={newMasterProduct.cost_price || newMasterProduct.costPrice} onChange={e=>setNewMasterProduct({...newMasterProduct, cost_price: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-blue-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-blue-400 ck-outline-none" placeholder="0" />
                       </div>
                     </div>
                     <div className="ck-mt-6 ck-flex ck-gap-3">
@@ -639,7 +646,6 @@ const ManagerPage = ({ onLogout, userData }) => {
             <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
               <div className="ck-flex ck-gap-4 ck-items-center">
                 <div className="ck-flex ck-flex-1 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-orange-400 ck-transition-colors">
-                  {/* ĐÃ FIX: Ép cứng nền đen xám và chữ trắng */}
                   <input 
                     type="text" 
                     placeholder="🔍 Tìm món ăn để cấu hình công thức..." 
@@ -679,7 +685,7 @@ const ManagerPage = ({ onLogout, userData }) => {
                       }).map((product, idx) => (
                         <tr key={idx} onClick={() => handleSelectProductForRecipe(product)} className={`ck-border-t ck-border-gray-700 ck-cursor-pointer ck-transition-colors hover:ck-bg-gray-800 ${activeRecipeProduct?.product_id === product.product_id ? 'ck-bg-gray-800 ck-border-l-4 ck-border-l-orange-500' : ''}`}>
                           <td className="ck-py-4 ck-px-4 ck-font-mono ck-text-gray-400">{product.product_id || product.productId || product.id}</td>
-                          <td className="ck-py-4 ck-px-4"><span className="ck-font-bold">{product.emoji} {product.product_name || product.productName || product.name}</span></td>
+                          <td className="ck-py-4 ck-px-4"><span className="ck-font-bold">{product.product_name || product.productName || product.name}</span></td>
                           <td className="ck-py-4 ck-px-4 ck-text-center"><button className="ck-text-orange-400 ck-font-bold ck-text-xs ck-bg-transparent ck-border-none ck-cursor-pointer">Xem BOM →</button></td>
                         </tr>
                       ))}
@@ -691,7 +697,7 @@ const ManagerPage = ({ onLogout, userData }) => {
                 {activeRecipeProduct && (
                   <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-flex ck-flex-col ck-animate-fade-in" style={{ width: '50%', maxHeight: '600px' }}>
                     <div className="ck-p-5 ck-border-b ck-border-gray-700 ck-flex ck-justify-between ck-items-center">
-                      <div><h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-1">Định mức nguyên liệu (BOM)</h3><p className="ck-text-sm ck-text-orange-400 ck-font-semibold">{activeRecipeProduct.emoji} {activeRecipeProduct.product_name || activeRecipeProduct.name}</p></div>
+                      <div><h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-1">Định mức nguyên liệu (BOM)</h3><p className="ck-text-sm ck-text-orange-400 ck-font-semibold">{activeRecipeProduct.product_name || activeRecipeProduct.name}</p></div>
                       <button onClick={() => setActiveRecipeProduct(null)} className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-xl ck-cursor-pointer ck-p-1">✕</button>
                     </div>
                     <div className="ck-p-5 ck-flex-1 ck-overflow-y-auto ck-scrollbar">
@@ -745,7 +751,7 @@ const ManagerPage = ({ onLogout, userData }) => {
                 </div>
               </div>
 
-              {/* THANH TÌM KIẾM - Đã Mở Rộng Kích Thước và Cập Nhật UI */}
+              {/* THANH TÌM KIẾM */}
               <div className="ck-flex ck-gap-4 ck-items-center">
                 <div className="ck-flex ck-flex-1 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
                   <input 
@@ -786,7 +792,7 @@ const ManagerPage = ({ onLogout, userData }) => {
                         return (
                           <tr key={idx} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800 ck-transition-colors">
                             <td className="ck-p-5 ck-font-mono ck-text-gray-400">{p.product_id}</td>
-                            <td className="ck-p-5 ck-font-bold">{p.emoji} {p.product_name}</td>
+                            <td className="ck-p-5 ck-font-bold">{p.product_name}</td>
                             <td className="ck-p-5 ck-text-center ck-text-red-400 ck-font-bold">{Number(p.cost_price).toLocaleString()} ₫</td>
                             <td className="ck-p-5 ck-text-center ck-text-blue-400">{Number(p.selling_price).toLocaleString()} ₫</td>
                             <td className="ck-p-5 ck-text-right">
@@ -878,7 +884,6 @@ const ManagerPage = ({ onLogout, userData }) => {
                             .map(p => (
                             <div key={p.product_id} className="ck-bg-gray-800 ck-p-5 ck-rounded-2xl ck-flex ck-justify-between ck-items-center hover:ck-bg-gray-700 ck-transition-colors ck-border ck-border-transparent hover:ck-border-red-500/50">
                               <div className="ck-flex ck-gap-4">
-                                <span className="ck-text-4xl">{p.emoji}</span>
                                 <div>
                                   <p className="ck-font-bold ck-text-white text-sm">{p.product_name}</p>
                                   <p className="ck-text-xs ck-text-blue-400 ck-mono mt-1">{Number(p.selling_price || 0).toLocaleString()}đ</p>

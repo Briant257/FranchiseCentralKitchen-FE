@@ -16,8 +16,6 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [ingredients, setIngredients] = useState([]);
-  
-  const [incidents, setIncidents] = useState([]);
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
@@ -59,8 +57,7 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
   const stats = {
     totalRequested: productionRuns.reduce((sum, run) => sum + (Number(run.planned_qty) || 0), 0),
     cooking: productionRuns.filter(r => r.status === 'COOKING').length,
-    completed: productionRuns.filter(r => r.status === 'COMPLETED').length,
-    incidentCount: incidents.filter(i => i.status !== 'Đã giải quyết').length
+    completed: productionRuns.filter(r => r.status === 'COMPLETED').length
   };
 
   const handleGetAggregation = async () => {
@@ -114,13 +111,6 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
   const [showAddIngredient, setShowAddIngredient] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState(null);
   const [newIngredient, setNewIngredient] = useState({ ingredient_id: "", name: "", unit: "G", kitchen_stock: "", min_threshold: "", unit_cost: "" });
-
-  const [showAddIncidentForm, setShowAddIncidentForm] = useState(false);
-  const [newIncidentForm, setNewIncidentForm] = useState({ type: "Thiết bị", priority: "Trung bình", title: "", reporter: "", description: "" });
-  const [selectedIncident, setSelectedIncident] = useState(null);
-  const [incidentSearchText, setIncidentSearchText] = useState("");
-  const [incidentAppliedSearch, setIncidentAppliedSearch] = useState("");
-  const [filterIncidentPriority, setFilterIncidentPriority] = useState("Mức độ ưu tiên");
 
   // ---- XỬ LÝ DANH MỤC ----
   const handleSaveCategory = async () => {
@@ -211,36 +201,6 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
     if(window.confirm("Xóa nguyên liệu này?")) { try { await api.deleteIngredient(ingId); loadData(); } catch(e) { alert("Lỗi xóa nguyên liệu!"); } }
   };
 
-  // ---- XỬ LÝ SỰ CỐ ----
-  const handleSaveNewIncident = () => {
-    if (!newIncidentForm.title || !newIncidentForm.reporter) return alert("Điền tiêu đề và người báo cáo!");
-    const newInc = {
-        ...newIncidentForm,
-        id: `SC-${Math.floor(Math.random() * 1000)}`,
-        status: 'Mới',
-        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toLocaleDateString('vi-VN')
-    };
-    setIncidents([newInc, ...incidents]);
-    setShowAddIncidentForm(false);
-    setNewIncidentForm({ type: "Thiết bị", priority: "Trung bình", title: "", reporter: "", description: "" });
-    alert("✅ Đã ghi nhận sự cố!");
-  };
-
-  const handleUpdateIncidentStatus = (incId, newStatus) => {
-    setIncidents(prev => prev.map(i => i.id === incId ? { ...i, status: newStatus } : i));
-    setSelectedIncident(prev => prev ? ({ ...prev, status: newStatus }) : null);
-  };
-
-  const filteredIncidents = incidents.filter(i => {
-    let matchText = true;
-    if (incidentAppliedSearch) {
-      const kw = incidentAppliedSearch.toLowerCase();
-      matchText = i.id?.toString().toLowerCase().includes(kw) || i.title?.toLowerCase().includes(kw);
-    }
-    return matchText && (filterIncidentPriority === "Mức độ ưu tiên" || i.priority === filterIncidentPriority);
-  });
-
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6">
       <div className="ck-grain" />
@@ -273,11 +233,11 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
         {/* LEFT SIDEBAR */}
         <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col ck-justify-between" style={{ width: '20%', flexShrink: 0 }}>
           <ul className="ck-space-y-2 ck-flex-1 ck-mt-2" style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-            {['Tổng Quan', 'Đơn', 'Xử lý sự cố'].map((item, idx) => (
+            {['Tổng Quan', 'Đơn'].map((item, idx) => (
               <li key={idx}>
                 <button 
                   type="button"
-                  onClick={() => { setActiveKitchenTab(item); setSelectedIncident(null); setShowAddIncidentForm(false); }}
+                  onClick={() => { setActiveKitchenTab(item); }}
                   className={`ck-w-full ck-text-left ck-px-4 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all ${activeKitchenTab === item ? "ck-bg-gradient-btn-admin ck-text-white ck-shadow-lg" : "ck-text-gray-400 hover:ck-bg-gray-800 hover:ck-text-white"}`}
                   style={activeKitchenTab !== item ? { border: 'none', background: 'transparent' } : { border: 'none' }}
                 >
@@ -294,12 +254,11 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
          {/* ======================= TAB TỔNG QUAN ======================= */}
           {activeKitchenTab === 'Tổng Quan' && (
             <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
-              <div className="ck-grid ck-grid-cols-4 ck-gap-4">
+              <div className="ck-grid ck-grid-cols-3 ck-gap-4">
                 {[
                   { label: 'Tổng suất ăn yêu cầu', value: stats.totalRequested, color: 'ck-text-blue-400' },
                   { label: 'Mẻ đang nấu', value: stats.cooking, color: 'ck-text-orange-400' },
-                  { label: 'Mẻ đã hoàn thành', value: stats.completed, color: 'ck-text-green-400' },
-                  { label: 'Sự cố cần xử lý', value: stats.incidentCount, color: 'ck-text-red-400' }
+                  { label: 'Mẻ đã hoàn thành', value: stats.completed, color: 'ck-text-green-400' }
                 ].map((stat, idx) => (
                   <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-text-center ck-flex ck-flex-col ck-items-center ck-justify-center">
                     <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-2">{stat.label}</h4>
@@ -354,7 +313,7 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
                       <>
                         <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
                           <h3 className="ck-text-xl ck-font-bold ck-text-white">Sản phẩm bếp trung tâm</h3>
-                          <button type="button" className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 cursor-pointer" onClick={() => { setShowAddProduct(true); setEditingProduct(null); setNewProduct({ product_id: "", product_name: "", base_unit: "PHAN", cost_price: "", selling_price: "", emoji: "🍔" }); }}>+ Thêm mới</button>
+                          <button type="button" className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 cursor-pointer" onClick={() => { setShowAddProduct(true); setEditingProduct(null); setNewProduct({ product_id: "", product_name: "", base_unit: "PHAN", cost_price: "", selling_price: "" }); }}>+ Thêm mới</button>
                         </div>
                         <table className="ck-w-full ck-text-left ck-border-collapse">
                           <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
@@ -367,7 +326,7 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
                             }).map((p) => (
                               <tr key={p.product_id || p.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
                                 <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-font-mono">{p.product_id || p.id}</td>
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold">{p.emoji || '🍽️'} {p.product_name || p.name}</td>
+                                <td className="ck-py-4 ck-px-6 ck-font-semibold">{p.product_name || p.name}</td>
                                 <td className="ck-py-4 ck-px-6 ck-text-yellow-400">{p.base_unit || p.baseUnit || 'PHAN'}</td>
                                 <td className="ck-py-4 ck-px-6">
                                     <span className="ck-text-red-400 ck-font-bold">{Number(p.cost_price || p.costPrice || 0).toLocaleString()}₫</span> <span className="ck-text-gray-500">/</span> <span className="ck-text-blue-400">{Number(p.selling_price || p.price || 0).toLocaleString()}₫</span>
@@ -382,8 +341,7 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
                                             product_name: p.product_name || p.name,
                                             base_unit: p.base_unit || p.baseUnit || "PHAN",
                                             cost_price: p.cost_price || p.costPrice || "",
-                                            selling_price: p.selling_price || p.price || "",
-                                            emoji: p.emoji || "🍔"
+                                            selling_price: p.selling_price || p.price || ""
                                         }); 
                                     }} className="ck-text-gray-400 hover:ck-text-white border-none bg-transparent cursor-pointer">✏️</button>
                                     <button onClick={() => handleDeleteProduct(p.product_id || p.id)} className="ck-text-red-500 hover:ck-text-red-400 border-none bg-transparent cursor-pointer">🗑️</button>
@@ -671,194 +629,6 @@ const CentralKitchenPage = ({ onLogout, userData }) => {
                     </div>
                   )
                 })}
-              </div>
-            </div>
-          )}
-
-         {/* ======================= TAB XỬ LÝ SỰ CỐ ======================= */}
-          {activeKitchenTab === 'Xử lý sự cố' && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
-              {/* THANH CÔNG CỤ TRÊN CÙNG */}
-              <div className="ck-flex ck-gap-4 ck-items-center">
-                {/* Ô TÌM KIẾM ĐÃ FIX MÀU ĐEN (DARK MODE) */}
-                <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
-                  <input 
-                    type="text" 
-                    placeholder="🔍 Tìm kiếm mã sự cố..." 
-                    className="ck-w-full ck-px-4 ck-py-2 ck-outline-none ck-bg-gray-900 ck-text-white placeholder-gray-500 text-sm" 
-                    defaultValue={incidentSearchText} 
-                    onChange={(e) => setIncidentSearchText(e.target.value)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') setIncidentAppliedSearch(e.target.value); }} 
-                  />
-                  <button 
-                    onClick={() => setIncidentAppliedSearch(incidentSearchText)} 
-                    className="ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-red-400 ck-px-6 ck-font-bold ck-border-l ck-border-gray-700 ck-transition-colors ck-flex-shrink-0 ck-cursor-pointer"
-                  >
-                    Tìm kiếm
-                  </button>
-                </div>
-
-                <select 
-                  value={filterIncidentPriority} 
-                  onChange={(e) => setFilterIncidentPriority(e.target.value)} 
-                  className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer hover:ck-border-gray-500 transition-colors"
-                >
-                  <option value="Mức độ ưu tiên">Mức độ ưu tiên</option>
-                  <option value="Khẩn cấp">Khẩn cấp</option>
-                  <option value="Cao">Cao</option>
-                </select>
-
-                <button 
-                  className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-flex-shrink-0 ck-border-none ck-cursor-pointer shadow-lg shadow-red-500/20" 
-                  onClick={() => { setShowAddIncidentForm(true); setSelectedIncident(null); }}
-                >
-                  + Báo cáo sự cố mới
-                </button>
-              </div>
-
-              <div className="ck-flex ck-gap-6 ck-flex-1 ck-items-start ck-transition-all">
-                {/* BẢNG DANH SÁCH SỰ CỐ - CÓ THÊM CỘT THAO TÁC NHANH */}
-                <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-duration-300 shadow-2xl" style={{ width: (selectedIncident || showAddIncidentForm) ? '66.66%' : '100%' }}>
-                  <table className="ck-w-full ck-text-center ck-border-collapse">
-                    <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
-                      <tr>
-                        <th className="ck-py-4 ck-px-4 ck-font-semibold">Mã SC</th>
-                        <th className="ck-py-4 ck-px-4 ck-font-semibold">Phân loại</th>
-                        <th className="ck-py-4 ck-px-4 ck-font-semibold">Tiêu đề</th>
-                        <th className="ck-py-4 ck-px-4 ck-font-semibold ck-text-center">Mức độ</th>
-                        <th className="ck-py-4 ck-px-4 ck-font-semibold">Trạng thái</th>
-                        <th className="ck-py-4 ck-px-4 ck-font-semibold">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="ck-text-white ck-text-sm">
-                      {filteredIncidents.length > 0 ? (
-                        filteredIncidents.map((inc, idx) => (
-                          <tr 
-                            key={idx} 
-                            className={`ck-border-t ck-border-gray-700 ck-transition-colors hover:ck-bg-gray-800/50 ${selectedIncident?.id === inc.id ? 'ck-bg-gray-800 ck-border-l-4 ck-border-l-red-500' : ''}`}
-                          >
-                            <td className="ck-py-4 ck-px-4 ck-font-bold ck-text-gray-400" onClick={() => {setSelectedIncident(inc); setShowAddIncidentForm(false);}}>{inc.id}</td>
-                            <td className="ck-py-4 ck-px-4" onClick={() => {setSelectedIncident(inc); setShowAddIncidentForm(false);}}>{inc.type}</td>
-                            <td className="ck-py-4 ck-px-4 ck-font-semibold" onClick={() => {setSelectedIncident(inc); setShowAddIncidentForm(false);}}>{inc.title}</td>
-                            <td className="ck-py-4 ck-px-4 ck-text-center" onClick={() => {setSelectedIncident(inc); setShowAddIncidentForm(false);}}>
-                              {inc.priority === 'Khẩn cấp' ? <span className="ck-text-red-500 ck-font-black">🔴 Khẩn cấp</span> : inc.priority === 'Cao' ? <span className="ck-text-orange-400 ck-font-bold">🟠 Cao</span> : <span className="ck-text-yellow-500 ck-font-semibold">🟡 Trung bình</span>}
-                            </td>
-                            <td className="ck-py-4 ck-px-4" onClick={() => {setSelectedIncident(inc); setShowAddIncidentForm(false);}}>
-                              <span className={`ck-px-3 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold ck-border ${inc.status === 'Mới' ? 'ck-bg-red-500-20 ck-text-red-400 ck-border-red-500-50' : inc.status === 'Đang xử lý' ? 'ck-bg-orange-500-20 ck-text-orange-400 ck-border-orange-500-50' : 'ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50'}`}>{inc.status}</span>
-                            </td>
-                            <td className="ck-py-4 ck-px-4">
-                              {inc.status !== 'Đã giải quyết' ? (
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation(); // Không mở bảng chi tiết khi bấm nút này
-                                    handleUpdateIncidentStatus(inc.id, 'Đã giải quyết');
-                                  }}
-                                  className="ck-px-3 ck-py-1.5 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-text-[10px] ck-font-black ck-rounded-lg ck-border-none ck-cursor-pointer shadow-lg shadow-green-500/20 transition-all active:ck-scale-90"
-                                >
-                                  XỬ LÝ XONG
-                                </button>
-                              ) : (
-                                <span className="ck-text-green-500 ck-text-xs ck-font-bold">✨ Đã chốt</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      ) : ( 
-                        <tr><td colSpan="6" className="ck-py-8 ck-text-center ck-text-gray-500 italic">Không tìm thấy sự cố nào phù hợp.</td></tr> 
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* FORM BÁO CÁO SỰ CỐ MỚI */}
-                {showAddIncidentForm && (
-                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6 ck-animate-fade-in shadow-2xl" style={{ width: '33.33%' }}>
-                    <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-                      <h3 className="ck-text-xl ck-font-bold ck-text-white">Báo cáo sự cố</h3>
-                      <button onClick={() => setShowAddIncidentForm(false)} className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-xl ck-cursor-pointer ck-p-1">✕</button>
-                    </div>
-                    <div className="ck-space-y-4">
-                      <div>
-                        <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Tiêu đề sự cố *</label>
-                        <input type="text" value={newIncidentForm.title} onChange={(e) => setNewIncidentForm({...newIncidentForm, title: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none transition-colors" placeholder="Tóm tắt vấn đề..." />
-                      </div>
-                      <div>
-                        <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Phân loại</label>
-                        <select value={newIncidentForm.type} onChange={(e) => setNewIncidentForm({...newIncidentForm, type: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none">
-                          <option value="Thiết bị">Thiết bị</option>
-                          <option value="Nguyên liệu">Nguyên liệu</option>
-                          <option value="Hệ thống">Hệ thống</option>
-                          <option value="Vận chuyển">Vận chuyển</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Mức độ ưu tiên</label>
-                        <select value={newIncidentForm.priority} onChange={(e) => setNewIncidentForm({...newIncidentForm, priority: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none">
-                          <option value="Trung bình">Trung bình</option>
-                          <option value="Cao">Cao</option>
-                          <option value="Khẩn cấp">Khẩn cấp</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Người báo cáo *</label>
-                        <input type="text" value={newIncidentForm.reporter} onChange={(e) => setNewIncidentForm({...newIncidentForm, reporter: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none" placeholder="Tên nhân viên..." />
-                      </div>
-                      <div>
-                        <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Mô tả chi tiết</label>
-                        <textarea value={newIncidentForm.description} onChange={(e) => setNewIncidentForm({...newIncidentForm, description: e.target.value})} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none ck-min-h-[100px] ck-resize-none" placeholder="Nhập thêm chi tiết..."></textarea>
-                      </div>
-                      <button onClick={handleSaveNewIncident} className="ck-w-full ck-mt-2 ck-bg-gradient-btn-admin ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-cursor-pointer hover:ck-opacity-90 transition-opacity">Gửi báo cáo sự cố</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* CHI TIẾT SỰ CỐ ĐÃ CHỌN */}
-                {selectedIncident && !showAddIncidentForm && (
-                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-animate-fade-in shadow-2xl" style={{ width: '33.33%' }}>
-                    <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
-                      <h3 className="ck-text-xl ck-font-bold ck-text-white">Chi tiết {selectedIncident.id}</h3>
-                      <button onClick={() => setSelectedIncident(null)} className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-xl ck-cursor-pointer ck-p-1">✕</button>
-                    </div>
-                    <div className="ck-space-y-4 ck-text-sm">
-                      {selectedIncident.priority === 'Khẩn cấp' && (
-                        <div className="ck-bg-red-500-20 ck-border ck-border-red-500-50 ck-p-3 ck-rounded-lg ck-text-red-400 ck-font-bold ck-flex ck-items-center ck-gap-2">
-                          <span className="ck-animate-pulse">⚠️</span> CẦN XỬ LÝ NGAY
-                        </div>
-                      )}
-                      <div>
-                        <span className="ck-text-gray-400 ck-block ck-mb-1">Vấn đề:</span>
-                        <p className="ck-text-white ck-font-bold ck-text-lg">{selectedIncident.title}</p>
-                      </div>
-                      <div className="ck-flex ck-justify-between ck-border-b ck-border-gray-700 ck-pb-2">
-                        <span className="ck-text-gray-400">Thời gian báo:</span>
-                        <span className="ck-text-white">{selectedIncident.time} - {selectedIncident.date}</span>
-                      </div>
-                      <div className="ck-flex ck-justify-between ck-border-b ck-border-gray-700 ck-pb-2">
-                        <span className="ck-text-gray-400">Người báo cáo:</span>
-                        <span className="ck-text-white ck-font-semibold">{selectedIncident.reporter}</span>
-                      </div>
-                      <div className="ck-pt-2">
-                        <span className="ck-text-gray-400 ck-block ck-mb-2">Mô tả chi tiết:</span>
-                        <p className="ck-text-gray-300 ck-bg-gray-800 ck-p-3 ck-rounded-lg ck-leading-relaxed">
-                          {selectedIncident.description || "Không có mô tả thêm."}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="ck-mt-6 ck-flex ck-flex-col ck-gap-3">
-                      {selectedIncident.status === 'Mới' && (
-                        <button onClick={() => handleUpdateIncidentStatus(selectedIncident.id, 'Đang xử lý')} className="ck-w-full ck-bg-orange-500 hover:ck-bg-orange-600 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-orange-500/20">🔧 Nhận xử lý</button>
-                      )}
-                      {selectedIncident.status === 'Đang xử lý' && (
-                        <button onClick={() => handleUpdateIncidentStatus(selectedIncident.id, 'Đã giải quyết')} className="ck-w-full ck-bg-green-500 hover:ck-bg-green-600 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-green-500/20">✅ Đánh dấu Đã giải quyết</button>
-                      )}
-                      {selectedIncident.status === 'Đã giải quyết' && (
-                        <div className="ck-w-full ck-bg-green-500-20 ck-text-green-400 ck-py-4 ck-rounded-xl ck-font-bold ck-text-center ck-border ck-border-green-500-50">
-                          Sự cố đã được khắc phục thành công!
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}

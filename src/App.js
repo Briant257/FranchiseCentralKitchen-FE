@@ -62,7 +62,7 @@ function App() {
     return <FranchiseStorePage onLogout={handleLogout} userData={userData} />;
   }
   // 5. NHÁNH 5: DÀNH RIÊNG CHO ĐIỀU PHỐI CUNG ỨNG (SUPPLY)
-  if (currentUser.role === "supply") {
+  if (currentUser.role === "coordinator") {
     return <SupplyCoordinatorPage onLogout={handleLogout} userData={userData} />;
   }
 
