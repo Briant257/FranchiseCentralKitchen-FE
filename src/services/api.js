@@ -84,7 +84,7 @@ function messageByField(s) {
 /**
  * Lỗi theo ngữ cảnh API (khi backend trả Forbidden/401/400 chung).
  */
-function messageByPath(path) {
+function messageByPath(path, status) {
   const p = (path || "").toLowerCase();
   if (p.includes("/auth/login"))
     return "Tên đăng nhập hoặc mật khẩu không đúng.";
@@ -92,6 +92,8 @@ function messageByPath(path) {
   if (p.includes("/auth/verify-otp")) return "Mã OTP không đúng.";
   if (p.includes("/auth/reset-password"))
     return "Mã OTP không đúng hoặc mật khẩu mới không hợp lệ.";
+  if (status === 403 && p.includes("/admin/accounts"))
+    return "Bạn không có quyền khóa/mở khóa tài khoản. Chỉ tài khoản Admin mới thực hiện được — hãy đăng nhập bằng tài khoản Admin hoặc kiểm tra cấu hình quyền trên backend.";
   return null;
 }
 
@@ -109,12 +111,12 @@ function toUserFriendlyError(res, data, path) {
   if (byField) return byField;
 
   if (status === 401) {
-    const byPath = messageByPath(path);
+    const byPath = messageByPath(path, status);
     if (byPath) return byPath;
     return "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.";
   }
   if (status === 403) {
-    const byPath = messageByPath(path);
+    const byPath = messageByPath(path, status);
     if (byPath) return byPath;
     return "Bạn không có quyền thực hiện thao tác này.";
   }
@@ -170,9 +172,10 @@ function normalizeRole(role) {
   if (!role) return "franchise";
   const r = String(role).toUpperCase().replace(/-/g, "_");
   if (r === "ADMIN") return "admin";
-  if (r === "KITCHEN_MANAGER" || r === "MANAGER") return "manager";
-  if (r === "KITCHEN_STAFF" || r === "KITCHEN") return "kitchen";
+  if (r === "MANAGER") return "manager";
+  if (r === "KITCHEN_MANAGER") return "kitchen";
   if (r === "STORE_MANAGER") return "franchise";
+  if (r === "COORDINATOR") return "supply";
   return r.toLowerCase();
 }
 
@@ -998,19 +1001,22 @@ const api = {
     try {
       const list = await request("/api/admin/list-accounts");
       const arr = Array.isArray(list) ? list : (list?.data ?? []);
-      return arr.map((a) => ({
-        id: a.accountId ?? a.userId,
-        accountId: a.accountId,
-        username: a.username,
-        name: a.fullName ?? a.username,
-        role: normalizeRole(a.role),
-        roleRaw: a.role,
-        status:
-          a.isActive !== false && a.active !== false ? "active" : "inactive",
-        storeName: a.storeName ?? null,
-        email: a.email ?? null,
-        userId: a.userId,
-      }));
+      return arr.map((a) => {
+        const accountId = a.accountId ?? a.id ?? a.userId;
+        return {
+          id: accountId ?? a.userId,
+          accountId,
+          username: a.username,
+          name: a.fullName ?? a.username,
+          role: normalizeRole(a.role),
+          roleRaw: a.role,
+          status:
+            a.isActive !== false && a.active !== false ? "active" : "inactive",
+          storeName: a.storeName ?? null,
+          email: a.email ?? null,
+          userId: a.userId,
+        };
+      });
     } catch {
       return [];
     }
@@ -1021,16 +1027,19 @@ const api = {
     try {
       const list = await request("/api/admin/list-accounts/active");
       const arr = Array.isArray(list) ? list : (list?.data ?? []);
-      return arr.map((a) => ({
-        id: a.accountId ?? a.userId,
-        accountId: a.accountId,
-        username: a.username,
-        name: a.fullName ?? a.username,
-        role: normalizeRole(a.role),
-        status: "active",
-        userId: a.userId,
-        email: a.email ?? null,
-      }));
+      return arr.map((a) => {
+        const accountId = a.accountId ?? a.id ?? a.userId;
+        return {
+          id: accountId ?? a.userId,
+          accountId,
+          username: a.username,
+          name: a.fullName ?? a.username,
+          role: normalizeRole(a.role),
+          status: "active",
+          userId: a.userId,
+          email: a.email ?? null,
+        };
+      });
     } catch {
       return [];
     }
@@ -1041,16 +1050,19 @@ const api = {
     try {
       const list = await request("/api/admin/list-accounts/inactive");
       const arr = Array.isArray(list) ? list : (list?.data ?? []);
-      return arr.map((a) => ({
-        id: a.accountId ?? a.userId,
-        accountId: a.accountId,
-        username: a.username,
-        name: a.fullName ?? a.username,
-        role: normalizeRole(a.role),
-        status: "inactive",
-        userId: a.userId,
-        email: a.email ?? null,
-      }));
+      return arr.map((a) => {
+        const accountId = a.accountId ?? a.id ?? a.userId;
+        return {
+          id: accountId ?? a.userId,
+          accountId,
+          username: a.username,
+          name: a.fullName ?? a.username,
+          role: normalizeRole(a.role),
+          status: "inactive",
+          userId: a.userId,
+          email: a.email ?? null,
+        };
+      });
     } catch {
       return [];
     }
@@ -1059,14 +1071,23 @@ const api = {
   /**
    * Khóa / Mở khóa tài khoản (Admin).
    * PUT /api/admin/accounts/{accountId}/status
-   * @param {string} accountId - Mã tài khoản (accountId)
+   * Body: { "isActive": true | false }
+   *
+   * Backend (Spring) cần:
+   * 1) SecurityConfig: requestMatchers PUT "/api/admin/accounts/{id}/status" với hasAuthority("ADMIN")
+   *    (Token role=ADMIN dùng hasAuthority; role=ROLE_ADMIN dùng hasRole("ADMIN"))
+   * 2) Controller: PutMapping "/accounts/{accountId}/status" với body DTO field isActive (boolean).
+   *
+   * @param {string} accountId - Mã tài khoản (UUID từ bảng accounts)
    * @param {boolean} isActive - true = mở khóa, false = khóa
    * @returns {Promise<object>} Response từ backend
    */
   async updateAccountStatus(accountId, isActive) {
-    return request(`/api/admin/accounts/${accountId}/status`, {
+    const id = String(accountId ?? "").trim();
+    if (!id) throw new Error("Không có mã tài khoản để cập nhật.");
+    return request(`/api/admin/accounts/${encodeURIComponent(id)}/status`, {
       method: "PUT",
-      body: JSON.stringify({ isActive: !!isActive }),
+      body: JSON.stringify({ isActive: Boolean(isActive) }),
     });
   },
 

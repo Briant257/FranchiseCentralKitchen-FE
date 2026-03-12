@@ -200,7 +200,11 @@ const AdminPage = ({ onLogout, userData }) => {
   };
 
   const handleToggleStatus = async (user) => {
-    const accountId = user.accountId ?? user.id;
+    const accountId = user.accountId ?? user.id ?? user.userId;
+    if (!accountId) {
+      window.alert("Không xác định được mã tài khoản. Vui lòng tải lại trang.");
+      return;
+    }
     const newActive = user.status !== "active";
     try {
       await api.updateAccountStatus(accountId, newActive);
@@ -209,7 +213,7 @@ const AdminPage = ({ onLogout, userData }) => {
         newActive ? "✅ Đã mở khóa tài khoản!" : "✅ Đã khóa tài khoản!",
       );
     } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không cập nhật được"));
+      window.alert("Lỗi khóa/mở khóa: " + (err?.message || "Không cập nhật được. Kiểm tra quyền Admin hoặc API."));
     }
   };
 
