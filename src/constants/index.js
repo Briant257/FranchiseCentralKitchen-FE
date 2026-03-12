@@ -53,3 +53,6 @@ export const SYSTEM_ROLES = [
 export const ROLE_LABELS = Object.fromEntries(
   SYSTEM_ROLES.map((r) => [r.value, r.label]),
 );
+
+/** Endpoint Admin: Khóa/Mở khóa — PUT {ADMIN_ACCOUNT_STATUS_PATH}/{accountId}/status, body: { isActive } */
+export const ADMIN_ACCOUNT_STATUS_PATH = "/api/admin/accounts";
