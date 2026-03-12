@@ -88,7 +88,11 @@ function LoginPage({ onLogin }) {
     try {
       const msg = await api.forgotPassword(value);
       setOtpMode("forgot");
-      setSuccess(msg && typeof msg === "string" ? msg : "Mã OTP đã được gửi. Vui lòng kiểm tra email.");
+      setSuccess(
+        msg && typeof msg === "string"
+          ? msg
+          : "Mã OTP đã được gửi. Vui lòng kiểm tra email.",
+      );
       setView(VIEW.VERIFY_OTP);
       setOtp("");
     } catch (err) {
@@ -123,7 +127,11 @@ function LoginPage({ onLogin }) {
       setLoading(true);
       try {
         const msg = await api.resetPassword(code, pwd, emailOrUsername.trim());
-        setSuccess(msg && typeof msg === "string" ? msg : "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập.");
+        setSuccess(
+          msg && typeof msg === "string"
+            ? msg
+            : "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập.",
+        );
         setView(VIEW.LOGIN);
         setEmailOrUsername("");
         setOtp("");

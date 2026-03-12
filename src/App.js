@@ -30,6 +30,12 @@ function App() {
     setCurrentUser(null);
   };
 
+  /** Sau khi cập nhật hồ sơ (PUT /api/auth/update-profile), đồng bộ lại user từ storage (dùng cho các role trừ Admin). */
+  const handleProfileUpdated = () => {
+    const stored = api.getStoredUser();
+    if (stored) setCurrentUser(stored);
+  };
+
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -49,21 +55,45 @@ function App() {
 
   // 2. NHÁNH 2: DÀNH RIÊNG CHO QUẢN LÝ (MANAGER)
   if (currentUser.role === "manager") {
-    return <ManagerPage onLogout={handleLogout} userData={userData} />;
+    return (
+      <ManagerPage
+        onLogout={handleLogout}
+        userData={userData}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    );
   }
 
   // 3. NHÁNH 3: DÀNH RIÊNG CHO BẾP TRƯỞNG (KITCHEN)
   if (currentUser.role === "kitchen") {
-    return <CentralKitchenPage onLogout={handleLogout} userData={userData} />;
+    return (
+      <CentralKitchenPage
+        onLogout={handleLogout}
+        userData={userData}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    );
   }
 
   // 4. NHÁNH 4: DÀNH RIÊNG CHO CHỦ CỬA HÀNG (FRANCHISE)
   if (currentUser.role === "franchise") {
-    return <FranchiseStorePage onLogout={handleLogout} userData={userData} />;
+    return (
+      <FranchiseStorePage
+        onLogout={handleLogout}
+        userData={userData}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    );
   }
   // 5. NHÁNH 5: DÀNH RIÊNG CHO ĐIỀU PHỐI CUNG ỨNG (SUPPLY)
   if (currentUser.role === "coordinator") {
-    return <SupplyCoordinatorPage onLogout={handleLogout} userData={userData} />;
+    return (
+      <SupplyCoordinatorPage
+        onLogout={handleLogout}
+        userData={userData}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    );
   }
 
   // NẾU LỌT VÀO ROLE LẠ THÌ BÁO LỖI
