@@ -42,7 +42,7 @@ function App() {
 
   const userData = {
     ...currentUser,
-    name: currentUser.name || currentUser.username,
+    name: currentUser.fullName || currentUser.name || currentUser.username,
     storeName:
       currentUser.storeName ||
       (currentUser.role === "kitchen" ? "Bếp trung tâm" : currentUser.username),

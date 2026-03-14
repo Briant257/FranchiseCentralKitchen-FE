@@ -336,6 +336,16 @@
 .ck-text-red-400 {
   color: #f87171;
 }
+.ck-text-empty-state {
+  color: #ef4444 !important;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  display: inline-block;
+}
 .ck-text-green-400 {
   color: #4ade80;
 }
@@ -423,6 +433,63 @@
 }
 .ck-bg-black-80 {
   background: rgba(0, 0, 0, 0.8);
+}
+.ck-bg-white-10 {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ck-border-gray-600 {
+  border-color: #4b5563;
+}
+.ck-border-indigo-500 {
+  border-color: #6366f1;
+}
+.ck-border-amber-500 {
+  border-color: #f59e0b;
+}
+.ck-text-indigo-400 {
+  color: #818cf8;
+}
+.ck-text-amber-400 {
+  color: #fbbf24;
+}
+.ck-max-w-lg {
+  max-width: 32rem;
+}
+.ck-flex-wrap {
+  flex-wrap: wrap;
+}
+.ck-flex-shrink-0 {
+  flex-shrink: 0;
+}
+.ck-min-w-200 {
+  min-width: 200px;
+}
+.ck-rotate-90 {
+  transform: rotate(90deg);
+}
+.ck-transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.ck-transition-opacity {
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.ck-bg-gradient-modal-edit {
+  background: linear-gradient(
+    to right,
+    rgba(49, 46, 129, 0.35),
+    rgba(88, 28, 135, 0.35)
+  );
+}
+.ck-bg-gradient-modal-swap {
+  background: linear-gradient(
+    to right,
+    rgba(120, 53, 15, 0.35),
+    rgba(124, 45, 18, 0.35)
+  );
 }
 
 .ck-bg-gradient-login {
@@ -543,18 +610,37 @@
 .ck-stat-card:hover::before {
   opacity: 1;
 }
+.ck-stat-card-active {
+  border: 2px solid #f97316 !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3);
+}
 
 .ck-logo-icon {
   background: linear-gradient(135deg, #ff6b35 0%, #ffd700 100%);
   box-shadow: 0 0 20px rgba(255, 107, 53, 0.3);
 }
 
+.ck-select.ck-text-gray-500 {
+  color: #6b7280;
+}
 .ck-input:focus,
 .ck-select:focus,
 .ck-textarea:focus {
   outline: none;
   border-color: #ff6b35;
   box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+/* Focus styles for modal inputs/selects */
+.ck-border-gray-600:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+select.ck-border-gray-600:focus {
+  border-color: #6366f1;
+}
+input.ck-border-gray-600:focus {
+  border-color: #6366f1;
 }
 
 .ck-btn:active {
@@ -604,7 +690,8 @@
   padding: 1.5rem;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
+  background:
+    linear-gradient(
       135deg,
       rgba(0, 0, 0, 0.7) 0%,
       rgba(17, 24, 39, 0.75) 50%,
@@ -876,10 +963,19 @@
 .ck-icon-box {
   width: 3.5rem;
   height: 3.5rem;
+  min-width: 3.5rem;
+  min-height: 3.5rem;
   border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+}
+.ck-icon-box > * {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 .ck-icon-box-sm {
   width: 2.5rem;
@@ -998,11 +1094,12 @@
 
 /* Hiệu ứng nhấp nháy cho đèn cảnh báo đỏ */
 @keyframes ck-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
-    opacity: .5;
+    opacity: 0.5;
   }
 }
 .ck-animate-pulse {
@@ -1010,4 +1107,10 @@
 }
 .ck-inline-block {
   display: inline-block;
+}
+.ck-inline {
+  display: inline;
+}
+.ck-mr-1 {
+  margin-right: 0.25rem;
 }
