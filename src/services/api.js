@@ -93,7 +93,7 @@ function messageByPath(path, status) {
   if (p.includes("/auth/reset-password"))
     return "Mã OTP không đúng hoặc mật khẩu mới không hợp lệ.";
   if (status === 403 && p.includes("/admin/accounts"))
-    return "Bạn không có quyền khóa/mở khóa tài khoản. Chỉ tài khoản Admin mới thực hiện được — hãy đăng nhập bằng tài khoản Admin hoặc kiểm tra cấu hình quyền trên backend.";
+    return "Bạn không có quyền thực hiện thao tác này. Chỉ tài khoản Admin mới thực hiện được — hãy đăng nhập bằng tài khoản Admin hoặc kiểm tra cấu hình quyền trên backend.";
   return null;
 }
 
@@ -221,6 +221,7 @@ const auth = {
       id: info.userId ?? info.id ?? info.username,
       username: info.username ?? res.username,
       name: info.fullName ?? info.name ?? info.username ?? res.username,
+      fullName: info.fullName ?? info.name ?? null,
       role: normalizeRole(info.role ?? res.role),
       roleRaw: info.role ?? res.role,
     };
@@ -248,6 +249,7 @@ const auth = {
         id: res.userId ?? res.username,
         username: res.username ?? emailOrUsername,
         name: res.fullName ?? res.username ?? emailOrUsername,
+        fullName: res.fullName ?? res.name ?? null,
         role: normalizeRole(res.role),
         roleRaw: res.role,
       };
@@ -303,9 +305,12 @@ const auth = {
     });
     const current = getStoredUser();
     if (res && current) {
+      const fullName =
+        res.fullName ?? res.name ?? current.fullName ?? current.name;
       setStoredUser({
         ...current,
-        name: res.fullName ?? current.name,
+        name: fullName ?? current.name,
+        fullName: fullName ?? null,
         email: res.email ?? current.email,
       });
     }
@@ -452,6 +457,27 @@ const auth = {
   /** Xóa công thức của 1 sản phẩm. DELETE /api/recipes/{productId} */
   deleteRecipe: (productId) =>
     request(`/api/recipes/${productId}`, { method: "DELETE" }),
+
+  /**
+   * Lưu / Cập nhật Công thức (Upsert). POST /api/formulas
+   * Body: { productId, ingredients: [{ ingredientId, amountNeeded }] }
+   */
+  upsertFormula: (body) =>
+    request("/api/formulas", {
+      method: "POST",
+      body: JSON.stringify({
+        productId: body.productId,
+        ingredients: (body.ingredients || []).map((i) => ({
+          ingredientId: i.ingredientId,
+          amountNeeded: i.amountNeeded,
+        })),
+      }),
+    }),
+  /** Xem công thức theo productId. GET /api/formulas/{productId} */
+  getFormula: (productId) => request(`/api/formulas/${productId}`),
+  /** Xóa công thức. DELETE /api/formulas/{productId} */
+  deleteFormula: (productId) =>
+    request(`/api/formulas/${productId}`, { method: "DELETE" }),
 
   // --- Bếp (Kitchen) ---
   getKitchenAggregation: () => request("/api/kitchen/aggregation"),
@@ -754,7 +780,29 @@ const api = {
   async getStoresAll() {
     try {
       const res = await request("/api/stores/all");
-      return Array.isArray(res) ? res : (res?.data ?? []);
+      const arr = Array.isArray(res) ? res : (res?.data ?? []);
+      return arr.map((s) => ({
+        ...s,
+        isActive: s.isActive ?? s.active ?? true,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Lấy danh sách tiệm đang trống Quản lý.
+   * GET /api/stores/empty-stores
+   * Response: Array<{ storeId, name, address, phone, type, isActive }>
+   */
+  async getEmptyStores() {
+    try {
+      const res = await request("/api/stores/empty-stores");
+      const arr = Array.isArray(res) ? res : (res?.data ?? []);
+      return arr.map((s) => ({
+        ...s,
+        isActive: s.isActive ?? s.active ?? true,
+      }));
     } catch {
       return [];
     }
@@ -800,6 +848,40 @@ const api = {
 
   deleteStore(id) {
     return request(`/api/stores/${id}`, { method: "DELETE" });
+  },
+
+  /**
+   * Đóng/mở cửa hàng (Admin).
+   * PUT /api/store/settings/{storeId}/active
+   * Body: { "isActive": true | false }
+   * @param {string} storeId - Mã cửa hàng
+   * @param {boolean} isActive - true = mở, false = đóng
+   */
+  async updateStoreActive(storeId, isActive) {
+    const id = String(storeId ?? "").trim();
+    if (!id) throw new Error("Không có mã cửa hàng.");
+    return request(`/api/store/settings/${encodeURIComponent(id)}/active`, {
+      method: "PUT",
+      body: JSON.stringify({ isActive: Boolean(isActive) }),
+    });
+  },
+
+  /**
+   * Gán Quản lý cho cửa hàng.
+   * PUT /api/stores/{storeId}/assign-manager?accountId=...
+   * @param {string} storeId - Mã cửa hàng
+   * @param {string} accountId - Mã tài khoản (STORE_MANAGER) cần gán
+   */
+  assignStoreManager(storeId, accountId) {
+    const sid = String(storeId ?? "").trim();
+    const aid = String(accountId ?? "").trim();
+    if (!sid) throw new Error("Không có mã cửa hàng.");
+    if (!aid) throw new Error("Không có mã tài khoản.");
+    const params = new URLSearchParams({ accountId: aid });
+    return request(
+      `/api/stores/${encodeURIComponent(sid)}/assign-manager?${params.toString()}`,
+      { method: "PUT" },
+    );
   },
 
   // --- Giỏ hàng cửa hàng (STORE_MANAGER) ---
@@ -995,6 +1077,32 @@ const api = {
   },
 
   /**
+   * Chuẩn hóa danh sách cửa hàng đang quản lý từ response account.
+   * Hỗ trợ: stores[], storeNames[], storeName (string).
+   * @returns {string} Chuỗi tên cửa hàng, phân cách bằng ", "
+   */
+  resolveManagedStores(a) {
+    if (!a) return "";
+    const stores = a.stores;
+    if (Array.isArray(stores) && stores.length > 0) {
+      const names = stores
+        .map((s) =>
+          typeof s === "string" ? s : (s?.name ?? s?.storeName ?? ""),
+        )
+        .filter(Boolean);
+      if (names.length) return names.join(", ");
+    }
+    const storeNames = a.storeNames;
+    if (Array.isArray(storeNames) && storeNames.length > 0) {
+      const names = storeNames.filter((s) => s && String(s).trim());
+      if (names.length) return names.join(", ");
+    }
+    const storeName = a.storeName;
+    if (storeName && String(storeName).trim()) return String(storeName).trim();
+    return "";
+  },
+
+  /**
    * Danh sách tài khoản (AccountResponse): accountId, username, role, isActive, userId, fullName, email.
    */
   async getUsers() {
@@ -1003,6 +1111,16 @@ const api = {
       const arr = Array.isArray(list) ? list : (list?.data ?? []);
       return arr.map((a) => {
         const accountId = a.accountId ?? a.id ?? a.userId;
+        const managedStores = this.resolveManagedStores(a);
+        const firstStore =
+          Array.isArray(a.stores) && a.stores[0] ? a.stores[0] : null;
+        const storeId =
+          a.storeId ??
+          a.storeIds?.[0] ??
+          (typeof firstStore === "object"
+            ? (firstStore?.storeId ?? firstStore?.id)
+            : null) ??
+          null;
         return {
           id: accountId ?? a.userId,
           accountId,
@@ -1013,6 +1131,9 @@ const api = {
           status:
             a.isActive !== false && a.active !== false ? "active" : "inactive",
           storeName: a.storeName ?? null,
+          storeId,
+          storeIds: a.storeIds ?? (a.storeId ? [a.storeId] : null),
+          managedStores,
           email: a.email ?? null,
           userId: a.userId,
         };
@@ -1029,15 +1150,30 @@ const api = {
       const arr = Array.isArray(list) ? list : (list?.data ?? []);
       return arr.map((a) => {
         const accountId = a.accountId ?? a.id ?? a.userId;
+        const managedStores = this.resolveManagedStores(a);
+        const firstStore =
+          Array.isArray(a.stores) && a.stores[0] ? a.stores[0] : null;
+        const storeId =
+          a.storeId ??
+          a.storeIds?.[0] ??
+          (typeof firstStore === "object"
+            ? (firstStore?.storeId ?? firstStore?.id)
+            : null) ??
+          null;
         return {
           id: accountId ?? a.userId,
           accountId,
           username: a.username,
           name: a.fullName ?? a.username,
           role: normalizeRole(a.role),
+          roleRaw: a.role,
           status: "active",
           userId: a.userId,
           email: a.email ?? null,
+          storeName: a.storeName ?? null,
+          storeId,
+          storeIds: a.storeIds ?? (a.storeId ? [a.storeId] : null),
+          managedStores,
         };
       });
     } catch {
@@ -1052,15 +1188,30 @@ const api = {
       const arr = Array.isArray(list) ? list : (list?.data ?? []);
       return arr.map((a) => {
         const accountId = a.accountId ?? a.id ?? a.userId;
+        const managedStores = this.resolveManagedStores(a);
+        const firstStore =
+          Array.isArray(a.stores) && a.stores[0] ? a.stores[0] : null;
+        const storeId =
+          a.storeId ??
+          a.storeIds?.[0] ??
+          (typeof firstStore === "object"
+            ? (firstStore?.storeId ?? firstStore?.id)
+            : null) ??
+          null;
         return {
           id: accountId ?? a.userId,
           accountId,
           username: a.username,
           name: a.fullName ?? a.username,
           role: normalizeRole(a.role),
+          roleRaw: a.role,
           status: "inactive",
           userId: a.userId,
           email: a.email ?? null,
+          storeName: a.storeName ?? null,
+          storeId,
+          storeIds: a.storeIds ?? (a.storeId ? [a.storeId] : null),
+          managedStores,
         };
       });
     } catch {
@@ -1089,6 +1240,85 @@ const api = {
       method: "PUT",
       body: JSON.stringify({ isActive: Boolean(isActive) }),
     });
+  },
+
+  /**
+   * Cập nhật email tài khoản (Admin).
+   * PATCH /api/admin/accounts/{accountId}/email
+   * Body: { "email": "email_moi_tinh@gmail.com" }
+   * @param {string} accountId - Mã tài khoản (UUID)
+   * @param {object} data - { email }
+   */
+  async updateAccount(accountId, data) {
+    const id = String(accountId ?? "").trim();
+    if (!id) throw new Error("Không có mã tài khoản.");
+    const email = data?.email != null ? String(data.email).trim() : "";
+    if (!email) throw new Error("Không có email để cập nhật.");
+    return request(`/api/admin/accounts/${encodeURIComponent(id)}/email`, {
+      method: "PATCH",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  /**
+   * Hoán đổi cửa hàng giữa 2 Quản lý (Admin).
+   * PUT /api/admin/accounts/swap-stores?accountId1=...&accountId2=...
+   * @param {string} accountId1 - Mã tài khoản 1 (STORE_MANAGER)
+   * @param {string} accountId2 - Mã tài khoản 2 (STORE_MANAGER)
+   */
+  async swapStores(accountId1, accountId2) {
+    const id1 = String(accountId1 ?? "").trim();
+    const id2 = String(accountId2 ?? "").trim();
+    if (!id1 || !id2) throw new Error("Cần chọn đủ 2 tài khoản.");
+    if (id1 === id2) throw new Error("Hai tài khoản phải khác nhau.");
+    const params = new URLSearchParams();
+    params.set("accountId1", id1);
+    params.set("accountId2", id2);
+    return request(`/api/admin/accounts/swap-stores?${params.toString()}`, {
+      method: "PUT",
+    });
+  },
+
+  /**
+   * Gán cửa hàng làm việc cho tài khoản (Admin).
+   * PATCH /api/admin/accounts/{accountId}/store?storeId=ST_001
+   * @param {string} accountId - Mã tài khoản (UUID)
+   * @param {string} storeId - Mã cửa hàng (vd: ST_001)
+   */
+  async updateAccountStore(accountId, storeId) {
+    const id = String(accountId ?? "").trim();
+    if (!id) throw new Error("Không có mã tài khoản.");
+    const sid = String(storeId ?? "").trim();
+    if (!sid) throw new Error("Không có mã cửa hàng.");
+    return request(
+      `/api/admin/accounts/${encodeURIComponent(id)}/store?storeId=${encodeURIComponent(sid)}`,
+      { method: "PATCH" },
+    );
+  },
+
+  /**
+   * Thay đổi chức vụ tài khoản (Admin).
+   * PATCH /api/admin/accounts/{accountId}/role?roleName=...&storeId=...&replacementAccountId=...
+   * @param {string} accountId - Mã tài khoản (UUID)
+   * @param {string} roleName - ADMIN | MANAGER | COORDINATOR | KITCHEN_MANAGER | STORE_MANAGER
+   * @param {string} [storeId] - Mã cửa hàng (bắt buộc khi roleName = STORE_MANAGER)
+   * @param {string} [replacementAccountId] - Mã tài khoản thay thế (khi chuyển store manager sang role khác)
+   */
+  async updateAccountRole(accountId, roleName, storeId, replacementAccountId) {
+    const id = String(accountId ?? "").trim();
+    if (!id) throw new Error("Không có mã tài khoản.");
+    const params = new URLSearchParams();
+    params.set("roleName", String(roleName ?? "").trim());
+    if (storeId) params.set("storeId", String(storeId).trim());
+    if (replacementAccountId)
+      params.set("replacementAccountId", String(replacementAccountId).trim());
+    const query = params.toString();
+    return request(
+      `/api/admin/accounts/${encodeURIComponent(id)}/role${query ? `?${query}` : ""}`,
+      {
+        method: "PATCH",
+      },
+    );
   },
 
   /** Lưu/cập nhật user (Admin): backend chưa có API bulk, giữ tương thích */

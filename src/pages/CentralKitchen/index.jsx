@@ -1,8 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import {
-  Eye,
-  ChefHat,
-} from "../../components/icons/Icons";
+import { Eye, ChefHat } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
@@ -266,7 +263,10 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       <div className="ck-grain" />
 
       {/* HEADER */}
-      <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-pb-4 ck-border-b ck-border-gray-800" style={{ zIndex: 50 }}>
+      <header
+        className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-pb-4 ck-border-b ck-border-gray-800"
+        style={{ zIndex: 50 }}
+      >
         <div className="ck-flex ck-items-center ck-gap-4">
           <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
             <ChefHat className="ck-text-white" size={32} />

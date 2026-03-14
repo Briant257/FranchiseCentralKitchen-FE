@@ -10,6 +10,7 @@ import {
   BarChart3,
   Store,
   Users,
+  ChefHat,
 } from "../components/icons/Icons";
 
 /** Cấu hình hiển thị trạng thái đơn hàng */
@@ -32,13 +33,11 @@ export const FRANCHISE_MENU = [
 
 /** Tab trang Admin — theo cấu trúc API */
 export const ADMIN_TABS = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-
   { id: "accounts", label: "Tài khoản", icon: Users },
   { id: "stores", label: "Cửa hàng", icon: Store },
   { id: "kitchen", label: "Danh mục & Sản phẩm", icon: Package },
+  { id: "formulas", label: "Công thức", icon: ChefHat },
   { id: "inventory", label: "Nhập kho", icon: FileText },
-
 ];
 /** Enum SystemRole (BE) — trùng tên và nhãn */
 export const SYSTEM_ROLES = [
