@@ -7,7 +7,13 @@ import api from "../../services/api";
  * PUT /api/auth/update-profile — Body: UpdateProfileRequest { fullName, email }
  * Ví dụ: { "fullName": "Nguyễn Văn B (Đã đổi tên)", "email": "nguyenvanb_new@gmail.com" }
  */
-function UpdateProfileModal({ open, onClose, initialFullName = "", initialEmail = "", onSuccess }) {
+function UpdateProfileModal({
+  open,
+  onClose,
+  initialFullName = "",
+  initialEmail = "",
+  onSuccess,
+}) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -72,7 +78,10 @@ function UpdateProfileModal({ open, onClose, initialFullName = "", initialEmail 
         aria-labelledby="update-profile-title"
       >
         <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-          <h2 id="update-profile-title" className="ck-text-2xl ck-font-black ck-text-white">
+          <h2
+            id="update-profile-title"
+            className="ck-text-2xl ck-font-black ck-text-white"
+          >
             Cập nhật hồ sơ cá nhân
           </h2>
           <button
@@ -86,18 +95,18 @@ function UpdateProfileModal({ open, onClose, initialFullName = "", initialEmail 
           </button>
         </div>
 
-        <p className="ck-text-gray-400 ck-text-sm ck-mb-4">
-          PUT /api/auth/update-profile — Chỉnh fullName và email.
-        </p>
-
         {success && (
           <div className="ck-rounded-xl ck-mb-4 ck-p-3 ck-bg-green-500/20 ck-border ck-border-green-500/40">
-            <p className="ck-text-green-400 ck-text-sm ck-font-semibold">{success}</p>
+            <p className="ck-text-green-400 ck-text-sm ck-font-semibold">
+              {success}
+            </p>
           </div>
         )}
         {error && (
           <div className="ck-rounded-xl ck-mb-4 ck-p-3 ck-bg-red-500/20 ck-border ck-border-red-500/40">
-            <p className="ck-text-red-400 ck-text-sm ck-font-semibold">{error}</p>
+            <p className="ck-text-red-400 ck-text-sm ck-font-semibold">
+              {error}
+            </p>
           </div>
         )}
 
@@ -107,7 +116,9 @@ function UpdateProfileModal({ open, onClose, initialFullName = "", initialEmail 
               Họ tên (fullName) *
             </label>
             <div className="ck-input-wrap">
-              <span className="ck-input-icon"><User size={18} /></span>
+              <span className="ck-input-icon">
+                <User size={18} />
+              </span>
               <input
                 type="text"
                 className="ck-input ck-w-full"
@@ -123,7 +134,9 @@ function UpdateProfileModal({ open, onClose, initialFullName = "", initialEmail 
               Email *
             </label>
             <div className="ck-input-wrap">
-              <span className="ck-input-icon"><Mail size={18} /></span>
+              <span className="ck-input-icon">
+                <Mail size={18} />
+              </span>
               <input
                 type="email"
                 className="ck-input ck-w-full"
