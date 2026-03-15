@@ -1,23 +1,22 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
-import {
-  Settings,
-  User,
-  KeyRound,
-  LogOut,
-  ChevronRight,
-} from "../../components/icons/Icons";
+import { User, Lock, LogOut, ChevronRight } from "../../components/icons/Icons";
+import "../../styles/HeaderSettingsMenu.css";
+
+const DROPDOWN_WIDTH = 220;
+
+function getInitials(name) {
+  if (!name || typeof name !== "string") return "NV";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
+  }
+  return name.slice(0, 2).toUpperCase();
+}
 
 /**
- * Menu dropdown Cài đặt (layout kiểu profile + danh sách mục có icon).
- * @param {object} [userData] - { name } để hiện ở block profile trên cùng
- * @param {boolean} [showProfile=true] - Hiện mục "Hồ sơ"
- * @param {function} onOpenProfile - Bấm "Hồ sơ"
- * @param {function} onChangePassword - Bấm "Đổi mật khẩu"
- * @param {function} onLogout - Bấm "Đăng xuất"
- * @param {string} [buttonClassName] - Class cho nút Settings
+ * Menu dropdown Cài đặt (thiết kế theo UserDropdown: avatar + tên + role, Hồ sơ / Đổi mật khẩu / Đăng xuất).
+ * Dùng --rust, --rust-bg cho mục Đăng xuất.
  */
-const DROPDOWN_WIDTH = 280;
-
 function HeaderSettingsMenu({
   userData,
   showProfile = true,
@@ -73,84 +72,68 @@ function HeaderSettingsMenu({
     fn?.();
   };
 
-  const iconWrap = "ck-w-10 ck-h-10 ck-rounded-full ck-flex ck-items-center ck-justify-center ck-flex-shrink-0";
+  const displayName = userData?.name ?? userData?.fullName ?? "Người dùng";
+  const role = userData?.role ?? "Nhân viên";
+  const initials = getInitials(displayName);
 
   return (
-    <div
-      className="ck-relative ck-shrink-0"
-      style={{ width: "fit-content", display: "inline-block", flexShrink: 0 }}
-      ref={ref}
-    >
+    <div className={`hsm-root ${buttonClassName}`.trim()} ref={ref}>
       <button
         ref={buttonRef}
         type="button"
-        className={`ck-btn ck-flex ck-items-center ck-justify-center ck-p-2.5 ck-rounded-xl ck-bg-gray-700 ck-text-gray-300 hover:ck-bg-gray-600 hover:ck-text-white ck-transition-all ${buttonClassName}`}
-        style={{ border: "none" }}
+        className="hsm-trigger"
         onClick={() => (open ? setOpen(false) : openMenu())}
         title="Cài đặt"
         aria-expanded={open}
       >
-        <Settings size={22} />
+        <User size={16} />
       </button>
 
       {open && (
-        <div
-          className="ck-rounded-2xl ck-overflow-hidden"
-          style={{
-            ...dropdownStyle,
-            background: "rgb(55 65 81)",
-            border: "1px solid rgba(148, 163, 184, 0.4)",
-            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
-          }}
-          role="menu"
-        >
-          <div className="ck-py-2 ck-px-2">
+        <div className="hsm-dropdown" style={dropdownStyle} role="menu">
+          <div className="hsm-header">
+            <div className="hsm-avatar">{initials}</div>
+            <div>
+              <div className="hsm-name">{displayName}</div>
+              <div className="hsm-role-row">
+                <span className="hsm-dot" />
+                {role}
+              </div>
+            </div>
+          </div>
+
+          <div className="hsm-menu">
             {showProfile && (
               <button
                 type="button"
-                className="ck-w-full ck-flex ck-items-center ck-gap-3 ck-px-4 ck-py-3 ck-rounded-xl ck-text-left ck-text-gray-100 hover:ck-bg-gray-600 ck-font-medium ck-transition-colors"
+                className="hsm-item"
                 onClick={() => handle(onOpenProfile)}
                 role="menuitem"
               >
-                <div
-                  className={iconWrap}
-                  style={{ background: "rgba(255,255,255,0.12)", color: "#e2e8f0" }}
-                >
-                  <User size={20} />
-                </div>
-                <span className="ck-flex-1">Hồ sơ</span>
-                <ChevronRight size={18} style={{ color: "#94a3b8" }} />
+                <User size={15} />
+                <span className="hsm-item-label">Hồ sơ</span>
+                <ChevronRight size={12} />
               </button>
             )}
             <button
               type="button"
-              className="ck-w-full ck-flex ck-items-center ck-gap-3 ck-px-4 ck-py-3 ck-rounded-xl ck-text-left ck-text-gray-100 hover:ck-bg-gray-600 ck-font-medium ck-transition-colors"
+              className="hsm-item"
               onClick={() => handle(onChangePassword)}
               role="menuitem"
             >
-              <div
-                className={iconWrap}
-                style={{ background: "rgba(255,255,255,0.12)", color: "#e2e8f0" }}
-              >
-                <KeyRound size={20} />
-              </div>
-              <span className="ck-flex-1">Đổi mật khẩu</span>
-              <ChevronRight size={18} style={{ color: "#94a3b8" }} />
+              <Lock size={15} />
+              <span className="hsm-item-label">Đổi mật khẩu</span>
+              <ChevronRight size={12} />
             </button>
-            <div className="ck-my-1 ck-border-t ck-border-gray-500" style={{ borderColor: "rgba(148,163,184,0.3)" }} />
+            <div className="hsm-divider" />
             <button
               type="button"
-              className="ck-w-full ck-flex ck-items-center ck-gap-3 ck-px-4 ck-py-3 ck-rounded-xl ck-text-left ck-text-red-400 hover:ck-bg-red-500-20 ck-font-semibold ck-transition-colors"
+              className="hsm-item hsm-danger"
               onClick={() => handle(onLogout)}
               role="menuitem"
             >
-              <div
-                className={iconWrap}
-                style={{ background: "rgba(248,113,113,0.2)", color: "#f87171" }}
-              >
-                <LogOut size={20} />
-              </div>
-              <span className="ck-flex-1">Đăng xuất</span>
+              <LogOut size={15} />
+              <span className="hsm-item-label">Đăng xuất</span>
             </button>
           </div>
         </div>
