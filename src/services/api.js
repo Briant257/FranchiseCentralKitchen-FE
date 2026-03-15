@@ -968,8 +968,15 @@ const api = {
     );
   },
 
-  // --- Giỏ hàng cửa hàng (STORE_MANAGER) ---
-  /** Xem giỏ hàng. GET /api/store/cart */
+  // =========================================================
+  // STORE_MANAGER — Role: Quản lý cửa hàng
+  // 5.1 Giỏ hàng: add (POST), update (PUT), get (GET), remove (DELETE), checkout (POST)
+  // 5.2 Đơn hàng: DS đơn (GET), Chi tiết (GET /orders/{orderId}), Tạo nhanh (POST /standard|/urgent)
+  // 5.3 Nhận hàng: Báo thiếu/hỏng POST /api/shipments/{shipmentId}/report
+  // 5.4 Cài đặt tiệm: Xem/Sửa profile GET|PUT /api/store/settings/profile
+  // =========================================================
+
+  /** Xem giỏ hàng. GET /api/store/cart (5.1) */
   async getStoreCart() {
     try {
       const res = await request("/api/store/cart");
@@ -981,7 +988,7 @@ const api = {
   },
 
   /**
-   * Thêm món vào giỏ. POST /api/store/cart/add
+   * Thêm món vào giỏ. POST /api/store/cart/add (5.1)
    * Body: { productId, quantity } (quantity mặc định 1)
    */
   addToStoreCart(body) {
@@ -995,7 +1002,7 @@ const api = {
   },
 
   /**
-   * Sửa số lượng 1 món. PUT /api/store/cart/update
+   * Sửa số lượng 1 món. PUT /api/store/cart/update (5.1)
    * Body: { productId, quantity }
    */
   updateStoreCartItem(body) {
@@ -1008,7 +1015,7 @@ const api = {
     });
   },
 
-  /** Xóa 1 món khỏi giỏ. DELETE /api/store/cart/remove/{productId} */
+  /** Xóa 1 món khỏi giỏ. DELETE /api/store/cart/remove/{productId} (5.1) */
   removeFromStoreCart(productId) {
     return request(`/api/store/cart/remove/${productId}`, {
       method: "DELETE",
@@ -1016,7 +1023,7 @@ const api = {
   },
 
   /**
-   * Chốt đơn từ giỏ. POST /api/store/cart/checkout
+   * Chốt đơn từ giỏ. POST /api/store/cart/checkout (5.1)
    * Body: { orderType: "STANDARD", note?: string }
    */
   checkoutStoreCart(body) {
@@ -1029,7 +1036,7 @@ const api = {
     });
   },
 
-  /** Xem profile tiệm. GET /api/store/settings/profile */
+  /** Xem profile tiệm. GET /api/store/settings/profile (5.4) */
   async getStoreProfile() {
     try {
       const res = await request("/api/store/settings/profile");
@@ -1040,7 +1047,7 @@ const api = {
   },
 
   /**
-   * Sửa profile tiệm. PUT /api/store/settings/profile
+   * Sửa profile tiệm. PUT /api/store/settings/profile (5.4)
    * Body: { name, address, phone }
    */
   updateStoreProfile(body) {
@@ -1070,8 +1077,7 @@ const api = {
   // =========================================================
 
   /**
-   * Danh sách đơn hàng của tiệm hiện tại (STORE_MANAGER).
-   * GET /api/store/orders
+   * Danh sách đơn hàng của tiệm. GET /api/store/orders (5.2)
    */
   async getStoreOrders() {
     try {
@@ -1083,18 +1089,15 @@ const api = {
   },
 
   /**
-   * Chi tiết 1 đơn hàng của tiệm.
-   * GET /api/store/orders/{orderId}
+   * Chi tiết đơn hàng. GET /api/store/orders/{orderId} (5.2)
    */
   getStoreOrderDetail(orderId) {
     return request(`/api/store/orders/${orderId}`);
   },
 
   /**
-   * Tạo đơn nhanh (không qua giỏ) cho tiệm.
-   * - orderType: "STANDARD" hoặc "URGENT"
-   * - body dùng JSON giống luồng cửa hàng:
-   *   { deliveryDate, note, items: [{ productId, quantity, price }] }
+   * Tạo đơn nhanh không qua giỏ. POST /api/store/orders/standard hoặc /urgent (5.2)
+   * Body: { deliveryDate, note?, items: [{ productId, quantity, price }] }
    */
   createStoreOrder(body, orderType = "STANDARD") {
     const path =
@@ -1442,8 +1445,7 @@ const api = {
   },
 
   /**
-   * Báo cáo xe giao THIẾU hàng (STORE_MANAGER).
-   * POST /api/shipments/{shipmentId}/report
+   * Báo cáo xe giao THIẾU/HỎNG hàng. POST /api/shipments/{shipmentId}/report (5.3)
    * Body: { reportedItems: [{ productId, receivedQuantity, note }] }
    */
   reportShipmentShortage(shipmentId, body) {

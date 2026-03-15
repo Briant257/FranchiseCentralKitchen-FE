@@ -2,48 +2,92 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Package,
   ShoppingCart,
-  TrendingUp,
   CheckCircle,
-  Clock,
-  AlertTriangle,
   FileText,
   Store,
-  Bell,
   Plus,
-  Search,
-  Filter,
-  Download,
   Trash2,
-  DollarSign,
-  Send,
-  X,
 } from "../../components/icons/Icons";
+import "../../styles/store-manager.css";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
-import StatCard from "../../components/common/StatCard";
-import OrderCard from "../../components/common/OrderCard";
-import { FRANCHISE_MENU } from "../../constants";
+
+const PAGE_META = {
+  cart: {
+    title: "Giỏ hàng",
+    crumb: "Giỏ hàng",
+    iconBg: "#fdf3e0",
+    iconStroke: "#d4860a",
+  },
+  orders: {
+    title: "Đơn hàng",
+    crumb: "Đơn hàng",
+    iconBg: "#eef3f7",
+    iconStroke: "#3d5a70",
+  },
+  shipments: {
+    title: "Nhận hàng",
+    crumb: "Nhận hàng",
+    iconBg: "#f5f3ff",
+    iconStroke: "#8b5cf6",
+  },
+  settings: {
+    title: "Cài đặt tiệm",
+    crumb: "Cài đặt",
+    iconBg: "#eef5f1",
+    iconStroke: "#4a7c5f",
+  },
+};
+
+const STATUS_MAP = {
+  PENDING: { l: "Chờ xác nhận", c: "#d97706", b: "rgba(217,119,6,.1)" },
+  CONFIRMED: { l: "Đã xác nhận", c: "#3d5a70", b: "rgba(61,90,112,.1)" },
+  SHIPPING: { l: "Đang giao", c: "#7c3aed", b: "rgba(124,58,237,.1)" },
+  DELIVERED: { l: "Đã giao", c: "#4a7c5f", b: "rgba(74,124,95,.1)" },
+  completed: { l: "Hoàn thành", c: "#4a7c5f", b: "rgba(74,124,95,.1)" },
+  pending: { l: "Chờ xử lý", c: "#d97706", b: "rgba(217,119,6,.1)" },
+  processing: { l: "Đang xử lý", c: "#3d5a70", b: "rgba(61,90,112,.1)" },
+  ARRIVED: { l: "Đã đến", c: "#4a7c5f", b: "rgba(74,124,95,.1)" },
+  ON_WAY: { l: "Đang đến", c: "#7c3aed", b: "rgba(124,58,237,.1)" },
+};
 
 const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
-  const [activeTab, setActiveTab] = useState("create-order");
+  const [activePage, setActivePage] = useState("cart");
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [deliveryDate, setDeliveryDate] = useState("");
-  const [orderNote, setOrderNote] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [shipments, setShipments] = useState([]);
   const [storeProfile, setStoreProfile] = useState({
     name: "",
     address: "",
     phone: "",
   });
   const [storeProfileSaving, setStoreProfileSaving] = useState(false);
+  const [panel, setPanel] = useState(null);
+  const [checkoutOrderType, setCheckoutOrderType] = useState("STANDARD");
+  const [checkoutNote, setCheckoutNote] = useState("");
+  const [quickOrderItems, setQuickOrderItems] = useState([
+    { productId: "", quantity: 1 },
+  ]);
+  const [quickOrderType, setQuickOrderType] = useState("STANDARD");
+  const [quickOrderNote, setQuickOrderNote] = useState("");
+  const [quickOrderDeliveryDate, setQuickOrderDeliveryDate] = useState(() =>
+    new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+  );
+  const [reportShipmentId, setReportShipmentId] = useState(null);
+  const [reportItems, setReportItems] = useState([]);
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [orderDetailData, setOrderDetailData] = useState(null);
+  const [toast, setToast] = useState({
+    show: false,
+    msg: "",
+    color: "#4a7c5f",
+  });
+  const [profileEditing, setProfileEditing] = useState(false);
 
   const loadCart = useCallback(async (productsList = []) => {
     try {
@@ -62,7 +106,6 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
           name: product?.name ?? line.productName ?? productId,
           price: Number(product?.price ?? line.unitPrice ?? line.price ?? 0),
           quantity,
-          emoji: product?.emoji ?? "🍽️",
         };
       });
       setCart(merged.filter((i) => i.quantity > 0));
@@ -82,20 +125,21 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       setProducts(prods);
       setOrders(Array.isArray(ordersList) ? ordersList : []);
       await loadCart(prods);
+      setShipments([]);
     } catch (err) {
       console.error("loadData:", err);
       setProducts([]);
       setOrders([]);
       setCart([]);
+      setShipments([]);
     }
   }, [loadCart]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
-
   useEffect(() => {
-    if (activeTab === "settings") {
+    if (activePage === "settings") {
       api.getStoreProfile().then((p) => {
         setStoreProfile({
           name: p.name ?? "",
@@ -104,161 +148,175 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
         });
       });
     }
-  }, [activeTab]);
+  }, [activePage]);
 
-  const stats = [
-    {
-      label: "Đơn hàng tháng này",
-      value: orders
-        .filter((o) => (o.date || "").includes("01/2026"))
-        .length.toString(),
-      change: "",
-      icon: ShoppingCart,
-      color: "ck-icon-box-blue",
-    },
-    {
-      label: "Đang chờ xử lý",
-      value: orders.filter((o) => o.status === "pending").length.toString(),
-      change: "",
-      icon: Clock,
-      color: "ck-icon-box-yellow",
-    },
-    {
-      label: "Tồn kho",
-      value: products.reduce((sum, p) => sum + (p.stock ?? 0), 0).toString(),
-      change: "",
-      icon: Package,
-      color: "ck-icon-box-green",
-    },
-    {
-      label: "Đã hoàn thành",
-      value: orders.filter((o) => o.status === "completed").length.toString(),
-      change: "",
-      icon: CheckCircle,
-      color: "ck-icon-box-purple",
-    },
-  ];
+  const showToast = (msg, color = "#4a7c5f") => {
+    setToast({ show: true, msg, color });
+    setTimeout(() => setToast((t) => ({ ...t, show: false })), 2600);
+  };
+  const openPanel = (name) => setPanel(name);
+  const closePanel = () => setPanel(null);
 
   const addToCart = async (product) => {
     const productId = product.id ?? product.productId;
     try {
       await api.addToStoreCart({ productId, quantity: 1 });
       await loadCart(products);
+      showToast("Đã thêm: " + (product.name || productId), "#4a7c5f");
     } catch (err) {
-      window.alert("Thêm món thất bại: " + (err.message || "Lỗi kết nối"));
+      showToast("Thêm món thất bại", "#c0392b");
     }
   };
 
-  const updateQuantity = async (productId, quantity) => {
-    try {
-      if (quantity <= 0) {
+  const updateQty = async (productId, delta) => {
+    const item = cart.find((c) => (c.id ?? c.productId) === productId);
+    if (!item) return;
+    const newQty = item.quantity + delta;
+    if (newQty <= 0) {
+      try {
         await api.removeFromStoreCart(productId);
-      } else {
-        await api.updateStoreCartItem({ productId, quantity });
+        await loadCart(products);
+        showToast("Đã xóa khỏi giỏ", "#c0392b");
+      } catch (err) {
+        showToast("Xóa thất bại", "#c0392b");
       }
-      await loadCart(products);
-    } catch (err) {
-      window.alert(
-        "Cập nhật giỏ hàng thất bại: " + (err.message || "Lỗi kết nối"),
-      );
+    } else {
+      try {
+        await api.updateStoreCartItem({ productId, quantity: newQty });
+        await loadCart(products);
+      } catch (err) {
+        showToast("Cập nhật thất bại", "#c0392b");
+      }
     }
   };
 
-  const removeFromCart = async (productId) => {
-    try {
-      await api.removeFromStoreCart(productId);
-      await loadCart(products);
-    } catch (err) {
-      window.alert("Xóa món thất bại: " + (err.message || "Lỗi kết nối"));
-    }
-  };
-
-  const handleCreateOrder = async () => {
+  const doCheckout = async () => {
     if (cart.length === 0) {
-      window.alert("Giỏ hàng trống!");
+      showToast("Giỏ hàng trống", "#c0392b");
       return;
     }
-    if (!deliveryDate) {
-      window.alert("Vui lòng chọn ngày giao hàng!");
-      return;
-    }
-
     try {
       await api.checkoutStoreCart({
-        orderType: "STANDARD",
-        note: orderNote.trim() || undefined,
+        orderType: checkoutOrderType,
+        note: checkoutNote.trim() || undefined,
       });
-      setDeliveryDate("");
-      setOrderNote("");
+      setCheckoutNote("");
       await loadCart(products);
       await loadData();
-      setActiveTab("orders");
-      window.alert("✅ Đơn hàng đã được chốt thành công!");
+      closePanel();
+      setActivePage("orders");
+      showToast("Đã chốt đơn thành công!", "#4a7c5f");
     } catch (err) {
-      window.alert("Chốt đơn thất bại: " + (err.message || "Lỗi kết nối"));
+      showToast("Chốt đơn thất bại: " + (err.message || "Lỗi"), "#c0392b");
     }
   };
 
-  const filteredProducts = products.filter((p) => {
-    const term = (searchTerm || "").toLowerCase();
-    const matchSearch =
-      (p.name || "").toLowerCase().includes(term) ||
-      String(p.id || "")
-        .toLowerCase()
-        .includes(term);
-    const matchCategory =
-      categoryFilter === "all" || p.category === categoryFilter;
-    return matchSearch && matchCategory;
-  });
+  const doQuickOrder = async () => {
+    const items = quickOrderItems
+      .filter((r) => r.productId && (r.quantity || 0) > 0)
+      .map((r) => ({
+        productId: r.productId,
+        quantity: Number(r.quantity) || 1,
+        price:
+          products.find((p) => (p.id ?? p.productId) === r.productId)?.price ??
+          0,
+      }));
+    if (items.length === 0) {
+      showToast("Chọn ít nhất một sản phẩm", "#c0392b");
+      return;
+    }
+    try {
+      await api.createStoreOrder(
+        {
+          deliveryDate: quickOrderDeliveryDate,
+          items,
+          note: quickOrderNote.trim() || undefined,
+        },
+        quickOrderType,
+      );
+      await loadData();
+      closePanel();
+      setQuickOrderItems([{ productId: "", quantity: 1 }]);
+      setQuickOrderNote("");
+      showToast("Đã tạo đơn hàng", "#4a7c5f");
+    } catch (err) {
+      showToast("Tạo đơn thất bại: " + (err.message || "Lỗi"), "#c0392b");
+    }
+  };
 
-  const minVal = (p) => Number(p.min) || 0;
-  const lowStockProducts = products.filter(
-    (p) => (p.stock ?? 0) < minVal(p) * 1.5,
-  );
+  const openOrderDetail = async (order) => {
+    setOrderDetail(order);
+    setOrderDetailData(null);
+    try {
+      const detail = await api.getStoreOrderDetail(order.id);
+      setOrderDetailData(detail ?? order);
+    } catch {
+      setOrderDetailData(order);
+    }
+    openPanel("orderDetail");
+  };
+
+  const openReport = (shipmentId) => {
+    setReportShipmentId(shipmentId);
+    setReportItems(
+      products.slice(0, 5).map((p) => ({
+        productId: p.id ?? p.productId,
+        productName: p.name,
+        expectedQuantity: 10,
+        receivedQuantity: 10,
+        note: "",
+      })),
+    );
+    openPanel("report");
+  };
+
+  const doReport = async () => {
+    if (!reportShipmentId) return;
+    const reportedItems = reportItems.map((r) => ({
+      productId: r.productId,
+      receivedQuantity: Number(r.receivedQuantity) ?? 0,
+      note: (r.note || "").trim() || undefined,
+    }));
+    try {
+      await api.reportShipmentShortage(reportShipmentId, { reportedItems });
+      closePanel();
+      showToast("Đã gửi báo cáo sự cố", "#c0392b");
+    } catch (err) {
+      showToast("Gửi báo cáo thất bại", "#c0392b");
+    }
+  };
+
+  const saveProfile = async () => {
+    setStoreProfileSaving(true);
+    try {
+      await api.updateStoreProfile(storeProfile);
+      setProfileEditing(false);
+      showToast("Đã lưu thông tin tiệm", "#4a7c5f");
+    } catch (err) {
+      showToast("Lưu thất bại", "#c0392b");
+    } finally {
+      setStoreProfileSaving(false);
+    }
+  };
+
+  const fmt = (n) => (n ?? 0).toLocaleString("vi-VN") + "₫";
+  const badge = (status) => {
+    const s = STATUS_MAP[status] || STATUS_MAP.pending;
+    return (
+      <span className="badge" style={{ color: s.c, background: s.b }}>
+        {s.l}
+      </span>
+    );
+  };
+  const cartCount = cart.reduce((s, i) => s + (i.quantity || 0), 0);
   const categories = [
     "all",
     ...new Set(products.map((p) => p.category).filter(Boolean)),
   ];
+  const meta = PAGE_META[activePage] || PAGE_META.cart;
 
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black">
-      <div className="ck-grain" />
-
-      <header className="ck-header ck-px-6 ck-py-4 ck-flex ck-items-center ck-justify-between">
-        <div className="ck-flex ck-items-center ck-gap-4">
-          <div className="ck-w-12-h-12 ck-logo-icon ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-            <Store className="ck-text-white" size={24} />
-          </div>
-          <div>
-            <h1 className="ck-text-lg ck-font-bold ck-text-white">
-              Franchise Store
-            </h1>
-            <p className="ck-text-xs ck-text-gray-400 ck-mono">
-              Nhân viên cửa hàng
-            </p>
-          </div>
-        </div>
-        <div className="ck-flex ck-items-center ck-gap-3">
-          <button
-            type="button"
-            className="ck-btn ck-relative ck-p-3 ck-bg-gray-800 ck-rounded-xl"
-            style={{ border: "none" }}
-          >
-            <Bell size={22} className="ck-text-gray-300" />
-            {lowStockProducts.length > 0 && (
-              <span className="ck-bell-badge">{lowStockProducts.length}</span>
-            )}
-          </button>
-          <HeaderSettingsMenu
-            userData={userData}
-            showProfile={true}
-            onOpenProfile={() => setShowUpdateProfileModal(true)}
-            onChangePassword={() => setShowChangePasswordModal(true)}
-            onLogout={onLogout}
-          />
-        </div>
-      </header>
-
+    <div className="sm-page">
       <ChangePasswordModal
         open={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
@@ -274,814 +332,1060 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
         }}
       />
 
-      <div className="ck-flex">
-        <aside className="ck-sidebar">
-          <nav className="ck-sidebar-nav ck-space-y-2">
-            {FRANCHISE_MENU.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`ck-sidebar-item ck-sidebar-btn ${
-                    activeTab === item.id ? "ck-active" : ""
-                  }`}
-                  onClick={() => setActiveTab(item.id)}
-                >
-                  <Icon size={20} />
-                  <span>{item.name}</span>
-                </button>
-              );
-            })}
+      <div className="layout">
+        <aside className="sb">
+          <div className="sb-header">
+            <div className="sb-logo">
+              <div className="sb-logo-icon">🍜</div>
+              <span className="sb-logo-text">Cửa hàng</span>
+            </div>
+            <div className="sb-store-card">
+              <div className="sb-store-name">
+                {storeProfile.name || "Chưa Có Cửa Hàng"}
+              </div>
+              <div className="sb-store-role">
+                {userData?.name ?? userData?.fullName ?? "—"}
+              </div>
+            </div>
+          </div>
+          <nav className="sb-nav">
+            <div className="nav-group-label">Đặt hàng</div>
+            <button
+              type="button"
+              className={`ni ${activePage === "cart" ? "on" : ""}`}
+              onClick={() => setActivePage("cart")}
+            >
+              <ShoppingCart size={15} />
+              Giỏ hàng
+              {cartCount > 0 && <span className="ni-badge">{cartCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`ni ${activePage === "orders" ? "on" : ""}`}
+              onClick={() => setActivePage("orders")}
+            >
+              <FileText size={15} />
+              Đơn hàng
+            </button>
+            <div className="nav-group-label">Vận hành</div>
+            <button
+              type="button"
+              className={`ni ${activePage === "shipments" ? "on" : ""}`}
+              onClick={() => setActivePage("shipments")}
+            >
+              <Package size={15} />
+              Nhận hàng
+            </button>
+            <button
+              type="button"
+              className={`ni ${activePage === "settings" ? "on" : ""}`}
+              onClick={() => setActivePage("settings")}
+            >
+              <Store size={15} />
+              Cài đặt tiệm
+            </button>
           </nav>
         </aside>
 
-        <main
-          className="ck-main ck-scrollbar ck-max-w-7xl"
-          style={{ marginLeft: "auto", marginRight: "auto" }}
-        >
-          {activeTab === "create-order" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
-                Tạo đơn hàng mới
-              </h2>
+        <main className="main">
+          <div className="topbar">
+            <div className="tb-page">
+              <div className="tb-page-icon" style={{ background: meta.iconBg }}>
+                {activePage === "cart" && (
+                  <ShoppingCart size={16} style={{ color: meta.iconStroke }} />
+                )}
+                {activePage === "orders" && (
+                  <FileText size={16} style={{ color: meta.iconStroke }} />
+                )}
+                {activePage === "shipments" && (
+                  <Package size={16} style={{ color: meta.iconStroke }} />
+                )}
+                {activePage === "settings" && (
+                  <Store size={16} style={{ color: meta.iconStroke }} />
+                )}
+              </div>
+              <div className="tb-title">{meta.title}</div>
+            </div>
+            <div className="tb-actions">
+              <HeaderSettingsMenu
+                userData={userData}
+                showProfile={true}
+                onOpenProfile={() => setShowUpdateProfileModal(true)}
+                onChangePassword={() => setShowChangePasswordModal(true)}
+                onLogout={onLogout}
+              />
+            </div>
+          </div>
 
-              <div className="ck-grid-1-lg-3 ck-gap-6">
+          <div className="content">
+            <div className="stats">
+              <div className="sc">
                 <div
-                  className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6"
-                  style={{ gridColumn: "span 2" }}
-                >
-                  <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-                    <h3 className="ck-text-2xl ck-font-bold ck-text-white">
-                      Danh sách sản phẩm
-                    </h3>
-                    <div className="ck-flex ck-gap-3">
-                      <div className="ck-relative">
-                        <Search
-                          className="ck-absolute ck-left-4"
-                          style={{ top: "50%", transform: "translateY(-50%)" }}
-                          size={20}
-                        />
-                        <input
-                          type="text"
-                          className="ck-input ck-pl-12"
-                          style={{ paddingLeft: "2.5rem" }}
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          placeholder="Tìm sản phẩm..."
-                        />
-                      </div>
-                      <select
-                        className="ck-select ck-px-4 ck-py-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                      >
-                        {categories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat === "all" ? "Tất cả" : cat}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  className="sc-stripe"
+                  style={{ background: "var(--amber)" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Trong giỏ</div>
                   </div>
-
-                  <div className="ck-grid-1-md-2 ck-gap-4 ck-max-h-600 ck-overflow-y-auto ck-scrollbar ck-pr-2">
-                    {filteredProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        className="ck-border ck-border-gray-700 ck-rounded-xl ck-p-5 ck-bg-gray-900-50 ck-card-hover"
-                      >
-                        <div
-                          className="ck-flex ck-justify-between ck-mb-4"
-                          style={{ alignItems: "flex-start" }}
-                        >
-                          <div className="ck-flex ck-items-center ck-gap-3">
-                            <span className="ck-text-5xl">{product.emoji}</span>
-                            <div>
-                              <h4 className="ck-font-bold ck-text-white ck-text-lg">
-                                {product.name}
-                              </h4>
-                              <p className="ck-text-sm ck-text-gray-400">
-                                {product.category}
-                              </p>
-                              <p className="ck-text-xs ck-text-gray-500 ck-mono">
-                                {product.id}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="ck-flex ck-items-center ck-justify-between">
-                          <div>
-                            <p className="ck-text-2xl ck-font-black ck-text-orange-400">
-                              {product.price.toLocaleString()}₫
-                            </p>
-                            <p className="ck-text-xs ck-text-gray-500 ck-mono">
-                              Còn {product.stock}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-primary ck-text-white ck-rounded-lg ck-font-bold ck-flex ck-items-center ck-gap-2"
-                            onClick={() => addToCart(product)}
-                          >
-                            <Plus size={16} />
-                            Thêm
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--amber-bg)" }}
+                  >
+                    <ShoppingCart size={14} style={{ color: "var(--amber)" }} />
                   </div>
                 </div>
+                <div className="sc-val" style={{ color: "var(--amber)" }}>
+                  {cartCount}
+                </div>
+              </div>
+              <div className="sc">
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--slate)" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Đơn hàng</div>
+                  </div>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--slate-bg)" }}
+                  >
+                    <FileText size={14} style={{ color: "var(--slate)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--slate)" }}>
+                  {orders.length}
+                </div>
+              </div>
+              <div className="sc">
+                <div className="sc-stripe" style={{ background: "#8b5cf6" }} />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Đang giao</div>
+                  </div>
+                  <div className="sc-icon" style={{ background: "#f5f3ff" }}>
+                    <Package size={14} style={{ color: "#8b5cf6" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "#8b5cf6" }}>
+                  {
+                    shipments.filter(
+                      (s) => s.status === "ON_WAY" || s.status === "SHIPPING",
+                    ).length
+                  }
+                </div>
+              </div>
+              <div className="sc">
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--sage)" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Đã nhận</div>
+                  </div>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--sage-bg)" }}
+                  >
+                    <CheckCircle size={14} style={{ color: "var(--sage)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--sage)" }}>
+                  {
+                    shipments.filter(
+                      (s) => s.status === "ARRIVED" || s.status === "DELIVERED",
+                    ).length
+                  }
+                </div>
+              </div>
+            </div>
 
-                <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6 ck-h-fit ck-sticky-top-24">
-                  <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-mb-6 ck-flex ck-items-center ck-gap-3">
-                    <ShoppingCart size={28} className="ck-text-orange-400" />
-                    Giỏ hàng ({cart.length})
-                  </h3>
-
+            <div
+              className={`page ${activePage === "cart" ? "on" : ""}`}
+              id="page-cart"
+            >
+              <div className="cart-layout">
+                <div>
+                  {(categories.filter((c) => c !== "all").length
+                    ? categories.filter((c) => c !== "all")
+                    : ["all"]
+                  ).map((cat) => (
+                    <div key={cat} className="prod-section">
+                      <div className="prod-section-label">
+                        {cat === "all" ? "Sản phẩm" : cat}
+                      </div>
+                      <div className="prod-grid">
+                        {(cat === "all"
+                          ? products
+                          : products.filter((p) => p.category === cat)
+                        ).map((product) => {
+                          const item = cart.find(
+                            (c) =>
+                              (c.id ?? c.productId) ===
+                              (product.id ?? product.productId),
+                          );
+                          const qty = item ? item.quantity : 0;
+                          return (
+                            <button
+                              key={product.id}
+                              type="button"
+                              className={`ptile ${qty > 0 ? "in" : ""}`}
+                              onClick={() => addToCart(product)}
+                            >
+                              {qty > 0 && (
+                                <span className="pt-incart">×{qty}</span>
+                              )}
+                              <div className="pt-unit">
+                                {product.category || "SP"}
+                              </div>
+                              <div className="pt-name">{product.name}</div>
+                              <div className="pt-price">
+                                {fmt(product.price)}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="cart-panel">
+                  <div className="cp-header">
+                    <div className="cp-title">
+                      <ShoppingCart size={15} style={{ opacity: 0.7 }} /> Giỏ
+                      hàng
+                    </div>
+                    <span className="cp-count">
+                      {cartCount ? cartCount + " món" : "trống"}
+                    </span>
+                  </div>
                   {cart.length === 0 ? (
-                    <div className="ck-text-center ck-py-12">
-                      <ShoppingCart
-                        size={64}
-                        className="ck-text-gray-700"
-                        style={{ margin: "0 auto 1rem" }}
-                      />
-                      <p className="ck-text-gray-500">Giỏ hàng trống</p>
+                    <div className="cp-empty">
+                      <div className="cp-empty-icon">🛒</div>
+                      <p>Giỏ hàng đang trống</p>
+                      <p>Chọn món từ thực đơn bên trái</p>
                     </div>
                   ) : (
                     <>
-                      <div className="ck-space-y-3 ck-mb-6 ck-max-h-96 ck-overflow-y-auto ck-scrollbar">
+                      <div>
                         {cart.map((item) => (
-                          <div
-                            key={item.id}
-                            className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-p-3"
-                          >
-                            <div
-                              className="ck-flex ck-justify-between ck-mb-3"
-                              style={{ alignItems: "flex-start" }}
-                            >
-                              <div className="ck-flex ck-gap-3">
-                                <span className="ck-text-3xl">
-                                  {item.emoji}
-                                </span>
-                                <div>
-                                  <p className="ck-font-bold ck-text-white">
-                                    {item.name}
-                                  </p>
-                                  <p className="ck-text-sm ck-text-gray-400 ck-mono">
-                                    {item.price.toLocaleString()}₫
-                                  </p>
-                                </div>
+                          <div key={item.id} className="ci">
+                            <div className="ci-info">
+                              <div className="ci-name">{item.name}</div>
+                              <div className="ci-price">
+                                {fmt((item.price ?? 0) * (item.quantity ?? 0))}
                               </div>
+                            </div>
+                            <div className="qty-ctrl">
                               <button
                                 type="button"
-                                className="ck-btn ck-text-red-500 ck-p-1 ck-rounded"
-                                onClick={() => removeFromCart(item.id)}
-                                style={{ background: "none", border: "none" }}
+                                className="qb"
+                                onClick={() =>
+                                  updateQty(item.id ?? item.productId, -1)
+                                }
                               >
-                                <Trash2 size={16} />
+                                −
+                              </button>
+                              <span className="qv">{item.quantity}</span>
+                              <button
+                                type="button"
+                                className="qb"
+                                onClick={() =>
+                                  updateQty(item.id ?? item.productId, 1)
+                                }
+                              >
+                                +
                               </button>
                             </div>
-                            <div className="ck-flex ck-items-center ck-justify-between">
-                              <div className="ck-flex ck-items-center ck-gap-2 ck-bg-gray-800 ck-rounded-lg ck-border ck-border-gray-700">
-                                <button
-                                  type="button"
-                                  className="ck-btn ck-px-3 ck-py-2"
-                                  onClick={() =>
-                                    updateQuantity(item.id, item.quantity - 1)
-                                  }
-                                  style={{
-                                    border: "none",
-                                    background: "none",
-                                    color: "#e5e7eb",
-                                  }}
-                                >
-                                  -
-                                </button>
-                                <span className="ck-font-bold ck-text-white ck-px-3 ck-mono">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="ck-btn ck-px-3 ck-py-2"
-                                  onClick={() =>
-                                    updateQuantity(item.id, item.quantity + 1)
-                                  }
-                                  style={{
-                                    border: "none",
-                                    background: "none",
-                                    color: "#e5e7eb",
-                                  }}
-                                >
-                                  +
-                                </button>
-                              </div>
-                              <span className="ck-font-black ck-text-orange-400 ck-mono">
-                                {(item.price * item.quantity).toLocaleString()}₫
-                              </span>
-                            </div>
+                            <button
+                              type="button"
+                              className="ci-del"
+                              onClick={() =>
+                                updateQty(item.id ?? item.productId, -999)
+                              }
+                              aria-label="Xóa"
+                            >
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         ))}
                       </div>
-
-                      <div className="ck-border-t ck-border-gray-700 ck-pt-4 ck-space-y-4">
-                        <div className="ck-flex ck-justify-between ck-text-lg ck-font-bold">
-                          <span className="ck-text-gray-400">Tổng cộng</span>
-                          <span className="ck-text-orange-400 ck-text-2xl ck-mono">
-                            {cart
-                              .reduce(
-                                (sum, item) => sum + item.price * item.quantity,
+                      <div className="cp-footer">
+                        <div className="cp-total-row">
+                          <span className="cp-total-lbl">Tổng cộng</span>
+                          <span className="cp-total-val">
+                            {fmt(
+                              cart.reduce(
+                                (s, i) =>
+                                  s + (i.price ?? 0) * (i.quantity ?? 0),
                                 0,
-                              )
-                              .toLocaleString()}
-                            ₫
+                              ),
+                            )}
                           </span>
                         </div>
-
-                        <div>
-                          <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                            Ngày giao hàng{" "}
-                            <span className="ck-text-red-400">*</span>
-                          </label>
-                          <input
-                            type="date"
-                            className="ck-input ck-w-full ck-mono"
-                            value={deliveryDate}
-                            onChange={(e) => setDeliveryDate(e.target.value)}
-                            min={new Date().toISOString().split("T")[0]}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                            Ghi chú đặc biệt
-                          </label>
-                          <textarea
-                            className="ck-input ck-w-full ck-textarea"
-                            value={orderNote}
-                            onChange={(e) => setOrderNote(e.target.value)}
-                            placeholder="VD: Giao trước 6h sáng, để riêng..."
-                            rows={3}
-                          />
-                        </div>
-
                         <button
                           type="button"
-                          className="ck-btn ck-w-full ck-py-4 ck-bg-gradient-btn-primary ck-text-white ck-rounded-xl ck-font-black ck-text-lg ck-flex ck-items-center ck-justify-center ck-gap-2"
-                          onClick={handleCreateOrder}
+                          className="btn btn-amber"
+                          style={{
+                            width: "100%",
+                            justifyContent: "center",
+                            fontSize: 13,
+                          }}
+                          onClick={() => openPanel("checkout")}
                         >
-                          <Send size={20} />
-                          Gửi đơn đặt hàng
+                          Chốt đơn hàng
+                          <svg
+                            width={13}
+                            height={13}
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                          >
+                            <polyline points="6 3 11 8 6 13" />
+                          </svg>
                         </button>
                       </div>
                     </>
                   )}
                 </div>
               </div>
-            </>
-          )}
+            </div>
 
-          {activeTab === "orders" && (
-            <>
-              <div className="ck-flex ck-items-center ck-justify-between ck-mb-8">
-                <h2 className="ck-text-4xl ck-font-black ck-text-white">
-                  Đơn hàng của tôi
-                </h2>
-                <div className="ck-flex ck-gap-3">
-                  <button
-                    type="button"
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 ck-border ck-border-gray-700 ck-text-gray-300 ck-rounded-xl ck-flex ck-items-center ck-gap-2"
-                    style={{ border: "1px solid" }}
-                  >
-                    <Filter size={20} />
-                    Lọc
-                  </button>
-                  <button
-                    type="button"
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 ck-border ck-border-gray-700 ck-text-gray-300 ck-rounded-xl ck-flex ck-items-center ck-gap-2"
-                    style={{ border: "1px solid" }}
-                  >
-                    <Download size={20} />
-                    Xuất Excel
-                  </button>
-                </div>
-              </div>
-
-              {orders.length === 0 ? (
-                <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-12 ck-text-center">
-                  <FileText
-                    size={80}
-                    className="ck-text-gray-700"
-                    style={{ margin: "0 auto 1rem" }}
-                  />
-                  <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-mb-2">
-                    Chưa có đơn hàng nào
-                  </h3>
-                  <p className="ck-text-gray-400 ck-mb-6">
-                    Hãy tạo đơn hàng đầu tiên của bạn
-                  </p>
-                  <button
-                    type="button"
-                    className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-primary ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
-                    style={{ margin: "0 auto" }}
-                    onClick={() => setActiveTab("create-order")}
-                  >
-                    <Plus size={20} />
-                    Tạo đơn hàng
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className="ck-grid-1-md-2 ck-gap-6"
-                  style={{
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(320px, 1fr))",
+            <div
+              className={`page ${activePage === "orders" ? "on" : ""}`}
+              id="page-orders"
+            >
+              <div className="toolbar">
+                <button
+                  type="button"
+                  className="btn btn-amber"
+                  onClick={() => {
+                    setQuickOrderItems([
+                      { productId: products[0]?.id ?? "", quantity: 1 },
+                    ]);
+                    openPanel("quickOrder");
                   }}
                 >
-                  {orders.map((order) => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      onView={setSelectedOrder}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {activeTab === "inventory" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
-                Tồn kho cửa hàng
-              </h2>
-
-              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden">
-                <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                  <div className="ck-flex ck-gap-3">
-                    <div className="ck-relative">
-                      <Search
-                        className="ck-absolute ck-left-4"
-                        style={{ top: "50%", transform: "translateY(-50%)" }}
-                        size={20}
-                      />
-                      <input
-                        type="text"
-                        className="ck-input ck-w-64 ck-mono"
-                        style={{ paddingLeft: "2.5rem" }}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Tìm kiếm sản phẩm..."
-                      />
-                    </div>
-                    <select
-                      className="ck-select ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                      value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
+                  <Plus size={13} /> Tạo đơn nhanh
+                </button>
+              </div>
+              <div className="card">
+                <div className="card-hd">
+                  <div className="card-title">
+                    <div
+                      className="card-icon"
+                      style={{ background: "var(--slate-bg)" }}
                     >
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat === "all" ? "Tất cả danh mục" : cat}
-                        </option>
-                      ))}
-                    </select>
+                      <FileText size={13} style={{ color: "var(--slate)" }} />
+                    </div>
+                    Đơn hàng của tiệm
                   </div>
-                  <button
-                    type="button"
-                    className="ck-btn ck-px-4 ck-py-3 ck-bg-green-600 ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
-                  >
-                    <Download size={18} />
-                    Xuất báo cáo
-                  </button>
                 </div>
-
-                <div className="ck-table-wrap">
-                  <table className="ck-table">
+                <div className="tbl-wrap">
+                  <table>
                     <thead>
                       <tr>
-                        <th>Sản phẩm</th>
-                        <th>Danh mục</th>
-                        <th className="ck-text-center">Tồn kho</th>
-                        <th className="ck-text-center">Tối thiểu</th>
-                        <th className="ck-text-center">Giá</th>
-                        <th className="ck-text-center">Trạng thái</th>
-                        <th className="ck-text-center">Hành động</th>
+                        <th>Mã đơn</th>
+                        <th>Loại</th>
+                        <th>Trạng thái</th>
+                        <th>Số món</th>
+                        <th>Tổng tiền</th>
+                        <th>Thời gian</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProducts.map((product) => {
-                        const minP = Number(product.min) || 0;
-                        const percent =
-                          minP > 0 ? ((product.stock ?? 0) / minP) * 100 : 100;
-                        const status =
-                          percent < 100
-                            ? "low"
-                            : percent < 150
-                              ? "warn"
-                              : "good";
-                        return (
-                          <tr key={product.id}>
-                            <td>
-                              <div className="ck-flex ck-items-center ck-gap-4">
-                                <span className="ck-text-4xl">
-                                  {product.emoji}
-                                </span>
-                                <div>
-                                  <p className="ck-font-bold ck-text-white ck-text-lg">
-                                    {product.name}
-                                  </p>
-                                  <p className="ck-text-sm ck-text-gray-500 ck-mono">
-                                    {product.id}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="ck-text-gray-400">
-                              {product.category}
-                            </td>
-                            <td className="ck-text-center">
-                              <span className="ck-font-black ck-text-2xl ck-text-white ck-mono">
-                                {product.stock}
-                              </span>
-                            </td>
-                            <td className="ck-text-center ck-text-gray-400 ck-mono">
-                              {product.min}
-                            </td>
-                            <td className="ck-text-center">
-                              <span className="ck-font-bold ck-text-orange-400 ck-mono">
-                                {(product.price ?? 0).toLocaleString()}₫
-                              </span>
-                            </td>
-                            <td className="ck-text-center">
-                              <span
-                                className={`ck-badge ${
-                                  status === "good"
-                                    ? "ck-badge-green"
-                                    : status === "warn"
-                                      ? "ck-badge-yellow"
-                                      : "ck-badge-red"
-                                }`}
-                              >
-                                {status === "good"
-                                  ? "✓ Đủ hàng"
-                                  : status === "warn"
-                                    ? "⚠ Sắp hết"
-                                    : "✗ Thiếu"}
-                              </span>
-                            </td>
-                            <td className="ck-text-center">
+                      {orders.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            style={{ textAlign: "center", padding: 24 }}
+                          >
+                            <div className="empty">
+                              <FileText size={40} />
+                              <p>Chưa có đơn hàng</p>
                               <button
                                 type="button"
-                                className="ck-btn ck-px-4 ck-py-2 ck-bg-orange-600 ck-text-white ck-rounded-lg ck-font-bold"
-                                onClick={() => {
-                                  addToCart(product);
-                                  setActiveTab("create-order");
-                                }}
+                                className="btn btn-amber"
+                                style={{ marginTop: 12 }}
+                                onClick={() => setActivePage("cart")}
                               >
-                                Đặt hàng
+                                <Plus size={13} /> Tạo đơn từ giỏ
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        orders.map((o) => (
+                          <tr key={o.id}>
+                            <td>
+                              <span
+                                className="mono"
+                                style={{ fontWeight: 600 }}
+                              >
+                                {o.id}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="tag tag-s">STANDARD</span>
+                            </td>
+                            <td>{badge(o.status)}</td>
+                            <td
+                              className="mono"
+                              style={{ color: "var(--ink2)" }}
+                            >
+                              {(o.items || []).length}
+                            </td>
+                            <td
+                              className="mono"
+                              style={{ color: "var(--amber)", fontWeight: 600 }}
+                            >
+                              {fmt(o.total)}
+                            </td>
+                            <td
+                              style={{ fontSize: 11.5, color: "var(--ink3)" }}
+                            >
+                              {o.date ?? "—"}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn btn-xs"
+                                onClick={() => openOrderDetail(o)}
+                              >
+                                Chi tiết
                               </button>
                             </td>
                           </tr>
-                        );
-                      })}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
-            </>
-          )}
+            </div>
 
-          {activeTab === "reports" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
-                Báo cáo & Thống kê
-              </h2>
-
-              <div
-                className="ck-grid-1-md-2 ck-gap-6 ck-mb-8"
-                style={{
-                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                }}
-              >
-                <div className="ck-bg-blue-500-20 ck-border ck-border-blue-500-30 ck-rounded-2xl ck-p-6">
-                  <div className="ck-flex ck-items-center ck-gap-3 ck-mb-4">
-                    <div className="ck-w-12-h-12 ck-bg-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-                      <ShoppingCart className="ck-text-white" size={24} />
-                    </div>
-                    <div>
-                      <p className="ck-text-sm ck-text-blue-400">
-                        Tổng đơn hàng
-                      </p>
-                      <p className="ck-text-3xl ck-font-black ck-text-white">
-                        {orders.length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className="ck-bg-green-500-20 ck-border ck-border-blue-500-30 ck-rounded-2xl ck-p-6"
-                  style={{ borderColor: "rgba(34,197,94,0.3)" }}
-                >
-                  <div className="ck-flex ck-items-center ck-gap-3 ck-mb-4">
-                    <div className="ck-w-12-h-12 ck-bg-green-600 ck-rounded-xl ck-flex ck-items-center ck-justify-center">
-                      <DollarSign className="ck-text-white" size={24} />
-                    </div>
-                    <div>
-                      <p className="ck-text-sm ck-text-green-400">
-                        Tổng giá trị
-                      </p>
-                      <p className="ck-text-3xl ck-font-black ck-text-white ck-mono">
-                        {(
-                          orders.reduce((sum, o) => sum + (o.total ?? 0), 0) /
-                          1000000
-                        ).toFixed(1)}
-                        M
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className="ck-bg-purple-500-20 ck-border ck-border-blue-500-30 ck-rounded-2xl ck-p-6"
-                  style={{
-                    background: "rgba(168,85,247,0.2)",
-                    borderColor: "rgba(168,85,247,0.3)",
-                  }}
-                >
-                  <div className="ck-flex ck-items-center ck-gap-3 ck-mb-4">
+            <div
+              className={`page ${activePage === "shipments" ? "on" : ""}`}
+              id="page-shipments"
+            >
+              <div className="card">
+                <div className="card-hd">
+                  <div className="card-title">
                     <div
-                      className="ck-w-12-h-12 ck-bg-gray-700 ck-rounded-xl ck-flex ck-items-center ck-justify-center"
-                      style={{ background: "#a855f7" }}
+                      className="card-icon"
+                      style={{ background: "#f5f3ff" }}
                     >
-                      <TrendingUp className="ck-text-white" size={24} />
+                      <Package size={13} style={{ color: "#8b5cf6" }} />
                     </div>
-                    <div>
-                      <p className="ck-text-sm ck-text-purple-400">
-                        TB đơn hàng
-                      </p>
-                      <p className="ck-text-3xl ck-font-black ck-text-white ck-mono">
-                        {orders.length > 0
-                          ? (
-                              orders.reduce(
-                                (sum, o) => sum + (o.total ?? 0),
-                                0,
-                              ) /
-                              orders.length /
-                              1000
-                            ).toFixed(0)
-                          : 0}
-                        K
-                      </p>
-                    </div>
+                    Lô hàng đến
                   </div>
+                </div>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã lô</th>
+                        <th>Mã đơn</th>
+                        <th>Trạng thái</th>
+                        <th>Thời gian đến</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shipments.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            style={{ textAlign: "center", padding: 24 }}
+                          >
+                            <div className="empty">
+                              <Package size={40} />
+                              <p>Chưa có lô hàng</p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        shipments.map((s) => (
+                          <tr key={s.shipmentId ?? s.id}>
+                            <td>
+                              <span
+                                className="mono"
+                                style={{ fontWeight: 600 }}
+                              >
+                                {s.shipmentId ?? s.id}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="mono">{s.orderId ?? "—"}</span>
+                            </td>
+                            <td>{badge(s.status)}</td>
+                            <td
+                              style={{ fontSize: 11.5, color: "var(--ink3)" }}
+                            >
+                              {s.arrivedAt
+                                ? new Date(s.arrivedAt).toLocaleString("vi-VN")
+                                : "—"}
+                            </td>
+                            <td>
+                              {(s.status === "ARRIVED" ||
+                                s.status === "DELIVERED") && (
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-rust"
+                                  onClick={() =>
+                                    openReport(s.shipmentId ?? s.id)
+                                  }
+                                >
+                                  ⚠ Báo sự cố
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+            </div>
 
-              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6">
-                <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-mb-6">
-                  Lịch sử đặt hàng gần đây
-                </h3>
-                <div className="ck-space-y-3">
-                  {orders.slice(0, 10).map((order) => (
-                    <div
-                      key={order.id}
-                      className="ck-flex ck-items-center ck-justify-between ck-p-4 ck-bg-gray-900-50 ck-border ck-border-gray-700 ck-rounded-xl"
-                    >
-                      <div>
-                        <p className="ck-font-bold ck-text-white ck-mono">
-                          {order.id}
-                        </p>
-                        <p className="ck-text-sm ck-text-gray-400">
-                          {order.date ?? ""}
-                        </p>
-                      </div>
+            <div
+              className={`page ${activePage === "settings" ? "on" : ""}`}
+              id="page-settings"
+            >
+              <div style={{ maxWidth: 660 }}>
+                <div className="card">
+                  <div className="card-hd">
+                    <div className="card-title">
                       <div
-                        className="ck-text-center"
-                        style={{ textAlign: "right" }}
+                        className="card-icon"
+                        style={{ background: "var(--sage-bg)" }}
                       >
-                        <p className="ck-font-black ck-text-orange-400 ck-mono">
-                          {(order.total ?? 0).toLocaleString()}₫
-                        </p>
-                        <p className="ck-text-sm ck-text-gray-400">
-                          {(order.items || []).length} sản phẩm
-                        </p>
+                        <Store size={13} style={{ color: "var(--sage)" }} />
                       </div>
+                      Thông tin cửa hàng
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => setProfileEditing(!profileEditing)}
+                    >
+                      {profileEditing ? "Hủy" : "Sửa thông tin"}
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    {!profileEditing ? (
+                      <div className="profile-grid">
+                        <div className="pf-item">
+                          <div className="pf-label">Tên cửa hàng</div>
+                          <div className="pf-val">
+                            {storeProfile.name || "—"}
+                          </div>
+                        </div>
+                        <div className="pf-item">
+                          <div className="pf-label">Số điện thoại</div>
+                          <div className="pf-val mono">
+                            {storeProfile.phone || "—"}
+                          </div>
+                        </div>
+                        <div
+                          className="pf-item"
+                          style={{ gridColumn: "1 / -1" }}
+                        >
+                          <div className="pf-label">Địa chỉ</div>
+                          <div className="pf-val">
+                            {storeProfile.address || "—"}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="fg">
+                          <label>Tên cửa hàng</label>
+                          <input
+                            value={storeProfile.name}
+                            onChange={(e) =>
+                              setStoreProfile((p) => ({
+                                ...p,
+                                name: e.target.value,
+                              }))
+                            }
+                            placeholder="VD: CH Tên Mới"
+                          />
+                        </div>
+                        <div className="fg">
+                          <label>Địa chỉ</label>
+                          <input
+                            value={storeProfile.address}
+                            onChange={(e) =>
+                              setStoreProfile((p) => ({
+                                ...p,
+                                address: e.target.value,
+                              }))
+                            }
+                            placeholder="VD: 123 Lộ Mới"
+                          />
+                        </div>
+                        <div className="fg">
+                          <label>Số điện thoại</label>
+                          <input
+                            value={storeProfile.phone}
+                            onChange={(e) =>
+                              setStoreProfile((p) => ({
+                                ...p,
+                                phone: e.target.value,
+                              }))
+                            }
+                            placeholder="0987654321"
+                          />
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            marginTop: 4,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => setProfileEditing(false)}
+                          >
+                            Hủy
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sage"
+                            disabled={storeProfileSaving}
+                            onClick={saveProfile}
+                          >
+                            {storeProfileSaving ? "Đang lưu…" : "Lưu thay đổi"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </>
-          )}
-
-          {activeTab === "settings" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
-                Cài đặt thông tin tiệm
-              </h2>
-              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6 ck-max-w-xl">
-                <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-mb-6 ck-flex ck-items-center ck-gap-3">
-                  <Store size={28} className="ck-text-orange-400" />
-                  Profile tiệm
-                </h3>
-                <form
-                  className="ck-space-y-4"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (storeProfileSaving) return;
-                    setStoreProfileSaving(true);
-                    try {
-                      await api.updateStoreProfile(storeProfile);
-                      window.alert("✅ Đã lưu thông tin tiệm!");
-                    } catch (err) {
-                      window.alert(
-                        "Lưu thất bại: " + (err.message || "Lỗi kết nối"),
-                      );
-                    } finally {
-                      setStoreProfileSaving(false);
-                    }
-                  }}
-                >
-                  <div>
-                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                      Tên cửa hàng
-                    </label>
-                    <input
-                      type="text"
-                      className="ck-input ck-w-full"
-                      value={storeProfile.name}
-                      onChange={(e) =>
-                        setStoreProfile((p) => ({ ...p, name: e.target.value }))
-                      }
-                      placeholder="VD: CH Mới"
-                    />
-                  </div>
-                  <div>
-                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                      Địa chỉ
-                    </label>
-                    <input
-                      type="text"
-                      className="ck-input ck-w-full"
-                      value={storeProfile.address}
-                      onChange={(e) =>
-                        setStoreProfile((p) => ({
-                          ...p,
-                          address: e.target.value,
-                        }))
-                      }
-                      placeholder="VD: 123 Lộ"
-                    />
-                  </div>
-                  <div>
-                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                      Điện thoại
-                    </label>
-                    <input
-                      type="text"
-                      className="ck-input ck-w-full"
-                      value={storeProfile.phone}
-                      onChange={(e) =>
-                        setStoreProfile((p) => ({
-                          ...p,
-                          phone: e.target.value,
-                        }))
-                      }
-                      placeholder="VD: 0987654321"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={storeProfileSaving}
-                    className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-primary ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
-                  >
-                    {storeProfileSaving ? "Đang lưu…" : "Lưu thay đổi"}
-                  </button>
-                </form>
-              </div>
-            </>
-          )}
+            </div>
+          </div>
         </main>
       </div>
 
-      {selectedOrder && (
-        <div
-          className="ck-modal-overlay"
-          onClick={() => setSelectedOrder(null)}
-          role="presentation"
-        >
-          <div
-            className="ck-modal-box ck-max-w-2xl ck-w-full ck-p-8"
-            onClick={(e) => e.stopPropagation()}
-            role="presentation"
-          >
-            <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-              <h3 className="ck-text-3xl ck-font-black ck-text-white">
-                Chi tiết đơn hàng
-              </h3>
-              <button
-                type="button"
-                className="ck-btn ck-p-2 ck-rounded-lg"
-                onClick={() => setSelectedOrder(null)}
-                style={{ background: "none", border: "none" }}
-              >
-                <X size={24} className="ck-text-gray-400" />
-              </button>
+      <div
+        className={`overlay ${panel ? "on" : ""}`}
+        onClick={closePanel}
+        role="presentation"
+      />
+      {panel === "checkout" && (
+        <div className="spanel on">
+          <div className="sp-head">
+            <div>
+              <div className="sp-title">Chốt đơn hàng</div>
             </div>
-
-            <div className="ck-grid-2 ck-gap-4 ck-mb-6">
-              <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">
-                <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
-                  Mã đơn hàng
-                </p>
-                <p className="ck-font-bold ck-text-xl ck-text-white ck-mono">
-                  {selectedOrder.id}
-                </p>
-              </div>
-              <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">
-                <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
-                  Trạng thái
-                </p>
-                <span
-                  className={`ck-badge ${
-                    selectedOrder.status === "pending"
-                      ? "ck-badge-yellow"
-                      : selectedOrder.status === "processing"
-                        ? "ck-badge-blue"
-                        : selectedOrder.status === "completed"
-                          ? "ck-badge-green"
-                          : "ck-badge-red"
-                  }`}
-                >
-                  {selectedOrder.status === "pending"
-                    ? "Chờ xử lý"
-                    : selectedOrder.status === "processing"
-                      ? "Đang xử lý"
-                      : selectedOrder.status === "completed"
-                        ? "Hoàn thành"
-                        : "Đã hủy"}
+            <button type="button" className="sp-close" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
+          <div className="sp-body">
+            <div className="ck-sum">
+              {cart.map((i) => (
+                <div key={i.id} className="ck-row">
+                  <span>
+                    {i.name} ×{i.quantity}
+                  </span>
+                  <span>{fmt((i.price ?? 0) * (i.quantity ?? 0))}</span>
+                </div>
+              ))}
+              <div className="ck-total">
+                <span className="ck-total-lbl">Tổng tiền</span>
+                <span className="ck-total-val">
+                  {fmt(
+                    cart.reduce(
+                      (s, i) => s + (i.price ?? 0) * (i.quantity ?? 0),
+                      0,
+                    ),
+                  )}
                 </span>
               </div>
-              <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">
-                <p className="ck-text-sm ck-text-gray-400 ck-mb-1">Ngày đặt</p>
-                <p className="ck-font-semibold ck-text-white">
-                  {selectedOrder.date ?? ""}
-                </p>
+            </div>
+            <div className="sec-label" style={{ marginBottom: 10 }}>
+              Loại đơn hàng
+            </div>
+            <div className="ot-grid">
+              <div
+                className={`ot-opt ${checkoutOrderType === "STANDARD" ? "sel" : ""}`}
+                onClick={() => setCheckoutOrderType("STANDARD")}
+              >
+                <div className="ot-title">📦 Đơn thường</div>
+                <div className="ot-desc">Giao trong ngày làm việc</div>
               </div>
-              <div className="ck-bg-gray-900-50 ck-rounded-xl ck-p-4">
-                <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
-                  Ngày giao dự kiến
-                </p>
-                <p className="ck-font-semibold ck-text-white">
-                  {selectedOrder.deliveryDate ?? "—"}
-                </p>
+              <div
+                className={`ot-opt urgent ${checkoutOrderType === "URGENT" ? "sel" : ""}`}
+                onClick={() => setCheckoutOrderType("URGENT")}
+              >
+                <div className="ot-title">⚡ Đơn khẩn</div>
+                <div className="ot-desc">Ưu tiên giao sớm nhất</div>
               </div>
             </div>
-
-            <div className="ck-border-t ck-border-gray-700 ck-pt-6 ck-mb-6">
-              <h4 className="ck-font-bold ck-text-white ck-mb-4 ck-text-lg">
-                Sản phẩm đặt hàng
-              </h4>
-              <div className="ck-space-y-3">
-                {(selectedOrder.items || []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900-50 ck-p-4 ck-rounded-xl"
-                  >
-                    <div>
-                      <p className="ck-font-semibold ck-text-white">
-                        {item.name}
-                      </p>
-                      <p className="ck-text-sm ck-text-gray-400 ck-mono">
-                        Số lượng: {item.quantity}
-                      </p>
-                    </div>
-                    <p className="ck-font-bold ck-text-orange-400 ck-mono">
-                      {(item.price * item.quantity).toLocaleString()}₫
-                    </p>
-                  </div>
-                ))}
-              </div>
+            <div className="fg">
+              <label>Ghi chú</label>
+              <textarea
+                value={checkoutNote}
+                onChange={(e) => setCheckoutNote(e.target.value)}
+                placeholder="VD: Giao cẩn thận tránh móp hộp"
+              />
             </div>
-
-            {selectedOrder.note && (
-              <div className="ck-bg-blue-500-10 ck-border ck-border-blue-500-30 ck-rounded-xl ck-p-4 ck-mb-6">
-                <p className="ck-text-sm ck-font-semibold ck-text-blue-400 ck-mb-2">
-                  📝 Ghi chú:
-                </p>
-                <p className="ck-text-white">{selectedOrder.note}</p>
-              </div>
-            )}
-
-            <div className="ck-border-t ck-border-gray-700 ck-pt-6 ck-flex ck-justify-between ck-items-center">
-              <span className="ck-text-xl ck-font-bold ck-text-white">
-                Tổng cộng
-              </span>
-              <span className="ck-text-3xl ck-font-black ck-text-orange-400 ck-mono">
-                {(selectedOrder.total ?? 0).toLocaleString()}₫
-              </span>
-            </div>
+          </div>
+          <div className="sp-foot">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={closePanel}
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              className="btn btn-amber"
+              onClick={doCheckout}
+            >
+              Xác nhận chốt đơn
+            </button>
           </div>
         </div>
       )}
+      {panel === "quickOrder" && (
+        <div className="spanel on">
+          <div className="sp-head">
+            <div>
+              <div className="sp-title">Tạo đơn nhanh</div>
+            </div>
+            <button type="button" className="sp-close" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
+          <div className="sp-body">
+            <div className="sec-label">
+              Sản phẩm đặt{" "}
+              <button
+                type="button"
+                className="btn btn-xs"
+                onClick={() =>
+                  setQuickOrderItems((prev) => [
+                    ...prev,
+                    { productId: "", quantity: 1 },
+                  ])
+                }
+              >
+                + Thêm dòng
+              </button>
+            </div>
+            {quickOrderItems.map((row, idx) => (
+              <div key={idx} className="qoi">
+                <div className="fg" style={{ marginBottom: 0 }}>
+                  <label>{idx === 0 ? "Sản phẩm" : ""}</label>
+                  <select
+                    value={row.productId}
+                    onChange={(e) =>
+                      setQuickOrderItems((prev) =>
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, productId: e.target.value } : r,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="">-- Chọn --</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id ?? p.productId}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="fg" style={{ marginBottom: 0 }}>
+                  <label>{idx === 0 ? "Số lượng" : ""}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={row.quantity}
+                    onChange={(e) =>
+                      setQuickOrderItems((prev) =>
+                        prev.map((r, i) =>
+                          i === idx
+                            ? {
+                                ...r,
+                                quantity: parseInt(e.target.value, 10) || 1,
+                              }
+                            : r,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-rust"
+                  style={{ alignSelf: "flex-end" }}
+                  onClick={() =>
+                    setQuickOrderItems((prev) =>
+                      prev.filter((_, i) => i !== idx),
+                    )
+                  }
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <div className="fg">
+              <label>Ngày giao hàng</label>
+              <input
+                type="date"
+                value={quickOrderDeliveryDate}
+                onChange={(e) => setQuickOrderDeliveryDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+              />
+            </div>
+            <div className="sep" />
+            <div className="sec-label">Loại đơn hàng</div>
+            <div className="ot-grid">
+              <div
+                className={`ot-opt ${quickOrderType === "STANDARD" ? "sel" : ""}`}
+                onClick={() => setQuickOrderType("STANDARD")}
+              >
+                <div className="ot-title">📦 Đơn thường</div>
+                <div className="ot-desc">Giao trong ngày làm việc</div>
+              </div>
+              <div
+                className={`ot-opt urgent ${quickOrderType === "URGENT" ? "sel" : ""}`}
+                onClick={() => setQuickOrderType("URGENT")}
+              >
+                <div className="ot-title">⚡ Đơn khẩn</div>
+                <div className="ot-desc">Ưu tiên giao sớm nhất</div>
+              </div>
+            </div>
+            <div className="fg">
+              <label>Ghi chú đơn</label>
+              <textarea
+                value={quickOrderNote}
+                onChange={(e) => setQuickOrderNote(e.target.value)}
+                placeholder="Ghi chú tùy chọn..."
+              />
+            </div>
+          </div>
+          <div className="sp-foot">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={closePanel}
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              className="btn btn-amber"
+              onClick={doQuickOrder}
+            >
+              Tạo đơn hàng
+            </button>
+          </div>
+        </div>
+      )}
+      {panel === "report" && reportShipmentId && (
+        <div className="spanel on">
+          <div className="sp-head">
+            <div>
+              <div className="sp-title">Báo cáo sự cố</div>
+            </div>
+            <button type="button" className="sp-close" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
+          <div className="sp-body">
+            <div className="ibox danger">
+              Ghi lại hàng <strong>thiếu hoặc hỏng</strong> — thông tin sẽ được
+              gửi về kho
+            </div>
+            <div className="sec-label">Kiểm tra từng sản phẩm</div>
+            {reportItems.map((r, idx) => (
+              <div key={idx} className="rpt-item">
+                <div className="rpt-name">{r.productName}</div>
+                <div className="rpt-row">
+                  <div className="fg" style={{ marginBottom: 0 }}>
+                    <label>Số lượng nhận được</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={r.receivedQuantity}
+                      onChange={(e) =>
+                        setReportItems((prev) =>
+                          prev.map((x, i) =>
+                            i === idx
+                              ? {
+                                  ...x,
+                                  receivedQuantity:
+                                    parseInt(e.target.value, 10) || 0,
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="fg" style={{ marginTop: 8, marginBottom: 0 }}>
+                  <label>Ghi chú</label>
+                  <input
+                    value={r.note}
+                    onChange={(e) =>
+                      setReportItems((prev) =>
+                        prev.map((x, i) =>
+                          i === idx ? { ...x, note: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder="VD: Rớt 5 hộp trên đường..."
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="sp-foot">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={closePanel}
+            >
+              Hủy
+            </button>
+            <button type="button" className="btn btn-rust" onClick={doReport}>
+              Gửi báo cáo
+            </button>
+          </div>
+        </div>
+      )}
+      {panel === "orderDetail" && (orderDetailData || orderDetail) && (
+        <div className="spanel on">
+          <div className="sp-head">
+            <div>
+              <div className="sp-title">Chi tiết đơn hàng</div>
+            </div>
+            <button type="button" className="sp-close" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
+          <div className="sp-body">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  background: "var(--parchment)",
+                  border: "1.5px solid var(--border)",
+                  borderRadius: 9,
+                  padding: "12px 14px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--ink4)",
+                    textTransform: "uppercase",
+                    marginBottom: 4,
+                  }}
+                >
+                  Mã đơn
+                </div>
+                <div className="mono" style={{ fontWeight: 700, fontSize: 13 }}>
+                  {(orderDetailData || orderDetail).id}
+                </div>
+              </div>
+              <div
+                style={{
+                  background: "var(--parchment)",
+                  border: "1.5px solid var(--border)",
+                  borderRadius: 9,
+                  padding: "12px 14px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--ink4)",
+                    textTransform: "uppercase",
+                    marginBottom: 4,
+                  }}
+                >
+                  Trạng thái
+                </div>
+                {badge((orderDetailData || orderDetail).status)}
+              </div>
+            </div>
+            <div className="sec-label">Sản phẩm trong đơn</div>
+            {((orderDetailData || orderDetail).items || []).map((item, idx) => (
+              <div key={idx} className="od-item">
+                <div>
+                  <div className="od-item-name">{item.name}</div>
+                  <div className="od-item-qty">×{item.quantity}</div>
+                </div>
+                <div className="od-item-price">
+                  {fmt((item.price ?? 0) * (item.quantity ?? 0))}
+                </div>
+              </div>
+            ))}
+            <div className="sep" />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}
+              >
+                Tổng cộng
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--serif)",
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: "var(--amber)",
+                }}
+              >
+                {fmt((orderDetailData || orderDetail).total)}
+              </span>
+            </div>
+          </div>
+          <div className="sp-foot">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={closePanel}
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`toast ${toast.show ? "on" : ""}`}>
+        <span className="toast-dot" style={{ background: toast.color }} />
+        <span>{toast.msg}</span>
+      </div>
     </div>
   );
 };
