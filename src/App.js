@@ -86,7 +86,7 @@ function App() {
     );
   }
   // 5. NHÁNH 5: DÀNH RIÊNG CHO ĐIỀU PHỐI CUNG ỨNG (SUPPLY)
-  if (currentUser.role === "supply") {
+  if (currentUser.role === "coordinator") {
     return (
       <SupplyCoordinatorPage
         onLogout={handleLogout}
