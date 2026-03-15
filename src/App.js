@@ -8,7 +8,7 @@ import CentralKitchenPage from "./pages/CentralKitchen";
 import ManagerPage from "./pages/Manager"; // Tí nhớ tạo file này nha!
 import SupplyCoordinatorPage from "./pages/SupplyCoordinator"; //
 
-import "./styles/ck-app.css";
+import "./styles/app.css";
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);

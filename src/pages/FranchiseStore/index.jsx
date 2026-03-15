@@ -29,7 +29,7 @@ import { FRANCHISE_MENU } from "../../constants";
 const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("create-order");
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -300,111 +300,6 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
           className="ck-main ck-scrollbar ck-max-w-7xl"
           style={{ marginLeft: "auto", marginRight: "auto" }}
         >
-          {activeTab === "dashboard" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
-                Dashboard
-              </h2>
-
-              <div className="ck-grid-4 ck-gap-6 ck-mb-10">
-                {stats.map((stat, i) => (
-                  <StatCard key={i} {...stat} />
-                ))}
-              </div>
-
-              <div className="ck-grid-1-lg-2 ck-gap-6 ck-mb-8">
-                <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6">
-                  <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-                    <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-flex ck-items-center ck-gap-3">
-                      <FileText size={28} className="ck-text-orange-400" />
-                      Đơn hàng gần đây
-                    </h3>
-                    <button
-                      type="button"
-                      className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-primary ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
-                      onClick={() => setActiveTab("create-order")}
-                    >
-                      <Plus size={18} />
-                      Tạo đơn
-                    </button>
-                  </div>
-                  <div className="ck-space-y-4">
-                    {orders.length === 0 ? (
-                      <div className="ck-text-center ck-py-12">
-                        <FileText
-                          size={64}
-                          className="ck-text-gray-700"
-                          style={{ margin: "0 auto 1rem" }}
-                        />
-                        <p className="ck-text-gray-500">Chưa có đơn hàng nào</p>
-                      </div>
-                    ) : (
-                      orders
-                        .slice(0, 3)
-                        .map((order) => (
-                          <OrderCard
-                            key={order.id}
-                            order={order}
-                            onView={setSelectedOrder}
-                          />
-                        ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6">
-                  <h3 className="ck-text-2xl ck-font-bold ck-text-white ck-mb-6 ck-flex ck-items-center ck-gap-3">
-                    <AlertTriangle size={28} className="ck-text-yellow-400" />
-                    Cảnh báo tồn kho
-                  </h3>
-                  <div className="ck-space-y-3">
-                    {lowStockProducts.length === 0 ? (
-                      <div className="ck-text-center ck-py-12">
-                        <CheckCircle
-                          size={64}
-                          className="ck-text-green-500"
-                          style={{ margin: "0 auto 1rem" }}
-                        />
-                        <p className="ck-text-green-400 ck-font-semibold">
-                          Tồn kho đầy đủ
-                        </p>
-                      </div>
-                    ) : (
-                      lowStockProducts.map((product) => (
-                        <div
-                          key={product.id}
-                          className="ck-flex ck-items-center ck-justify-between ck-p-4 ck-bg-yellow-500-10 ck-border ck-border-yellow-500-30 ck-rounded-xl"
-                        >
-                          <div className="ck-flex ck-items-center ck-gap-3">
-                            <span className="ck-text-4xl">{product.emoji}</span>
-                            <div>
-                              <p className="ck-font-bold ck-text-white">
-                                {product.name}
-                              </p>
-                              <p className="ck-text-sm ck-text-yellow-400">
-                                Còn {product.stock} / Tối thiểu {product.min}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="ck-btn ck-px-4 ck-py-2 ck-bg-orange-500 ck-text-black ck-rounded-lg ck-font-bold"
-                            onClick={() => {
-                              addToCart(product);
-                              setActiveTab("create-order");
-                            }}
-                          >
-                            Đặt
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
           {activeTab === "create-order" && (
             <>
               <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
