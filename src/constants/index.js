@@ -3,7 +3,6 @@ import {
   Activity,
   CheckCircle,
   XCircle,
-  LayoutDashboard,
   Plus,
   FileText,
   Package,
@@ -22,7 +21,6 @@ export const ORDER_STATUS = {
 
 /** Menu sidebar trang cửa hàng franchise */
 export const FRANCHISE_MENU = [
-  { id: "dashboard", name: "Tổng quan", icon: LayoutDashboard },
   { id: "create-order", name: "Tạo đơn hàng", icon: Plus },
   { id: "orders", name: "Đơn hàng của tôi", icon: FileText },
   { id: "inventory", name: "Tồn kho", icon: Package },
@@ -32,13 +30,10 @@ export const FRANCHISE_MENU = [
 
 /** Tab trang Admin — theo cấu trúc API */
 export const ADMIN_TABS = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-
   { id: "accounts", label: "Tài khoản", icon: Users },
   { id: "stores", label: "Cửa hàng", icon: Store },
   { id: "kitchen", label: "Danh mục & Sản phẩm", icon: Package },
-  { id: "inventory", label: "Nhập kho", icon: FileText },
-
+  { id: "ingredients", label: "Quản lý kho", icon: BarChart3 },
 ];
 /** Enum SystemRole (BE) — trùng tên và nhãn */
 export const SYSTEM_ROLES = [
@@ -53,3 +48,6 @@ export const SYSTEM_ROLES = [
 export const ROLE_LABELS = Object.fromEntries(
   SYSTEM_ROLES.map((r) => [r.value, r.label]),
 );
+
+/** Endpoint Admin: Khóa/Mở khóa — PUT {ADMIN_ACCOUNT_STATUS_PATH}/{accountId}/status, body: { isActive } */
+export const ADMIN_ACCOUNT_STATUS_PATH = "/api/admin/accounts";
