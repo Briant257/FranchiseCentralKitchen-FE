@@ -7,24 +7,27 @@ import {
   Plus,
   UserPlus,
   X,
+  XCircle,
   Eye,
   Trash2,
+  Search,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
-import StatCard from "../../components/common/StatCard";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
-import { ADMIN_TABS } from "../../constants";
+import { ADMIN_TABS, SYSTEM_ROLES } from "../../constants";
+import "../../styles/admin-theme.css";
 
 const AdminPage = ({ onLogout, userData }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [adminTab, setAdminTab] = useState("dashboard");
+  const [adminTab, setAdminTab] = useState("accounts");
   const [users, setUsers] = useState([]);
   const [stores, setStores] = useState([]);
+  const [emptyStoreIds, setEmptyStoreIds] = useState(new Set());
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [ingredients, setIngredients] = useState([]);
-  const [accountFilter, setAccountFilter] = useState("all"); // 'all' | 'active' | 'inactive'
+  const [accountFilter, setAccountFilter] = useState("all"); // 'all' | 'active' | 'inactive' | 'store'
   const [accountsList, setAccountsList] = useState([]); // list theo filter
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddStore, setShowAddStore] = useState(false);
@@ -32,25 +35,35 @@ const AdminPage = ({ onLogout, userData }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [kitchenSubTab, setKitchenSubTab] = useState("categories");
+  const [kitchenSubTab, setKitchenSubTab] = useState("products");
+  const [productSearch, setProductSearch] = useState("");
+  const [productCatFilter, setProductCatFilter] = useState("all");
   const [newUser, setNewUser] = useState({
     username: "",
     password: "",
     name: "",
     email: "",
     role: "franchise",
-    storeId: "",
-    storeName: "",
     status: "active",
     employeeCode: "",
   });
   const [editingStore, setEditingStore] = useState(null);
+  const [showEditAccountModal, setShowEditAccountModal] = useState(false);
+  const [showSwapStoresModal, setShowSwapStoresModal] = useState(false);
+  const [swapAccount1, setSwapAccount1] = useState("");
+  const [swapAccount2, setSwapAccount2] = useState("");
+  const [editAccountUser, setEditAccountUser] = useState(null);
+  const [editAccountForm, setEditAccountForm] = useState({
+    roleName: "",
+    storeId: "",
+    email: "",
+  });
   const [newStore, setNewStore] = useState({
     name: "",
     address: "",
     phone: "",
-    type: "FRANCHISE",
   });
+  const [assignManagerId, setAssignManagerId] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryDescription, setNewCategoryDescription] = useState("");
   const [newProduct, setNewProduct] = useState({
@@ -58,21 +71,45 @@ const AdminPage = ({ onLogout, userData }) => {
     productName: "",
     categoryId: "",
     sellingPrice: "",
-    baseUnit: "TÔ",
+    baseUnit: "",
     isActive: true,
     ingredients: [],
   });
+  const [units, setUnits] = useState({}); // { "Trọng lượng": [{ code, label }], ... }
+  const [storeListFilter, setStoreListFilter] = useState("all"); // 'all' | 'closed'
+  // Nguyên liệu
+  const [showAddIngredient, setShowAddIngredient] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState(null);
+  const [detailIngredient, setDetailIngredient] = useState(null);
+  const [ingredientForm, setIngredientForm] = useState({
+    name: "",
+    kitchenStock: "",
+    unit: "",
+    unitCost: "",
+    minThreshold: "",
+  });
+  const [ingredientFilter, setIngredientFilter] = useState("all"); // 'all' | 'low' | 'ok'
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [ingredientDetailLoading, setIngredientDetailLoading] = useState(false);
+  const [ingredientSubTab, setIngredientSubTab] = useState("stock"); // 'stock' | 'history'
+  const [showImportModal, setShowImportModal] = useState(false);
   const [importForm, setImportForm] = useState({
     note: "",
-    supplierId: "",
-    items: [{ ingredientId: "", unit: "KG", quantity: "", importPrice: "" }],
+    items: [{ ingredientId: "", quantity: "", importPrice: "" }],
   });
+  const [importSubmitting, setImportSubmitting] = useState(false);
 
   const loadAccountsByFilter = async (filter) => {
     try {
       if (filter === "active") return await api.getActiveAccounts();
       if (filter === "inactive") return await api.getInactiveAccounts();
-      return await api.getUsers();
+      const list = await api.getUsers();
+      if (filter === "store") {
+        return list.filter(
+          (u) => u.role === "franchise" || u.roleRaw === "STORE_MANAGER",
+        );
+      }
+      return list;
     } catch {
       return [];
     }
@@ -81,18 +118,27 @@ const AdminPage = ({ onLogout, userData }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [u, s, c, p, ing] = await Promise.all([
+        const [u, s, c, p, ing, emptyStores, unitsRes] = await Promise.all([
           api.getUsers(),
           api.getStoresAll(),
           api.getCategories(),
           api.getProducts(),
           api.getIngredients(),
+          api.getEmptyStores(),
+          api.getCommonUnits(),
         ]);
         setUsers(Array.isArray(u) ? u : []);
         setStores(Array.isArray(s) ? s : []);
         setCategories(Array.isArray(c) ? c : []);
         setProducts(Array.isArray(p) ? p : []);
         setIngredients(Array.isArray(ing) ? ing : []);
+        setUnits(unitsRes && typeof unitsRes === "object" ? unitsRes : {});
+        const ids = new Set(
+          (Array.isArray(emptyStores) ? emptyStores : []).map((es) =>
+            String(es.storeId ?? es.id ?? ""),
+          ),
+        );
+        setEmptyStoreIds(ids);
       } catch (err) {
         console.error("Admin load:", err);
       }
@@ -110,23 +156,272 @@ const AdminPage = ({ onLogout, userData }) => {
 
   const loadAdminData = async () => {
     try {
-      const [u, s, c, p, ing] = await Promise.all([
+      const [u, s, c, p, ing, emptyStores, unitsRes] = await Promise.all([
         api.getUsers(),
         api.getStoresAll(),
         api.getCategories(),
         api.getProducts(),
         api.getIngredients(),
+        api.getEmptyStores(),
+        api.getCommonUnits(),
       ]);
       setUsers(Array.isArray(u) ? u : []);
       setStores(Array.isArray(s) ? s : []);
       setCategories(Array.isArray(c) ? c : []);
       setProducts(Array.isArray(p) ? p : []);
       setIngredients(Array.isArray(ing) ? ing : []);
+      setUnits(unitsRes && typeof unitsRes === "object" ? unitsRes : {});
+      const ids = new Set(
+        (Array.isArray(emptyStores) ? emptyStores : []).map((es) =>
+          String(es.storeId ?? es.id ?? ""),
+        ),
+      );
+      setEmptyStoreIds(ids);
       const list = await loadAccountsByFilter(accountFilter);
       setAccountsList(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error("Admin load:", err);
     }
+  };
+
+  // --- Nguyên liệu: computed list & handlers ---
+  const getIngredientStatus = (ing) => {
+    const stock = Number(ing.kitchenStock) || 0;
+    const min = Number(ing.minThreshold) || 0;
+    if (stock <= 0) return "empty";
+    if (min > 0 && stock <= min) return "low";
+    return "ok";
+  };
+  const filteredIngredients = ingredients.filter((ing) => {
+    const status = getIngredientStatus(ing);
+    if (ingredientFilter === "low" && status !== "low") return false;
+    if (ingredientFilter === "ok" && status !== "ok") return false;
+    const q = (ingredientSearch || "").trim().toLowerCase();
+    if (q && !((ing.name || "").toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const ingredientStats = {
+    total: ingredients.length,
+    low: ingredients.filter((i) => getIngredientStatus(i) === "low").length,
+    empty: ingredients.filter((i) => getIngredientStatus(i) === "empty").length,
+    totalValue: ingredients.reduce(
+      (sum, i) => sum + (Number(i.kitchenStock) || 0) * (Number(i.unitCost) || 0),
+      0,
+    ),
+  };
+
+  const handleCreateIngredient = async (e) => {
+    e.preventDefault();
+    try {
+      await api.createIngredient({
+        name: ingredientForm.name.trim(),
+        kitchenStock: Number(ingredientForm.kitchenStock) || 0,
+        unit: (ingredientForm.unit || "").trim().toUpperCase(),
+        unitCost: Number(ingredientForm.unitCost) || 0,
+        minThreshold: Number(ingredientForm.minThreshold) || 0,
+      });
+      setShowAddIngredient(false);
+      setEditingIngredient(null);
+      setIngredientForm({
+        name: "",
+        kitchenStock: "",
+        unit: "",
+        unitCost: "",
+        minThreshold: "",
+      });
+      loadAdminData();
+    } catch (err) {
+      console.error("Create ingredient:", err);
+    }
+  };
+
+  const handleUpdateIngredient = async (e) => {
+    e.preventDefault();
+    if (!editingIngredient?.ingredientId) return;
+    try {
+      await api.updateIngredient(editingIngredient.ingredientId, {
+        name: ingredientForm.name.trim(),
+        ingredientName: ingredientForm.name.trim(),
+        unit: (ingredientForm.unit || "").trim().toUpperCase(),
+        unitCost: Number(ingredientForm.unitCost) || 0,
+        price: Number(ingredientForm.unitCost) || 0,
+        kitchenStock: Number(ingredientForm.kitchenStock) || 0,
+        stockQuantity: Number(ingredientForm.kitchenStock) || 0,
+        minThreshold: Number(ingredientForm.minThreshold) || 0,
+      });
+      setShowAddIngredient(false);
+      setEditingIngredient(null);
+      setIngredientForm({
+        name: "",
+        kitchenStock: "",
+        unit: "",
+        unitCost: "",
+        minThreshold: "",
+      });
+      loadAdminData();
+    } catch (err) {
+      console.error("Update ingredient:", err);
+    }
+  };
+
+  const loadIngredientDetail = async (id) => {
+    if (!id) return;
+    setIngredientDetailLoading(true);
+    setDetailIngredient(null);
+    try {
+      const data = await api.getIngredient(id);
+      setDetailIngredient(data);
+    } catch (err) {
+      console.error("Ingredient detail:", err);
+    } finally {
+      setIngredientDetailLoading(false);
+    }
+  };
+
+  const handleAddImportRow = () => {
+    setImportForm((prev) => ({
+      ...prev,
+      items: [...prev.items, { ingredientId: "", quantity: "", importPrice: "" }],
+    }));
+  };
+
+  const handleRemoveImportRow = (index) => {
+    setImportForm((prev) => ({
+      ...prev,
+      items:
+        prev.items.length <= 1
+          ? [{ ingredientId: "", quantity: "", importPrice: "" }]
+          : prev.items.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleImportRowChange = (index, field, value) => {
+    setImportForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
+    }));
+  };
+
+  const handleSubmitImport = async (e) => {
+    e.preventDefault();
+    const validItems = importForm.items.filter(
+      (i) => i.ingredientId && (Number(i.quantity) || 0) > 0,
+    );
+    if (validItems.length === 0) return;
+    setImportSubmitting(true);
+    try {
+      await api.importInventory({
+        note: importForm.note.trim(),
+        items: validItems.map((i) => {
+          const ing = ingredients.find(
+            (x) => (x.ingredientId ?? x.id) === i.ingredientId,
+          );
+          return {
+            ingredientId: i.ingredientId,
+            unit: ing?.unit || "KG",
+            quantity: Number(i.quantity) || 0,
+            importPrice: Number(i.importPrice) || 0,
+          };
+        }),
+      });
+      setShowImportModal(false);
+      setImportForm({
+        note: "",
+        items: [{ ingredientId: "", quantity: "", importPrice: "" }],
+      });
+      loadAdminData();
+    } catch (err) {
+      console.error("Import inventory:", err);
+    } finally {
+      setImportSubmitting(false);
+    }
+  };
+
+  const storeManagers = (users.length > 0 ? users : accountsList).filter(
+    (u) => u.roleRaw === "STORE_MANAGER",
+  );
+
+  const storeManagersWithoutStore = (editingStoreId) => {
+    const sid = String(editingStoreId ?? "");
+    return storeManagers.filter((u) => {
+      if (u.status !== "active") return false;
+      const hasStore =
+        (u.managedStores && String(u.managedStores).trim()) ||
+        u.storeId ||
+        (u.storeIds && u.storeIds.length > 0);
+      if (!hasStore) return true;
+      const accStoreIds = [u.storeId, ...(u.storeIds || [])]
+        .filter(Boolean)
+        .map(String);
+      return sid && accStoreIds.includes(sid);
+    });
+  };
+
+  /** Danh sách nhân viên cho ô chọn khi chỉnh sửa cửa hàng: luôn gồm nhân viên đang phụ trách cửa hàng đó (nếu có). */
+  const storeManagerOptionsForEdit = (store) => {
+    if (!store) return storeManagersWithoutStore("");
+    const list = storeManagersWithoutStore(store.storeId ?? store.id);
+    const current = getManagerAccountForStore(store);
+    if (!current) return list;
+    const currentId = String(
+      current.accountId ?? current.id ?? current.userId ?? "",
+    );
+    const alreadyInList = list.some(
+      (u) => String(u.accountId ?? u.id ?? u.userId ?? "") === currentId,
+    );
+    if (alreadyInList) return list;
+    return [current, ...list];
+  };
+
+  const getManagerForStore = (store) => {
+    const sid = String(store.storeId ?? store.id ?? "");
+    if (emptyStoreIds.has(sid)) return "Chưa có";
+    const accounts = users.length > 0 ? users : accountsList;
+    const storeName = (store.name ?? "").trim();
+    const manager = accounts.find((acc) => {
+      if (acc.roleRaw !== "STORE_MANAGER") return false;
+      const accStoreIds = [acc.storeId, ...(acc.storeIds || [])]
+        .filter(Boolean)
+        .map(String);
+      if (accStoreIds.includes(sid)) return true;
+      if (!storeName) return false;
+      const accNames = [acc.managedStores, acc.storeName]
+        .filter(Boolean)
+        .flatMap((x) =>
+          String(x)
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean),
+        );
+      return accNames.some((n) => n === storeName);
+    });
+    return manager ? (manager.name ?? manager.fullName ?? "—") : "Chưa có";
+  };
+
+  const getManagerAccountForStore = (store) => {
+    const sid = String(store.storeId ?? store.id ?? "");
+    if (emptyStoreIds.has(sid)) return null;
+    const accounts = users.length > 0 ? users : accountsList;
+    const storeName = (store.name ?? "").trim();
+    return accounts.find((acc) => {
+      if (acc.roleRaw !== "STORE_MANAGER") return false;
+      const accStoreIds = [acc.storeId, ...(acc.storeIds || [])]
+        .filter(Boolean)
+        .map(String);
+      if (accStoreIds.includes(sid)) return true;
+      if (!storeName) return false;
+      const accNames = [acc.managedStores, acc.storeName]
+        .filter(Boolean)
+        .flatMap((x) =>
+          String(x)
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean),
+        );
+      return accNames.some((n) => n === storeName);
+    });
   };
 
   const handleAddUser = async () => {
@@ -141,12 +436,6 @@ const AdminPage = ({ onLogout, userData }) => {
     const emailTrim = newUser.email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
       window.alert("Email không đúng định dạng!");
-      return;
-    }
-    if (newUser.role === "franchise" && !newUser.storeId) {
-      window.alert(
-        "Vui lòng chọn cửa hàng (Cửa hàng trưởng bắt buộc phải có storeId).",
-      );
       return;
     }
     const roleToBackend = {
@@ -169,12 +458,6 @@ const AdminPage = ({ onLogout, userData }) => {
         fullName: newUser.name.trim(),
         employeeCode: newUser.employeeCode?.trim() || undefined,
         role: roleToBackend[newUser.role] || "KITCHEN_MANAGER",
-        storeId:
-          newUser.role === "franchise"
-            ? newUser.storeId?.trim() || undefined
-            : undefined,
-        storeName:
-          newUser.role === "franchise" ? newUser.storeName?.trim() : undefined,
       });
       await loadAdminData();
       setShowAddUser(false);
@@ -184,8 +467,6 @@ const AdminPage = ({ onLogout, userData }) => {
         name: "",
         email: "",
         role: "franchise",
-        storeId: "",
-        storeName: "",
         status: "active",
         employeeCode: "",
       });
@@ -200,7 +481,11 @@ const AdminPage = ({ onLogout, userData }) => {
   };
 
   const handleToggleStatus = async (user) => {
-    const accountId = user.accountId ?? user.id;
+    const accountId = user.accountId ?? user.id ?? user.userId;
+    if (!accountId) {
+      window.alert("Không xác định được mã tài khoản. Vui lòng tải lại trang.");
+      return;
+    }
     const newActive = user.status !== "active";
     try {
       await api.updateAccountStatus(accountId, newActive);
@@ -209,12 +494,132 @@ const AdminPage = ({ onLogout, userData }) => {
         newActive ? "✅ Đã mở khóa tài khoản!" : "✅ Đã khóa tài khoản!",
       );
     } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không cập nhật được"));
+      window.alert(
+        "Lỗi khóa/mở khóa: " +
+          (err?.message ||
+            "Không cập nhật được. Kiểm tra quyền Admin hoặc API."),
+      );
+    }
+  };
+
+  const handleOpenEditAccount = (user) => {
+    const roleRaw = user.roleRaw ?? user.role ?? "";
+    const roleName = [
+      "ADMIN",
+      "MANAGER",
+      "COORDINATOR",
+      "KITCHEN_MANAGER",
+      "STORE_MANAGER",
+    ].includes(String(roleRaw).toUpperCase())
+      ? String(roleRaw).toUpperCase()
+      : "MANAGER";
+    let resolvedStoreId = user.storeId ?? user.storeIds?.[0] ?? "";
+    if (roleName === "STORE_MANAGER" && stores.length > 0) {
+      const sid = user.storeId ?? user.storeIds?.[0];
+      const matchByStoreId = sid
+        ? stores.find((s) => String(s.storeId ?? s.id) === String(sid))
+        : null;
+      const matchByName =
+        !matchByStoreId &&
+        user.managedStores &&
+        stores.find((s) => {
+          const names = String(user.managedStores)
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean);
+          return names.some((n) => s.name && String(s.name).trim() === n);
+        });
+      resolvedStoreId = matchByStoreId
+        ? String(matchByStoreId.storeId ?? matchByStoreId.id ?? "")
+        : matchByName
+          ? String(matchByName.storeId ?? matchByName.id ?? "")
+          : sid
+            ? String(sid)
+            : "";
+    }
+    setEditAccountUser(user);
+    setEditAccountForm({
+      roleName,
+      storeId: resolvedStoreId,
+      email: user.email ?? "",
+    });
+    setShowEditAccountModal(true);
+  };
+
+  const handleEditAccountSubmit = async () => {
+    if (!editAccountUser) return;
+    const accountId =
+      editAccountUser.accountId ?? editAccountUser.id ?? editAccountUser.userId;
+    const { roleName, storeId, email } = editAccountForm;
+    if (!roleName?.trim()) {
+      window.alert("Vui lòng chọn chức vụ.");
+      return;
+    }
+    const emailTrim = email?.trim();
+    if (!emailTrim) {
+      window.alert("Vui lòng nhập email.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      window.alert("Email không đúng định dạng.");
+      return;
+    }
+    try {
+      await api.updateAccountRole(accountId, roleName.trim());
+      if (roleName === "STORE_MANAGER" && storeId?.trim()) {
+        await api.updateAccountStore(accountId, storeId.trim());
+      }
+      await api.updateAccount(accountId, { email: emailTrim });
+      window.alert("✅ Đã cập nhật thông tin!");
+      setShowEditAccountModal(false);
+      setEditAccountUser(null);
+      setEditAccountForm({ roleName: "", storeId: "", email: "" });
+      await loadAdminData();
+    } catch (err) {
+      window.alert(
+        "Lỗi cập nhật: " +
+          (err?.message ||
+            "Không cập nhật được. Kiểm tra quyền Admin hoặc API."),
+      );
+    }
+  };
+
+  const storeManagersWithStore = (
+    users.length > 0 ? users : accountsList
+  ).filter(
+    (u) =>
+      u.status === "active" &&
+      u.roleRaw === "STORE_MANAGER" &&
+      (u.managedStores || u.storeId || u.storeIds?.[0]),
+  );
+
+  const handleSwapStores = async () => {
+    if (!swapAccount1?.trim() || !swapAccount2?.trim()) {
+      window.alert("Vui lòng chọn đủ 2 Quản lý cửa hàng.");
+      return;
+    }
+    if (swapAccount1 === swapAccount2) {
+      window.alert("Hai tài khoản phải khác nhau.");
+      return;
+    }
+    try {
+      await api.swapStores(swapAccount1.trim(), swapAccount2.trim());
+      window.alert("✅ Đã hoán đổi cửa hàng thành công!");
+      setShowSwapStoresModal(false);
+      setSwapAccount1("");
+      setSwapAccount2("");
+      await loadAdminData();
+    } catch (err) {
+      window.alert(
+        "Lỗi hoán đổi: " +
+          (err?.message ||
+            "Không thực hiện được. Kiểm tra quyền Admin hoặc API."),
+      );
     }
   };
 
   const handleSaveStore = async () => {
-    const { name, address, phone, type } = newStore;
+    const { name, address, phone } = newStore;
     if (!name?.trim() || !address?.trim() || !phone?.trim()) {
       window.alert("Vui lòng điền đầy đủ tên, địa chỉ và điện thoại.");
       return;
@@ -223,12 +628,15 @@ const AdminPage = ({ onLogout, userData }) => {
       name: name.trim(),
       address: address.trim(),
       phone: phone.trim(),
-      type: (type || "FRANCHISE").toUpperCase(),
+      type: "FRANCHISE",
     };
     try {
       if (editingStore) {
         const id = editingStore.storeId ?? editingStore.id;
         await api.updateStore(id, payload);
+        if (assignManagerId?.trim()) {
+          await api.assignStoreManager(id, assignManagerId.trim());
+        }
         window.alert("✅ Cập nhật cửa hàng thành công!");
       } else {
         await api.createStore(payload);
@@ -237,7 +645,8 @@ const AdminPage = ({ onLogout, userData }) => {
       await loadAdminData();
       setShowAddStore(false);
       setEditingStore(null);
-      setNewStore({ name: "", address: "", phone: "", type: "FRANCHISE" });
+      setAssignManagerId("");
+      setNewStore({ name: "", address: "", phone: "" });
     } catch (err) {
       window.alert(
         "Lỗi: " +
@@ -247,17 +656,24 @@ const AdminPage = ({ onLogout, userData }) => {
     }
   };
 
-  const handleDeleteStore = async (store) => {
+  const handleToggleStoreActive = async (store) => {
     const storeId = store.storeId ?? store.id;
-    const name = store.name || storeId;
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa cửa hàng "${name}"?`))
-      return;
+    const newActive = store.isActive === false ? true : false;
     try {
-      await api.deleteStore(storeId);
+      await api.updateStoreActive(storeId, newActive);
+      setStores((prev) =>
+        prev.map((s) =>
+          String(s.storeId ?? s.id) === String(storeId)
+            ? { ...s, isActive: newActive }
+            : s,
+        ),
+      );
+      window.alert(newActive ? "✅ Đã mở cửa hàng!" : "✅ Đã đóng cửa hàng!");
       await loadAdminData();
-      window.alert("✅ Đã xóa cửa hàng!");
     } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không xóa được"));
+      window.alert(
+        "Lỗi: " + (err?.message || "Không cập nhật được trạng thái cửa hàng."),
+      );
     }
   };
 
@@ -317,16 +733,50 @@ const AdminPage = ({ onLogout, userData }) => {
     const p = editingProduct || newProduct;
     const productId = (p.productId || p.id || "").trim();
     const productName = (p.productName || p.name || "").trim();
-    const categoryId =
+    const rawCategoryId =
       p.categoryId ??
       categories.find((c) => c.name === p.category)?.id ??
       p.category;
+    const categoryId =
+      rawCategoryId !== "" && rawCategoryId != null
+        ? Number(rawCategoryId)
+        : null;
     const sellingPrice = Number(p.sellingPrice ?? p.price ?? 0);
-    const baseUnit = (p.baseUnit || "TÔ").toUpperCase();
-    const isActive = p.isActive !== false;
-    const ingredients = Array.isArray(p.ingredients) ? p.ingredients : [];
-    if (!productName || (editingProduct ? true : !productId)) {
-      window.alert("Vui lòng nhập mã và tên sản phẩm.");
+    const baseUnit = (p.baseUnit || "").toString().trim();
+    const ingredients = Array.isArray(p.ingredients)
+      ? p.ingredients.filter((i) =>
+          (i.ingredientId ?? i.id ?? "").toString().trim(),
+        )
+      : [];
+    const payloadIngredients = ingredients
+      .map((i) => ({
+        ingredientId: String(i.ingredientId ?? i.id ?? "").trim(),
+        amountNeeded: Number(i.amountNeeded ?? i.amount ?? 0),
+      }))
+      .filter((i) => i.ingredientId && i.amountNeeded > 0);
+
+    if (!productName) {
+      window.alert("Vui lòng nhập tên sản phẩm.");
+      return;
+    }
+    if (!editingProduct && !productId) {
+      window.alert("Vui lòng nhập mã sản phẩm (ví dụ: PROD_PHO_BO_8).");
+      return;
+    }
+    if (
+      categoryId == null ||
+      (typeof categoryId === "number" && isNaN(categoryId))
+    ) {
+      window.alert("Vui lòng chọn danh mục.");
+      return;
+    }
+    if (sellingPrice <= 0 || isNaN(sellingPrice)) {
+      window.alert("Vui lòng nhập giá bán hợp lệ (số dương).");
+      return;
+    }
+    const finalBaseUnit = (baseUnit || "").trim();
+    if (!finalBaseUnit) {
+      window.alert("Vui lòng chọn đơn vị bán.");
       return;
     }
     try {
@@ -337,16 +787,12 @@ const AdminPage = ({ onLogout, userData }) => {
         return;
       }
       await api.createProduct({
-        productId: productId || undefined,
+        productId,
         productName,
         categoryId,
         sellingPrice,
-        baseUnit,
-        isActive,
-        ingredients: ingredients.map((i) => ({
-          ingredientId: i.ingredientId ?? i.id,
-          amountNeeded: Number(i.amountNeeded ?? i.amount ?? 0),
-        })),
+        baseUnit: finalBaseUnit,
+        ingredients: payloadIngredients,
       });
       setShowAddProduct(false);
       setNewProduct({
@@ -354,14 +800,14 @@ const AdminPage = ({ onLogout, userData }) => {
         productName: "",
         categoryId: "",
         sellingPrice: "",
-        baseUnit: "TÔ",
+        baseUnit: "",
         isActive: true,
         ingredients: [],
       });
       await loadAdminData();
       window.alert("✅ Thêm sản phẩm thành công!");
     } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không lưu được"));
+      window.alert("Lỗi: " + (err?.message || "Không lưu được"));
     }
   };
 
@@ -379,6 +825,49 @@ const AdminPage = ({ onLogout, userData }) => {
     }
   };
 
+  const getProductCategoryName = (p) =>
+    p.category ||
+    categories.find((c) => String(c.id) === String(p.categoryId))?.name ||
+    "";
+  const filteredProducts = (() => {
+    const q = (productSearch || "").toLowerCase().trim();
+    const list = products.filter((p) => {
+      const name = (p.name || p.productName || "").toLowerCase();
+      const id = (p.id || p.productId || "").toString().toLowerCase();
+      const cat = getProductCategoryName(p);
+      const matchSearch = !q || name.includes(q) || id.includes(q);
+      const matchCat =
+        productCatFilter === "all" || cat === productCatFilter;
+      return matchSearch && matchCat;
+    });
+    return list;
+  })();
+  const productStats = (() => {
+    const total = products.length;
+    const categoriesCount = categories.length;
+    const withFormula = products.filter(
+      (p) => (p.ingredients && p.ingredients.length > 0),
+    ).length;
+    const prices = products
+      .map((p) => Number(p.sellingPrice ?? p.price ?? 0))
+      .filter((n) => n > 0);
+    const avgPrice =
+      prices.length > 0
+        ? Math.round(
+            prices.reduce((a, b) => a + b, 0) / prices.length,
+          )
+        : 0;
+    return { total, categoriesCount, withFormula, avgPrice };
+  })();
+  const productCategoryOptions = [
+    "all",
+    ...Array.from(
+      new Set(
+        products.map((p) => getProductCategoryName(p)).filter(Boolean),
+      ),
+    ),
+  ];
+
   const adminStats = [
     {
       label: "Tổng người dùng",
@@ -386,6 +875,7 @@ const AdminPage = ({ onLogout, userData }) => {
       change: "",
       icon: Users,
       color: "ck-icon-box-blue",
+      filterKey: "all",
     },
     {
       label: "Đang hoạt động",
@@ -393,20 +883,25 @@ const AdminPage = ({ onLogout, userData }) => {
       change: "",
       icon: CheckCircle,
       color: "ck-icon-box-green",
+      filterKey: "active",
     },
     {
       label: "Nhân viên CH",
-      value: users.filter((u) => u.role === "franchise").length.toString(),
+      value: users
+        .filter((u) => u.role === "franchise" || u.roleRaw === "STORE_MANAGER")
+        .length.toString(),
       change: "",
       icon: Store,
       color: "ck-icon-box-purple",
+      filterKey: "store",
     },
     {
-      label: "Quản trị viên",
-      value: users.filter((u) => u.role === "admin").length.toString(),
+      label: "Ngưng Hoạt Động",
+      value: users.filter((u) => u.status !== "active").length.toString(),
       change: "",
-      icon: Shield,
+      icon: XCircle,
       color: "ck-icon-box-red",
+      filterKey: "inactive",
     },
   ];
 
@@ -423,9 +918,7 @@ const AdminPage = ({ onLogout, userData }) => {
             <h1 className="ck-text-lg ck-font-bold ck-text-white">
               Quản trị hệ thống
             </h1>
-            <p className="ck-text-xs ck-text-gray-400 ck-mono">
-              {userData.name} - Admin
-            </p>
+            <span className="admin-page-badge">Admin</span>
           </div>
         </div>
         <div className="ck-flex ck-items-center ck-gap-2">
@@ -443,447 +936,672 @@ const AdminPage = ({ onLogout, userData }) => {
         onClose={() => setShowChangePasswordModal(false)}
       />
 
+      {showEditAccountModal && editAccountUser && (
+        <div
+          className="ck-modal-overlay ingredient-form-modal"
+          onClick={() => setShowEditAccountModal(false)}
+          role="presentation"
+        >
+          <div
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <div className="form-header">
+              <div>
+                <h3>Chỉnh sửa tài khoản</h3>
+                <span className="helper" style={{ marginTop: 4, display: "block" }}>
+                  {editAccountUser.name ?? editAccountUser.fullName} (
+                  {editAccountUser.roleRaw ?? editAccountUser.role})
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowEditAccountModal(false)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="form-body">
+              <div className="field">
+                <label>Chức vụ</label>
+                <select
+                  value={editAccountForm.roleName}
+                  onChange={(e) =>
+                    setEditAccountForm((f) => ({
+                      ...f,
+                      roleName: e.target.value,
+                      storeId:
+                        e.target.value === "STORE_MANAGER" ? f.storeId : "",
+                    }))
+                  }
+                >
+                  {SYSTEM_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {editAccountForm.roleName === "STORE_MANAGER" && (
+                <div className="field">
+                  <label>Cửa hàng <span className="helper">(tùy chọn)</span></label>
+                  <select
+                    value={String(editAccountForm.storeId ?? "")}
+                    onChange={(e) =>
+                      setEditAccountForm((f) => ({
+                        ...f,
+                        storeId: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Chưa có</option>
+                    {stores
+                      .filter((s) => {
+                        if (s.isActive === false) return false;
+                        const storeIds = [s.storeId, s.id]
+                          .filter(Boolean)
+                          .map(String);
+                        if (storeIds.length === 0) return true;
+                        const currentUserId = String(
+                          editAccountUser?.accountId ??
+                            editAccountUser?.id ??
+                            editAccountUser?.userId ??
+                            "",
+                        );
+                        const allAccounts =
+                          users.length > 0 ? users : accountsList;
+                        const isAssignedToOther = allAccounts.some((acc) => {
+                          if (acc.roleRaw !== "STORE_MANAGER") return false;
+                          if (
+                            String(acc.accountId ?? acc.id ?? acc.userId) ===
+                            currentUserId
+                          )
+                            return false;
+                          const accStoreIds = [
+                            acc.storeId,
+                            ...(acc.storeIds || []),
+                          ]
+                            .filter(Boolean)
+                            .map(String);
+                          const matchById = storeIds.some((sid) =>
+                            accStoreIds.some((aid) => aid === sid),
+                          );
+                          if (matchById) return true;
+                          const storeName = (s.name ?? "").trim();
+                          if (!storeName) return false;
+                          const accNames = [acc.managedStores, acc.storeName]
+                            .filter(Boolean)
+                            .flatMap((x) =>
+                              String(x)
+                                .split(",")
+                                .map((n) => n.trim())
+                                .filter(Boolean),
+                            );
+                          return accNames.some((n) => n === storeName);
+                        });
+                        return !isAssignedToOther;
+                      })
+                      .map((s) => (
+                        <option
+                          key={s.storeId ?? s.id}
+                          value={String(s.storeId ?? s.id ?? "")}
+                        >
+                          {s.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+              <div className="field">
+                <label>Email *</label>
+                <input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={editAccountForm.email}
+                  onChange={(e) =>
+                    setEditAccountForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowEditAccountModal(false)}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={handleEditAccountSubmit}
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSwapStoresModal && (
+        <div
+          className="ck-modal-overlay ingredient-form-modal"
+          onClick={() => setShowSwapStoresModal(false)}
+          role="presentation"
+        >
+          <div
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <div className="form-header">
+              <div>
+                <h3>Hoán đổi cửa hàng giữa 2 Quản lý</h3>
+                <span className="helper" style={{ marginTop: 4, display: "block" }}>
+                  Chọn 2 Quản lý cửa hàng (STORE_MANAGER) đang có cửa hàng để hoán đổi cửa hàng phụ trách.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowSwapStoresModal(false)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="form-body">
+              <div className="field">
+                <label>Quản lý 1</label>
+                <select
+                  value={swapAccount1}
+                  onChange={(e) => setSwapAccount1(e.target.value)}
+                >
+                  <option value="">— Chọn —</option>
+                  {storeManagersWithStore.map((u) => {
+                    const id = u.accountId ?? u.id ?? u.userId;
+                    let storeInfo = u.managedStores;
+                    if (!storeInfo && (u.storeId || u.storeIds?.[0])) {
+                      const sid = u.storeId ?? u.storeIds?.[0];
+                      const st = stores.find(
+                        (s) => String(s.storeId ?? s.id) === String(sid),
+                      );
+                      storeInfo = st?.name ?? sid;
+                    }
+                    return (
+                      <option key={id} value={id}>
+                        {u.name ?? u.fullName} ({storeInfo ?? "—"})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="field">
+                <label>Quản lý 2</label>
+                <select
+                  value={swapAccount2}
+                  onChange={(e) => setSwapAccount2(e.target.value)}
+                >
+                  <option value="">— Chọn —</option>
+                  {storeManagersWithStore.map((u) => {
+                    const id = u.accountId ?? u.id ?? u.userId;
+                    let storeInfo = u.managedStores;
+                    if (!storeInfo && (u.storeId || u.storeIds?.[0])) {
+                      const sid = u.storeId ?? u.storeIds?.[0];
+                      const st = stores.find(
+                        (s) => String(s.storeId ?? s.id) === String(sid),
+                      );
+                      storeInfo = st?.name ?? sid;
+                    }
+                    return (
+                      <option key={id} value={id}>
+                        {u.name ?? u.fullName} ({storeInfo ?? "—"})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowSwapStoresModal(false)}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={handleSwapStores}
+                >
+                  Hoán đổi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="ck-p-8">
         <div
-          className="ck-max-w-7xl"
+          className="ck-max-w-7xl ingredient-polished"
           style={{ marginLeft: "auto", marginRight: "auto" }}
         >
-          <div className="ck-flex ck-gap-2 ck-mb-8 ck-flex-wrap">
-            {ADMIN_TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`ck-btn ck-px-5 ck-py-3 ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2 ${
-                    adminTab === tab.id
-                      ? "ck-bg-gradient-btn-admin ck-text-white"
-                      : "ck-bg-gray-800 ck-text-gray-400"
-                  }`}
-                  style={
-                    adminTab !== tab.id
-                      ? { border: "1px solid var(--ck-border)" }
-                      : {}
-                  }
-                  onClick={() => setAdminTab(tab.id)}
-                >
-                  <Icon size={20} />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {adminTab === "dashboard" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-8">
-                Dashboard Admin
-              </h2>
-              <div className="ck-grid-4 ck-gap-6 ck-mb-10">
-                {adminStats.map((stat, i) => (
-                  <StatCard key={i} {...stat} />
-                ))}
-              </div>
-              <p className="ck-text-gray-400">
-                Dùng các tab bên dưới để quản lý tài khoản, cửa hàng, danh mục,
-                sản phẩm và nhập kho.
-              </p>
-            </>
-          )}
-
-          {adminTab === "accounts" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-6">
-                Tài khoản
-              </h2>
-              <div className="ck-flex ck-gap-2 ck-mb-4">
-                <button
-                  type="button"
-                  className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${
-                    accountFilter === "all"
-                      ? "ck-bg-gradient-btn-admin ck-text-white"
-                      : "ck-bg-gray-800 ck-text-gray-400"
-                  }`}
-                  style={
-                    accountFilter !== "all"
-                      ? { border: "1px solid var(--ck-border)" }
-                      : {}
-                  }
-                  onClick={() => setAccountFilter("all")}
-                >
-                  Tất cả
-                </button>
-                <button
-                  type="button"
-                  className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${
-                    accountFilter === "active"
-                      ? "ck-bg-gradient-btn-admin ck-text-white"
-                      : "ck-bg-gray-800 ck-text-gray-400"
-                  }`}
-                  style={
-                    accountFilter !== "active"
-                      ? { border: "1px solid var(--ck-border)" }
-                      : {}
-                  }
-                  onClick={() => setAccountFilter("active")}
-                >
-                  Đang hoạt động
-                </button>
-                <button
-                  type="button"
-                  className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${
-                    accountFilter === "inactive"
-                      ? "ck-bg-gradient-btn-admin ck-text-white"
-                      : "ck-bg-gray-800 ck-text-gray-400"
-                  }`}
-                  style={
-                    accountFilter !== "inactive"
-                      ? { border: "1px solid var(--ck-border)" }
-                      : {}
-                  }
-                  onClick={() => setAccountFilter("inactive")}
-                >
-                  Bị khóa
-                </button>
-              </div>
-              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden">
-                <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                  <h3 className="ck-text-2xl ck-font-bold ck-text-white">
-                    Danh sách tài khoản
-                  </h3>
+          <div className="ing-app">
+            <div className="tabs" style={{ marginBottom: 24 }}>
+              {ADMIN_TABS.map((tab) => {
+                const Icon = tab.icon;
+                return (
                   <button
+                    key={tab.id}
                     type="button"
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
-                    onClick={() => setShowAddUser(true)}
+                    className={`tab ${adminTab === tab.id ? "active" : ""}`}
+                    onClick={() => setAdminTab(tab.id)}
                   >
-                    <UserPlus size={18} />
-                    Thêm người dùng
+                    <Icon size={16} style={{ flexShrink: 0 }} />
+                    {tab.label}
                   </button>
+                );
+              })}
+            </div>
+
+            {adminTab === "accounts" && (
+              <>
+                <div className="header">
+                  <div>
+                    <div className="header-eyebrow">Hệ thống</div>
+                    <div className="header-title">Tài khoản</div>
+                  </div>
+                  <div className="header-actions">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setSwapAccount1("");
+                        setSwapAccount2("");
+                        setShowSwapStoresModal(true);
+                      }}
+                    >
+                      Chuyển đổi
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-teal"
+                      onClick={() => setShowAddUser(true)}
+                    >
+                      <UserPlus size={13} />
+                      Thêm người dùng
+                    </button>
+                  </div>
                 </div>
-                <div className="ck-table-wrap">
-                  <table className="ck-table">
+                <div className="stats">
+                  {adminStats.map((stat, i) => (
+                    <div
+                      key={i}
+                      className={`stat stat-s${(i % 4) + 1}`}
+                      role={stat.filterKey ? "button" : undefined}
+                      tabIndex={stat.filterKey ? 0 : undefined}
+                      onClick={
+                        stat.filterKey
+                          ? () => setAccountFilter(stat.filterKey)
+                          : undefined
+                      }
+                      onKeyDown={(e) => {
+                        if (
+                          stat.filterKey &&
+                          (e.key === "Enter" || e.key === " ")
+                        ) {
+                          e.preventDefault();
+                          setAccountFilter(stat.filterKey);
+                        }
+                      }}
+                    >
+                      <div className="stat-label">{stat.label}</div>
+                      <div
+                        className="stat-val"
+                        style={
+                          i === 1
+                            ? { color: "var(--green)" }
+                            : i === 2
+                              ? { color: "var(--purple, #a78bfa)" }
+                              : i === 3
+                                ? { color: "var(--red)" }
+                                : undefined
+                        }
+                      >
+                        {stat.value}
+                      </div>
+                      <div className="stat-sub"></div>
+                    </div>
+                  ))}
+                </div>
+                <div className="toolbar">
+                  <div className="filt-group">
+                    <button
+                      type="button"
+                      className={`filt ${accountFilter === "all" ? "active" : ""}`}
+                      onClick={() => setAccountFilter("all")}
+                    >
+                      Tất cả
+                    </button>
+                    <button
+                      type="button"
+                      className={`filt ${accountFilter === "active" ? "active" : ""}`}
+                      onClick={() => setAccountFilter("active")}
+                    >
+                      Đang hoạt động
+                    </button>
+                    <button
+                      type="button"
+                      className={`filt ${accountFilter === "store" ? "active" : ""}`}
+                      onClick={() => setAccountFilter("store")}
+                    >
+                      Nhân viên CH
+                    </button>
+                    <button
+                      type="button"
+                      className={`filt ${accountFilter === "inactive" ? "active" : ""}`}
+                      onClick={() => setAccountFilter("inactive")}
+                    >
+                      Bị khóa
+                    </button>
+                  </div>
+                </div>
+                <div className="tbl-wrap">
+                  <table>
                     <thead>
                       <tr>
-                        <th>Mã TK</th>
-                        <th>Tên đăng nhập</th>
                         <th>Vai trò</th>
-                        <th>Trạng thái</th>
                         <th>Mã NV</th>
                         <th>Họ tên</th>
                         <th>Email</th>
-                        <th className="ck-text-center">Hành động</th>
+                        <th>Cửa hàng phụ trách</th>
+                        <th style={{ textAlign: "center" }}>Trạng thái</th>
+                        <th style={{ textAlign: "center" }}>Cập nhật</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {accountsList.map((user) => (
-                        <tr key={user.id ?? user.accountId}>
-                          <td className="ck-mono ck-text-gray-400 ck-text-xs">
-                            {user.accountId ?? user.id}
-                          </td>
-                          <td className="ck-font-bold ck-text-white ck-mono">
-                            {user.username}
-                          </td>
-                          <td className="ck-text-gray-400">
-                            {user.roleRaw ?? user.role}
-                          </td>
-                          <td>
-                            <span
-                              className={`ck-px-2 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold ${user.status === "active" ? "ck-bg-green-500-20 ck-text-green-400" : "ck-bg-gray-500-20 ck-text-gray-400"}`}
+                      {[...accountsList]
+                        .sort((a, b) => {
+                          const aActive = a.status === "active";
+                          const bActive = b.status === "active";
+                          if (aActive && !bActive) return -1;
+                          if (!aActive && bActive) return 1;
+                          return 0;
+                        })
+                        .map((user) => (
+                          <tr key={user.id ?? user.accountId}>
+                            <td style={{ color: "var(--text3)" }}>
+                              {user.roleRaw ?? user.role}
+                            </td>
+                            <td
+                              className="ing-id"
+                              style={{
+                                fontFamily: "var(--fm)",
+                                fontSize: "10.5px",
+                              }}
                             >
-                              {user.status === "active" ? "true" : "false"}
-                            </span>
-                          </td>
-                          <td className="ck-mono ck-text-gray-400 ck-text-xs">
-                            {user.userId}
-                          </td>
-                          <td className="ck-text-white">
-                            {user.name ?? user.fullName}
-                          </td>
-                          <td className="ck-text-gray-400 ck-text-sm">
-                            {user.email ?? "-"}
-                          </td>
-                          <td className="ck-text-center">
-                            {user.role !== "admin" ? (
+                              {user.userId}
+                            </td>
+                            <td className="ing-name">
+                              {user.name ?? user.fullName}
+                            </td>
+                            <td style={{ color: "var(--text2)", fontSize: 13 }}>
+                              {user.email ?? "-"}
+                            </td>
+                            {(() => {
+                              const storeName =
+                                user.roleRaw === "STORE_MANAGER"
+                                  ? (() => {
+                                      const ms = user.managedStores;
+                                      if (ms && String(ms).trim())
+                                        return String(ms).trim();
+                                      const sid =
+                                        user.storeId ?? user.storeIds?.[0];
+                                      if (sid) {
+                                        const st = stores.find(
+                                          (x) =>
+                                            String(x.storeId ?? x.id) ===
+                                            String(sid),
+                                        );
+                                        return st?.name ?? "Chưa có";
+                                      }
+                                      return "Chưa có";
+                                    })()
+                                  : "_";
+                              return (
+                                <td style={{ color: "var(--text2)", fontSize: 13 }}>
+                                  {storeName === "Chưa có" ? (
+                                    <span className="empty-warn">{storeName}</span>
+                                  ) : (
+                                    storeName
+                                  )}
+                                </td>
+                              );
+                            })()}
+                            <td style={{ textAlign: "center" }}>
+                              {user.role !== "admin" ? (
+                                <button
+                                  type="button"
+                                  className={`badge ${user.status === "active" ? "b-ok" : "b-low"}`}
+                                  style={{
+                                    border: "none",
+                                    cursor: "pointer",
+                                    padding: "4px 10px",
+                                  }}
+                                  onClick={() => handleToggleStatus(user)}
+                                  title={
+                                    user.status === "active"
+                                      ? "Bấm để khóa tài khoản"
+                                      : "Bấm để mở khóa"
+                                  }
+                                >
+                                  {user.status === "active"
+                                    ? "Hoạt động"
+                                    : "Đã khóa"}
+                                </button>
+                              ) : (
+                                <span style={{ color: "var(--text3)" }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
                               <button
                                 type="button"
-                                className={`ck-btn ck-px-3 ck-py-1.5 ck-rounded-lg ck-text-sm ck-font-semibold ${
-                                  user.status === "active"
-                                    ? "ck-bg-green-500-20 ck-text-green-400"
-                                    : "ck-bg-gray-500-20 ck-text-gray-400"
-                                }`}
-                                style={{ border: "none" }}
-                                onClick={() => handleToggleStatus(user)}
-                                title={
-                                  user.status === "active"
-                                    ? "Bấm để khóa tài khoản"
-                                    : "Bấm để mở khóa"
-                                }
+                                className="act-btn"
+                                onClick={() => handleOpenEditAccount(user)}
+                                title="Chỉnh sửa"
                               >
-                                {user.status === "active"
-                                  ? "Hoạt động"
-                                  : "Đã khóa"}
+                                Chỉnh sửa
                               </button>
-                            ) : (
-                              <span className="ck-text-gray-500">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
 
-          {adminTab === "stores" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-6">
-                Cửa hàng
-              </h2>
-              <p className="ck-text-gray-400 ck-mb-6">
-                Danh sách cửa hàng và tạo cửa hàng mới.
-              </p>
-              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden">
-                <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                  <h3 className="ck-text-2xl ck-font-bold ck-text-white">
-                    Danh sách cửa hàng
-                  </h3>
-                  <button
-                    type="button"
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
-                    onClick={() => {
-                      setEditingStore(null);
-                      setNewStore({
-                        name: "",
-                        address: "",
-                        phone: "",
-                        type: "FRANCHISE",
-                      });
-                      setShowAddStore(true);
-                    }}
-                  >
-                    <Plus size={18} />
-                    Tạo cửa hàng
-                  </button>
+            {adminTab === "stores" && (
+              <>
+                <div className="header">
+                  <div>
+                    <div className="header-eyebrow">Hệ thống</div>
+                    <div className="header-title">Cửa hàng</div>
+                  </div>
+                  <div className="header-actions">
+                    <button
+                      type="button"
+                      className="btn btn-teal"
+                      onClick={() => {
+                        setEditingStore(null);
+                        setNewStore({ name: "", address: "", phone: "" });
+                        setAssignManagerId("");
+                        setShowAddStore(true);
+                      }}
+                    >
+                      <Plus size={13} />
+                      Tạo cửa hàng
+                    </button>
+                  </div>
                 </div>
-                <div className="ck-table-wrap">
-                  <table className="ck-table">
+                <div className="toolbar">
+                  <div className="filt-group">
+                    <button
+                      type="button"
+                      className={`filt ${storeListFilter === "all" ? "active" : ""}`}
+                      onClick={() => setStoreListFilter("all")}
+                    >
+                      Tất cả
+                    </button>
+                    <button
+                      type="button"
+                      className={`filt ${storeListFilter === "closed" ? "active" : ""}`}
+                      onClick={() => setStoreListFilter("closed")}
+                    >
+                      Đã đóng
+                    </button>
+                  </div>
+                </div>
+                <div className="tbl-wrap">
+                  <table>
                     <thead>
                       <tr>
-                        <th>Mã Cửa Hàng</th>
                         <th>Tên</th>
                         <th>Địa chỉ</th>
                         <th>Điện thoại</th>
-                        <th>Loại</th>
-                        <th className="ck-text-center">Trạng thái</th>
-                        <th className="ck-text-center">Thao tác</th>
+                        <th>Người phụ trách</th>
+                        <th style={{ textAlign: "center" }}>Trạng thái</th>
+                        <th style={{ textAlign: "center" }}>Cập nhật</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {stores.map((s) => (
-                        <tr key={s.storeId ?? s.id}>
-                          <td className="ck-mono ck-text-gray-400 ck-text-xs">
-                            {s.storeId ?? s.id}
+                      {(storeListFilter === "closed"
+                        ? stores.filter((s) => s.isActive === false)
+                        : [...stores].sort((a, b) => {
+                            const aClosed = a.isActive === false ? 1 : 0;
+                            const bClosed = b.isActive === false ? 1 : 0;
+                            return aClosed - bClosed;
+                          })
+                      ).length === 0 ? (
+                        <tr className="empty-row">
+                          <td colSpan={6}>
+                            {storeListFilter === "closed"
+                              ? "Không có cửa hàng nào đã đóng."
+                              : 'Chưa có cửa hàng. Bấm "Tạo cửa hàng" để thêm.'}
                           </td>
-                          <td className="ck-font-semibold ck-text-white">
-                            {s.name}
-                          </td>
-                          <td className="ck-text-gray-400">
-                            {s.address ?? "-"}
-                          </td>
-                          <td className="ck-text-gray-400">{s.phone ?? "-"}</td>
-                          <td className="ck-mono ck-text-gray-400">
-                            {s.type ?? "-"}
-                          </td>
-                          <td className="ck-text-center">
-                            <span
-                              className={`ck-px-2 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold ${s.isActive !== false ? "ck-bg-green-500-20 ck-text-green-400" : "ck-bg-gray-500-20 ck-text-gray-400"}`}
-                            >
-                              {s.isActive !== false ? "true" : "false"}
-                            </span>
-                          </td>
-                          <td className="ck-text-center">
-                            <div className="ck-flex ck-gap-2 ck-justify-center">
+                        </tr>
+                      ) : (
+                        (storeListFilter === "closed"
+                          ? stores.filter((s) => s.isActive === false)
+                          : [...stores].sort((a, b) => {
+                              const aClosed = a.isActive === false ? 1 : 0;
+                              const bClosed = b.isActive === false ? 1 : 0;
+                              return aClosed - bClosed;
+                            })
+                        ).map((s) => (
+                          <tr key={s.storeId ?? s.id}>
+                            <td className="ing-name">{s.name}</td>
+                            <td style={{ color: "var(--text2)", fontSize: 13 }}>
+                              {s.address ?? "-"}
+                            </td>
+                            <td style={{ color: "var(--text2)", fontSize: 13 }}>
+                              {s.phone ?? "-"}
+                            </td>
+                            {(() => {
+                              const mgr = getManagerForStore(s);
+                              return (
+                              <td style={{ color: "var(--text2)", fontSize: 13 }}>
+                                {mgr === "Chưa có" ? (
+                                  <span className="empty-warn">{mgr}</span>
+                                ) : (
+                                  mgr
+                                )}
+                              </td>
+                              );
+                            })()}
+                            <td style={{ textAlign: "center" }}>
                               <button
                                 type="button"
-                                className="ck-btn ck-px-3 ck-py-1.5 ck-text-sm ck-bg-gray-700 ck-text-gray-300 ck-rounded-lg ck-font-semibold"
-                                style={{ border: "none" }}
+                                className={`badge ${s.isActive !== false ? "b-ok" : "b-low"}`}
+                                style={{
+                                  border: "none",
+                                  cursor: "pointer",
+                                  padding: "4px 10px",
+                                }}
+                                onClick={() => handleToggleStoreActive(s)}
+                                title={
+                                  s.isActive !== false
+                                    ? "Bấm để đóng cửa hàng"
+                                    : "Bấm để mở cửa hàng"
+                                }
+                              >
+                                {s.isActive !== false ? "Đang mở" : "Đã đóng"}
+                              </button>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                type="button"
+                                className="act-btn"
                                 onClick={() => {
                                   setEditingStore(s);
                                   setNewStore({
                                     name: s.name ?? "",
                                     address: s.address ?? "",
                                     phone: s.phone ?? "",
-                                    type: (s.type || "FRANCHISE").toUpperCase(),
                                   });
+                                  const mgr = getManagerAccountForStore(s);
+                                  setAssignManagerId(
+                                    String(
+                                      mgr?.accountId ??
+                                        mgr?.id ??
+                                        mgr?.userId ??
+                                        "",
+                                    ),
+                                  );
                                   setShowAddStore(true);
                                 }}
                               >
-                                Cập nhật
+                                Chỉnh sửa
                               </button>
-                              <button
-                                type="button"
-                                className="ck-btn ck-px-3 ck-py-1.5 ck-text-sm ck-bg-red-500-20 ck-text-red-400 ck-rounded-lg ck-font-semibold"
-                                style={{ border: "none" }}
-                                onClick={() => handleDeleteStore(s)}
-                                title="Xóa cửa hàng"
-                              >
-                                Xóa
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
-                {stores.length === 0 && (
-                  <div className="ck-p-8 ck-text-center ck-text-gray-400">
-                    Chưa có cửa hàng. Bấm &quot;Tạo cửa hàng&quot; (name,
-                    address, phone, type).
+              </>
+            )}
+
+            {adminTab === "kitchen" && (
+              <>
+                <div className="header">
+                  <div>
+                    <div className="header-eyebrow">Thực đơn & Công thức</div>
+                    <div className="header-title">Quản lý sản phẩm</div>
                   </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {adminTab === "kitchen" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-6">
-                Quản lý danh mục bếp trung tâm
-              </h2>
-              <p className="ck-text-gray-400 ck-mb-6">
-                Danh mục sản phẩm và sản phẩm do bếp trung tâm cung cấp.
-              </p>
-              <div className="ck-flex ck-gap-2 ck-mb-6">
-                <button
-                  type="button"
-                  className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${
-                    kitchenSubTab === "categories"
-                      ? "ck-bg-orange-500-20 ck-text-orange-400"
-                      : "ck-bg-gray-800 ck-text-gray-400"
-                  }`}
-                  style={
-                    kitchenSubTab !== "categories"
-                      ? { border: "1px solid var(--ck-border)" }
-                      : { border: "none" }
-                  }
-                  onClick={() => setKitchenSubTab("categories")}
-                >
-                  Danh mục sản phẩm
-                </button>
-                <button
-                  type="button"
-                  className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${
-                    kitchenSubTab === "products"
-                      ? "ck-bg-orange-500-20 ck-text-orange-400"
-                      : "ck-bg-gray-800 ck-text-gray-400"
-                  }`}
-                  style={
-                    kitchenSubTab !== "products"
-                      ? { border: "1px solid var(--ck-border)" }
-                      : { border: "none" }
-                  }
-                  onClick={() => setKitchenSubTab("products")}
-                >
-                  Sản phẩm bếp trung tâm
-                </button>
-              </div>
-
-              {kitchenSubTab === "categories" && (
-                <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden">
-                  <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                    <h3 className="ck-text-2xl ck-font-bold ck-text-white">
-                      Danh mục sản phẩm
-                    </h3>
+                  <div className="header-actions">
                     <button
                       type="button"
-                      className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
+                      className="btn btn-outline-teal"
                       onClick={() => {
                         setShowAddCategory(true);
                         setEditingCategory(null);
                         setNewCategoryName("");
+                        setNewCategoryDescription("");
                       }}
                     >
-                      <Plus size={18} />
+                      <Plus size={13} />
                       Thêm danh mục
                     </button>
-                  </div>
-                  <div className="ck-table-wrap">
-                    <table className="ck-table">
-                      <thead>
-                        <tr>
-                          <th>STT</th>
-                          <th>Tên danh mục</th>
-                          <th>Số sản phẩm</th>
-                          <th className="ck-text-center">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {categories.map((cat, idx) => (
-                          <tr key={cat.id}>
-                            <td className="ck-text-gray-400">{idx + 1}</td>
-                            <td className="ck-font-semibold ck-text-white">
-                              {cat.name}
-                            </td>
-                            <td className="ck-text-gray-400">
-                              {
-                                products.filter((p) => p.category === cat.name)
-                                  .length
-                              }
-                            </td>
-                            <td className="ck-text-center">
-                              <div className="ck-flex ck-gap-2 ck-justify-center">
-                                <button
-                                  type="button"
-                                  className="ck-btn ck-p-2 ck-rounded-lg ck-bg-gray-700 ck-text-white"
-                                  style={{ border: "none" }}
-                                  onClick={() => {
-                                    setEditingCategory(cat);
-                                    setShowAddCategory(true);
-                                    setNewCategoryName(cat.name);
-                                  }}
-                                  title="Sửa"
-                                >
-                                  <Eye size={18} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ck-btn ck-p-2 ck-rounded-lg ck-bg-red-500-20"
-                                  style={{ border: "none" }}
-                                  onClick={() => handleDeleteCategory(cat)}
-                                  title="Xóa"
-                                >
-                                  <Trash2
-                                    size={18}
-                                    className="ck-text-red-400"
-                                  />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {categories.length === 0 && (
-                    <div className="ck-p-8 ck-text-center ck-text-gray-400">
-                      Chưa có danh mục. Bấm &quot;Thêm danh mục&quot; để tạo.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {kitchenSubTab === "products" && (
-                <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden">
-                  <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                    <h3 className="ck-text-2xl ck-font-bold ck-text-white">
-                      Sản phẩm bếp trung tâm
-                    </h3>
                     <button
                       type="button"
-                      className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2"
+                      className="btn btn-teal"
                       onClick={() => {
                         setShowAddProduct(true);
                         setEditingProduct(null);
@@ -892,358 +1610,554 @@ const AdminPage = ({ onLogout, userData }) => {
                           productName: "",
                           categoryId: categories[0]?.id ?? "",
                           sellingPrice: "",
-                          baseUnit: "TÔ",
+                          baseUnit: "",
                           isActive: true,
                           ingredients: [],
                         });
                       }}
                     >
-                      <Plus size={18} />
+                      <Plus size={13} />
                       Thêm sản phẩm
                     </button>
                   </div>
-                  <div className="ck-table-wrap">
-                    <table className="ck-table">
-                      <thead>
-                        <tr>
-                          <th>Mã</th>
-                          <th>Sản phẩm</th>
-                          <th>Danh mục</th>
-                          <th>Giá (₫)</th>
-                          <th>Tồn kho</th>
-                          <th>Min</th>
-                          <th className="ck-text-center">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {products.map((p) => (
-                          <tr key={p.id}>
-                            <td className="ck-mono ck-text-gray-400">{p.id}</td>
-                            <td>
-                              <span className="ck-font-semibold ck-text-white">
-                                {p.emoji} {p.name}
-                              </span>
-                            </td>
-                            <td className="ck-text-gray-400">{p.category}</td>
-                            <td className="ck-mono ck-text-gray-400">
-                              {Number(p.price).toLocaleString()}
-                            </td>
-                            <td className="ck-text-gray-400">{p.stock}</td>
-                            <td className="ck-text-gray-400">{p.min}</td>
-                            <td className="ck-text-center">
-                              <div className="ck-flex ck-gap-2 ck-justify-center">
+                </div>
+
+                <div className="tabs">
+                  <button
+                    type="button"
+                    className={`tab ${kitchenSubTab === "products" ? "active" : ""}`}
+                    onClick={() => setKitchenSubTab("products")}
+                  >
+                    Sản phẩm
+                  </button>
+                  <button
+                    type="button"
+                    className={`tab ${kitchenSubTab === "categories" ? "active" : ""}`}
+                    onClick={() => setKitchenSubTab("categories")}
+                  >
+                    Danh mục
+                  </button>
+                </div>
+
+                <div className="stats">
+                  <div className="stat stat-s1">
+                    <div className="stat-label">Tổng sản phẩm</div>
+                    <div className="stat-val">{productStats.total}</div>
+                    <div className="stat-sub">đang bán</div>
+                  </div>
+                  <div className="stat stat-s2">
+                    <div className="stat-label">Danh mục</div>
+                    <div className="stat-val" style={{ color: "var(--purple, #a78bfa)" }}>
+                      {productStats.categoriesCount}
+                    </div>
+                    <div className="stat-sub">phân loại</div>
+                  </div>
+                  <div className="stat stat-s3">
+                    <div className="stat-label">Có công thức</div>
+                    <div className="stat-val" style={{ color: "var(--teal)" }}>
+                      {productStats.withFormula}
+                    </div>
+                    <div className="stat-sub">đã cấu hình</div>
+                  </div>
+                  <div className="stat stat-s4">
+                    <div className="stat-label">Giá trung bình</div>
+                    <div className="stat-val" style={{ color: "var(--green)" }}>
+                      {productStats.avgPrice >= 1000
+                        ? `${(productStats.avgPrice / 1000).toFixed(0)}k`
+                        : productStats.avgPrice}
+                    </div>
+                    <div className="stat-sub">mỗi món</div>
+                  </div>
+                </div>
+
+                {kitchenSubTab === "products" && (
+                  <div id="tab-products">
+                    <div className="toolbar">
+                      <div className="search-wrap">
+                        <Search size={14} />
+                        <input
+                          type="text"
+                          placeholder="Tìm sản phẩm..."
+                          value={productSearch}
+                          onChange={(e) => setProductSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="filt-group">
+                        {productCategoryOptions.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            className={`filt ${productCatFilter === cat ? "active" : ""}`}
+                            onClick={() => setProductCatFilter(cat)}
+                          >
+                            {cat === "all" ? "Tất cả" : cat}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm ml-auto"
+                        onClick={() => loadAdminData()}
+                      >
+                        Làm mới
+                      </button>
+                    </div>
+                    <div className="product-grid">
+                      {filteredProducts.length === 0 ? (
+                        <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
+                          {products.length === 0
+                            ? "Chưa có sản phẩm. Bấm \"Thêm sản phẩm\" để tạo."
+                            : "Không tìm thấy sản phẩm phù hợp bộ lọc."}
+                        </div>
+                      ) : (
+                        filteredProducts.map((p) => {
+                          const catName = getProductCategoryName(p);
+                          const hasFormula = p.ingredients && p.ingredients.length > 0;
+                          const price = Number(p.sellingPrice ?? p.price ?? 0);
+                          const unit = (p.baseUnit || "").toString().trim() || "—";
+                          const pcCatClass = `pc-cat pc-cat-${catName ? "cat" : "other"}`;
+                          return (
+                            <div
+                              key={p.id ?? p.productId}
+                              className="product-card"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
+                                setEditingProduct(p);
+                                setShowAddProduct(true);
+                                setNewProduct({
+                                  productId: p.productId ?? p.id,
+                                  productName: p.productName ?? p.name,
+                                  categoryId: p.categoryId ?? categories.find((c) => c.name === catName)?.id ?? "",
+                                  sellingPrice: String(p.sellingPrice ?? p.price ?? ""),
+                                  baseUnit: p.baseUnit ?? "",
+                                  isActive: p.isActive !== false,
+                                  ingredients: p.ingredients || [],
+                                });
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  e.currentTarget.click();
+                                }
+                              }}
+                            >
+                              {hasFormula && (
+                                <div className="pc-formula-badge" title="Có công thức">
+                                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <polyline points="2 8 6 12 14 4" />
+                                  </svg>
+                                </div>
+                              )}
+                              <div className={pcCatClass}>{catName || "—"}</div>
+                              <div className="pc-name">{p.name ?? p.productName}</div>
+                              <div className="pc-id">{p.id ?? p.productId}</div>
+                              <div className="pc-footer">
+                                <div className="pc-price">
+                                  {price.toLocaleString("vi-VN")}đ
+                                </div>
+                                <span className="pc-unit">{unit}</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {kitchenSubTab === "categories" && (
+                  <div id="tab-categories">
+                    <div className="toolbar">
+                      <span className="toolbar-label">Quản lý danh mục món</span>
+                      <button
+                        type="button"
+                        className="btn btn-sm ml-auto"
+                        onClick={() => {
+                          setShowAddCategory(true);
+                          setEditingCategory(null);
+                          setNewCategoryName("");
+                          setNewCategoryDescription("");
+                        }}
+                      >
+                        <Plus size={13} />
+                        Thêm danh mục
+                      </button>
+                    </div>
+                    <div className="cat-grid">
+                      {categories.length === 0 ? (
+                        <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
+                          Chưa có danh mục. Bấm &quot;Thêm danh mục&quot; để tạo.
+                        </div>
+                      ) : (
+                        categories.map((cat) => {
+                          const count = products.filter(
+                            (p) => getProductCategoryName(p) === cat.name || String(p.categoryId) === String(cat.id),
+                          ).length;
+                          return (
+                            <div key={cat.id} className="cat-card">
+                              <div className="cat-icon">
+                                {cat.name && (cat.name.toLowerCase().includes("cơm") ? "🍚" : cat.name.toLowerCase().includes("nước") || cat.name.toLowerCase().includes("nuoc") ? "🍜" : cat.name.toLowerCase().includes("uống") || cat.name.toLowerCase().includes("uong") ? "🧋" : cat.name.toLowerCase().includes("tráng") || cat.name.toLowerCase().includes("trang") ? "🍮" : "🍽")}
+                              </div>
+                              <div className="cat-name">{cat.name}</div>
+                              <div className="cat-desc">{cat.description || "Chưa có mô tả"}</div>
+                              <div className="cat-meta">
+                                <span className="cat-id">ID: {cat.id}</span>
+                                <span className="cat-count">{count} món</span>
+                              </div>
+                              <div className="cat-actions">
                                 <button
                                   type="button"
-                                  className="ck-btn ck-p-2 ck-rounded-lg ck-bg-gray-700 ck-text-white"
-                                  style={{ border: "none" }}
+                                  className="btn btn-sm cat-btn-edit"
                                   onClick={() => {
-                                    setEditingProduct(p);
-                                    setShowAddProduct(true);
-                                    setNewProduct({
-                                      productId: p.productId ?? p.id,
-                                      productName: p.productName ?? p.name,
-                                      categoryId:
-                                        p.categoryId ?? p.category ?? "",
-                                      sellingPrice: String(
-                                        p.sellingPrice ?? p.price ?? "",
-                                      ),
-                                      baseUnit: p.baseUnit || "TÔ",
-                                      isActive: p.isActive !== false,
-                                      ingredients: p.ingredients || [],
-                                    });
+                                    setEditingCategory(cat);
+                                    setShowAddCategory(true);
+                                    setNewCategoryName(cat.name);
+                                    setNewCategoryDescription(cat.description || "");
                                   }}
                                   title="Sửa"
                                 >
-                                  <Eye size={18} />
+                                  <Eye size={14} />
+                                  Sửa
                                 </button>
                                 <button
                                   type="button"
-                                  className="ck-btn ck-p-2 ck-rounded-lg ck-bg-red-500-20"
-                                  style={{ border: "none" }}
-                                  onClick={() => handleDeleteProduct(p)}
+                                  className="btn btn-sm cat-btn-delete"
+                                  onClick={() => handleDeleteCategory(cat)}
                                   title="Xóa"
                                 >
-                                  <Trash2
-                                    size={18}
-                                    className="ck-text-red-400"
-                                  />
+                                  <Trash2 size={14} />
+                                  Xóa
                                 </button>
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {products.length === 0 && (
-                    <div className="ck-p-8 ck-text-center ck-text-gray-400">
-                      Chưa có sản phẩm. Bấm &quot;Thêm sản phẩm&quot; để tạo.
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+                  </div>
+                )}
+              </>
+            )}
 
-          {adminTab === "inventory" && (
-            <>
-              <h2 className="ck-text-4xl ck-font-black ck-text-white ck-mb-6">
-                Nhập kho
-              </h2>
-              <p className="ck-text-gray-400 ck-mb-6">
-                Tạo phiếu nhập nguyên liệu.
-              </p>
-              <div className="ck-bg-gradient-card-solid ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6">
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const note = importForm.note?.trim() || "";
-                    const supplierId =
-                      importForm.supplierId?.trim() || undefined;
-                    const items = importForm.items
-                      .filter((i) => i.ingredientId && Number(i.quantity) > 0)
-                      .map((i) => ({
-                        ingredientId: i.ingredientId,
-                        unit: (i.unit || "KG").toUpperCase(),
-                        quantity: Number(i.quantity) || 0,
-                        importPrice: Number(i.importPrice) || 0,
-                      }));
-                    if (items.length === 0) {
-                      window.alert(
-                        "Thêm ít nhất một dòng nguyên liệu với số lượng và đơn giá.",
-                      );
-                      return;
-                    }
-                    try {
-                      await api.importInventory({ note, supplierId, items });
-                      setImportForm({
-                        note: "",
-                        supplierId: "",
-                        items: [
-                          {
-                            ingredientId: "",
-                            unit: "KG",
-                            quantity: "",
-                            importPrice: "",
-                          },
-                        ],
-                      });
-                      window.alert("✅ Tạo phiếu nhập kho thành công!");
-                    } catch (err) {
-                      window.alert("Lỗi: " + (err.message || "Không gửi được"));
-                    }
-                  }}
-                  className="ck-space-y-4"
-                >
+            {adminTab === "ingredients" && (
+              <>
+                <div className="header">
                   <div>
-                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                      Ghi chú
-                    </label>
-                    <input
-                      type="text"
-                      className="ck-input ck-w-full"
-                      value={importForm.note}
-                      onChange={(e) =>
-                        setImportForm((f) => ({ ...f, note: e.target.value }))
-                      }
-                      placeholder="Nhập hàng sáng thứ 2"
-                    />
+                    <div className="header-eyebrow">Quản lý kho</div>
+                    <div className="header-title">Nguyên liệu</div>
                   </div>
-                  <div>
-                    <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                      Mã nhà cung cấp
-                    </label>
-                    <input
-                      type="text"
-                      className="ck-input ck-w-full"
-                      value={importForm.supplierId}
-                      onChange={(e) =>
-                        setImportForm((f) => ({
-                          ...f,
-                          supplierId: e.target.value,
-                        }))
-                      }
-                      placeholder="SUP-001"
-                    />
+                  <div className="header-actions">
+                    <button
+                      type="button"
+                      className="btn btn-outline-teal"
+                      onClick={() => {
+                        setEditingIngredient(null);
+                        setDetailIngredient(null);
+                        setIngredientForm({
+                          name: "",
+                          kitchenStock: "",
+                          unit: "",
+                          unitCost: "",
+                          minThreshold: "",
+                        });
+                        setShowAddIngredient(true);
+                      }}
+                    >
+                      <Plus size={13} />
+                      Thêm nguyên liệu
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-teal"
+                      onClick={() => {
+                        setImportForm({
+                          note: "",
+                          items: [{ ingredientId: "", quantity: "", importPrice: "" }],
+                        });
+                        setShowImportModal(true);
+                      }}
+                    >
+                      Nhập kho
+                    </button>
                   </div>
-                  <div>
-                    <div className="ck-flex ck-justify-between ck-items-center ck-mb-2">
-                      <label className="ck-text-sm ck-font-semibold ck-text-gray-300">
-                        Chi tiết nhập (nguyên liệu, đơn vị, số lượng, đơn giá)
-                      </label>
-                      <button
-                        type="button"
-                        className="ck-btn ck-px-3 ck-py-1 ck-rounded-lg ck-bg-gray-700 ck-text-white ck-text-sm"
-                        onClick={() =>
-                          setImportForm((f) => ({
-                            ...f,
-                            items: [
-                              ...f.items,
-                              {
-                                ingredientId: "",
-                                unit: "KG",
-                                quantity: "",
-                                importPrice: "",
-                              },
-                            ],
-                          }))
-                        }
-                      >
-                        + Dòng
-                      </button>
-                    </div>
-                    <div className="ck-space-y-2">
-                      {importForm.items.map((row, idx) => (
-                        <div
-                          key={idx}
-                          className="ck-flex ck-gap-2 ck-flex-wrap ck-items-center"
-                        >
-                          <select
-                            className="ck-select ck-flex-1 ck-min-w-[120px]"
-                            value={row.ingredientId}
-                            onChange={(e) =>
-                              setImportForm((f) => ({
-                                ...f,
-                                items: f.items.map((it, i) =>
-                                  i === idx
-                                    ? { ...it, ingredientId: e.target.value }
-                                    : it,
-                                ),
-                              }))
-                            }
-                          >
-                            <option value="">-- Chọn nguyên liệu --</option>
-                            {ingredients.map((ing) => (
-                              <option
-                                key={ing.id ?? ing.ingredientId}
-                                value={ing.ingredientId ?? ing.id}
-                              >
-                                {ing.ingredientName ??
-                                  ing.name ??
-                                  ing.ingredientId ??
-                                  ing.id}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            className="ck-select ck-w-20"
-                            value={row.unit}
-                            onChange={(e) =>
-                              setImportForm((f) => ({
-                                ...f,
-                                items: f.items.map((it, i) =>
-                                  i === idx
-                                    ? { ...it, unit: e.target.value }
-                                    : it,
-                                ),
-                              }))
-                            }
-                          >
-                            <option value="KG">KG</option>
-                            <option value="G">G</option>
-                            <option value="L">L</option>
-                            <option value="ML">ML</option>
-                          </select>
-                          <input
-                            type="number"
-                            className="ck-input ck-w-24"
-                            placeholder="SL"
-                            value={row.quantity}
-                            onChange={(e) =>
-                              setImportForm((f) => ({
-                                ...f,
-                                items: f.items.map((it, i) =>
-                                  i === idx
-                                    ? { ...it, quantity: e.target.value }
-                                    : it,
-                                ),
-                              }))
-                            }
-                          />
-                          <input
-                            type="number"
-                            className="ck-input ck-w-28"
-                            placeholder="Đơn giá"
-                            value={row.importPrice}
-                            onChange={(e) =>
-                              setImportForm((f) => ({
-                                ...f,
-                                items: f.items.map((it, i) =>
-                                  i === idx
-                                    ? { ...it, importPrice: e.target.value }
-                                    : it,
-                                ),
-                              }))
-                            }
-                          />
-                          <button
-                            type="button"
-                            className="ck-btn ck-p-2 ck-rounded-lg ck-bg-red-500-20 ck-text-red-400"
-                            onClick={() =>
-                              setImportForm((f) => ({
-                                ...f,
-                                items: f.items.filter((_, i) => i !== idx),
-                              }))
-                            }
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                </div>
+
+                <div className="tabs">
                   <button
-                    type="submit"
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold"
+                    type="button"
+                    className={`tab ${ingredientSubTab === "stock" ? "active" : ""}`}
+                    onClick={() => setIngredientSubTab("stock")}
                   >
-                    Tạo phiếu nhập kho
+                    Tồn kho
                   </button>
-                </form>
-              </div>
-            </>
-          )}
+                  <button
+                    type="button"
+                    className={`tab ${ingredientSubTab === "history" ? "active" : ""}`}
+                    onClick={() => setIngredientSubTab("history")}
+                  >
+                    Lịch sử nhập hàng
+                  </button>
+                </div>
+
+                <div className="stats">
+                  <div className="stat">
+                    <div className="stat-label">Tổng nguyên liệu</div>
+                    <div className="stat-val">{ingredientStats.total}</div>
+                    <div className="stat-sub">đang theo dõi</div>
+                  </div>
+                  <div className="stat stat-warn">
+                    <div className="stat-label">Sắp hết hàng</div>
+                    <div className="stat-val" style={{ color: "var(--amber)" }}>
+                      {ingredientStats.low}
+                    </div>
+                    <div className="stat-sub">dưới mức tối thiểu</div>
+                  </div>
+                  <div className="stat stat-danger">
+                    <div className="stat-label">Hết hàng</div>
+                    <div className="stat-val" style={{ color: "var(--red)" }}>
+                      {ingredientStats.empty}
+                    </div>
+                    <div className="stat-sub">cần nhập gấp</div>
+                  </div>
+                  <div className="stat stat-teal">
+                    <div className="stat-label">Giá trị tồn kho</div>
+                    <div className="stat-val" style={{ color: "var(--teal)" }}>
+                      {ingredientStats.totalValue >= 1e6
+                        ? `${(ingredientStats.totalValue / 1e6).toFixed(1)} tr`
+                        : Number(ingredientStats.totalValue).toLocaleString()}
+                    </div>
+                    <div className="stat-sub">ước tính</div>
+                  </div>
+                </div>
+
+                {ingredientSubTab === "stock" && (
+                  <div id="tab-stock">
+                    <div className="toolbar">
+                      <div className="search-wrap">
+                        <Search size={14} />
+                        <input
+                          type="text"
+                          placeholder="Tìm nguyên liệu..."
+                          value={ingredientSearch}
+                          onChange={(e) => setIngredientSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="filt-group">
+                        <button
+                          type="button"
+                          className={`filt ${ingredientFilter === "all" ? "active" : ""}`}
+                          onClick={() => setIngredientFilter("all")}
+                        >
+                          Tất cả
+                        </button>
+                        <button
+                          type="button"
+                          className={`filt ${ingredientFilter === "low" ? "active" : ""}`}
+                          onClick={() => setIngredientFilter("low")}
+                        >
+                          Sắp hết
+                        </button>
+                        <button
+                          type="button"
+                          className={`filt ${ingredientFilter === "ok" ? "active" : ""}`}
+                          onClick={() => setIngredientFilter("ok")}
+                        >
+                          Đủ hàng
+                        </button>
+                      </div>
+                    </div>
+                    <div className="tbl-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Nguyên liệu</th>
+                            <th>Tồn kho</th>
+                            <th>Đơn vị</th>
+                            <th>Đơn giá</th>
+                            <th>Giá trị tồn</th>
+                            <th>Trạng thái</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredIngredients.length === 0 ? (
+                            <tr className="empty-row">
+                              <td colSpan={7}>
+                                {ingredients.length === 0
+                                  ? "Chưa có nguyên liệu. Bấm \"Thêm nguyên liệu\" để tạo."
+                                  : "Không có dữ liệu phù hợp bộ lọc."}
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredIngredients.map((ing) => {
+                              const id = ing.ingredientId ?? ing.id;
+                              const stock = Number(ing.kitchenStock) || 0;
+                              const min = Number(ing.minThreshold) || 0;
+                              const unitCost = Number(ing.unitCost) || 0;
+                              const value = stock * unitCost;
+                              const status = getIngredientStatus(ing);
+                              const statusLabel =
+                                status === "empty"
+                                  ? "Hết hàng"
+                                  : status === "low"
+                                    ? "Sắp hết"
+                                    : "Đủ hàng";
+                              const badgeClass =
+                                status === "empty" ? "b-empty" : status === "low" ? "b-low" : "b-ok";
+                              const barPct =
+                                min > 0
+                                  ? Math.min(100, Math.round((stock / (min * 3)) * 100))
+                                  : 100;
+                              const barColor =
+                                status === "empty"
+                                  ? "#b91c1c"
+                                  : status === "low"
+                                    ? "#b45309"
+                                    : "#15803d";
+                              const shortId =
+                                String(id).length > 10
+                                  ? `${String(id).slice(0, 8)}…`
+                                  : id;
+                              return (
+                                <tr key={id}>
+                                  <td>
+                                    <div className="ing-name">{ing.name ?? ing.ingredientName}</div>
+                                    <div className="ing-id">{shortId}</div>
+                                  </td>
+                                  <td>
+                                    <div className="stock-main">
+                                      {stock.toLocaleString("vi-VN")}{" "}
+                                      <span className="stock-min">/ {min} min</span>
+                                    </div>
+                                    <div className="stock-bar">
+                                      <div
+                                        className="stock-fill"
+                                        style={{
+                                          width: `${barPct}%`,
+                                          background: barColor,
+                                        }}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span className="chip">{ing.unit ?? "KG"}</span>
+                                  </td>
+                                  <td>
+                                    <span className="price-val">
+                                      {unitCost.toLocaleString("vi-VN")}đ
+                                    </span>
+                                  </td>
+                                  <td style={{ fontSize: 13, color: "var(--text2)" }}>
+                                    {value.toLocaleString("vi-VN")}đ
+                                  </td>
+                                  <td>
+                                    <span className={`badge ${badgeClass}`}>{statusLabel}</span>
+                                  </td>
+                                  <td>
+                                    <div className="act-btns">
+                                      <button
+                                        type="button"
+                                        className="act-btn"
+                                        onClick={() => loadIngredientDetail(id)}
+                                      >
+                                        Chi tiết
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="act-btn"
+                                        onClick={() => {
+                                          setEditingIngredient(ing);
+                                          setDetailIngredient(null);
+                                          setIngredientForm({
+                                            name: ing.name ?? "",
+                                            kitchenStock:
+                                              ing.kitchenStock != null
+                                                ? String(ing.kitchenStock)
+                                                : "",
+                                            unit: ing.unit || "",
+                                            unitCost:
+                                              ing.unitCost != null
+                                                ? String(ing.unitCost)
+                                                : "",
+                                            minThreshold:
+                                              ing.minThreshold != null
+                                                ? String(ing.minThreshold)
+                                                : "",
+                                          });
+                                          setShowAddIngredient(true);
+                                        }}
+                                      >
+                                        Sửa
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {ingredientSubTab === "history" && (
+                  <div id="tab-history">
+                    <div className="toolbar">
+                      <span style={{ fontSize: 13, color: "var(--text2)", fontWeight: 500 }}>
+                        Phiếu nhập gần đây
+                      </span>
+                    </div>
+                    <div className="history-list">
+                      <div className="history-empty">
+                        Chưa có phiếu nhập nào trong phiên này
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>
         </div>
       </main>
 
       {showAddUser && (
         <div
-          className="ck-modal-overlay"
+          className="ck-modal-overlay ingredient-form-modal"
           onClick={() => setShowAddUser(false)}
           role="presentation"
         >
           <div
-            className="ck-modal-box ck-max-w-md ck-w-full ck-p-8"
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
             onClick={(e) => e.stopPropagation()}
             role="presentation"
           >
-            <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-              <h3 className="ck-text-2xl ck-font-black ck-text-white">
-                Tạo tài khoản mới (Admin)
-              </h3>
+            <div className="form-header">
+              <div>
+                <h3>Tạo tài khoản mới</h3>
+              </div>
               <button
                 type="button"
-                className="ck-btn ck-p-2 ck-rounded-lg"
+                className="btn-close"
                 onClick={() => setShowAddUser(false)}
-                style={{ background: "none", border: "none" }}
+                aria-label="Đóng"
               >
-                <X size={24} className="ck-text-gray-400" />
+                <X size={18} />
               </button>
             </div>
-
             <form
-              className="ck-space-y-4"
+              className="form-body"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleAddUser();
               }}
             >
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Tên đăng nhập
-                </label>
+              <div className="field">
+                <label>Tên đăng nhập</label>
                 <input
                   type="text"
-                  className="ck-input ck-w-full"
                   autoComplete="username"
                   value={newUser.username}
                   onChange={(e) =>
@@ -1252,13 +2166,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: q1_store"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Mật khẩu
-                </label>
+              <div className="field">
+                <label>Mật khẩu</label>
                 <input
                   type="password"
-                  className="ck-input ck-w-full"
                   autoComplete="new-password"
                   value={newUser.password}
                   onChange={(e) =>
@@ -1267,13 +2178,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: 123 (ít nhất 6 ký tự)"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Họ tên
-                </label>
+              <div className="field">
+                <label>Họ tên</label>
                 <input
                   type="text"
-                  className="ck-input ck-w-full"
                   value={newUser.name}
                   onChange={(e) =>
                     setNewUser({ ...newUser, name: e.target.value })
@@ -1281,13 +2189,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: Quản lý Quận 1"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Email
-                </label>
+              <div className="field">
+                <label>Email</label>
                 <input
                   type="email"
-                  className="ck-input ck-w-full"
                   autoComplete="email"
                   value={newUser.email}
                   onChange={(e) =>
@@ -1296,12 +2201,9 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: quanlyq1@centralkitchen.com"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Vai trò
-                </label>
+              <div className="field">
+                <label>Vai trò</label>
                 <select
-                  className="ck-select ck-w-full ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
                   value={newUser.role}
                   onChange={(e) =>
                     setNewUser({ ...newUser, role: e.target.value })
@@ -1313,47 +2215,15 @@ const AdminPage = ({ onLogout, userData }) => {
                   <option value="manager">Quản lý</option>
                 </select>
               </div>
-              {newUser.role === "franchise" && (
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                    Mã cửa hàng
-                  </label>
-                  <select
-                    className="ck-select ck-w-full ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                    value={newUser.storeId}
-                    onChange={(e) =>
-                      setNewUser({ ...newUser, storeId: e.target.value })
-                    }
-                    required
-                  >
-                    <option value="">Chọn cửa hàng</option>
-                    {stores.map((s) => (
-                      <option key={s.storeId ?? s.id} value={s.storeId ?? s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  {stores.length === 0 && (
-                    <p className="ck-text-xs ck-text-amber-400 ck-mt-1">
-                      Chưa có cửa hàng. Vào tab Cửa hàng tạo cửa hàng trước.
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="ck-flex ck-gap-3 ck-pt-4">
+              <div className="form-actions">
                 <button
                   type="button"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-semibold"
-                  style={{ border: "none" }}
+                  className="btn-cancel"
                   onClick={() => setShowAddUser(false)}
                 >
                   Hủy
                 </button>
-                <button
-                  type="submit"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold"
-                  style={{ border: "none" }}
-                >
+                <button type="submit" className="btn-submit">
                   Tạo tài khoản
                 </button>
               </div>
@@ -1364,45 +2234,49 @@ const AdminPage = ({ onLogout, userData }) => {
 
       {showAddStore && (
         <div
-          className="ck-modal-overlay"
-          onClick={() => setShowAddStore(false)}
+          className="ck-modal-overlay ingredient-form-modal"
+          onClick={() => {
+            setShowAddStore(false);
+            setEditingStore(null);
+            setAssignManagerId("");
+          }}
           role="presentation"
         >
           <div
-            className="ck-modal-box ck-max-w-md ck-w-full ck-p-8"
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
             onClick={(e) => e.stopPropagation()}
             role="presentation"
           >
-            <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-              <h3 className="ck-text-2xl ck-font-black ck-text-white">
-                {editingStore ? "Cập nhật cửa hàng" : "Tạo cửa hàng mới"}
-              </h3>
+            <div className="form-header">
+              <div>
+                <h3>
+                  {editingStore ? "Chỉnh sửa cửa hàng" : "Tạo cửa hàng mới"}
+                </h3>
+              </div>
               <button
                 type="button"
-                className="ck-btn ck-p-2 ck-rounded-lg"
+                className="btn-close"
                 onClick={() => {
                   setShowAddStore(false);
                   setEditingStore(null);
+                  setAssignManagerId("");
                 }}
-                style={{ background: "none", border: "none" }}
+                aria-label="Đóng"
               >
-                <X size={24} className="ck-text-gray-400" />
+                <X size={18} />
               </button>
             </div>
             <form
-              className="ck-space-y-4"
+              className="form-body"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSaveStore();
               }}
             >
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Tên cửa hàng
-                </label>
+              <div className="field">
+                <label>Tên cửa hàng</label>
                 <input
                   type="text"
-                  className="ck-input ck-w-full"
                   value={newStore.name}
                   onChange={(e) =>
                     setNewStore({ ...newStore, name: e.target.value })
@@ -1410,13 +2284,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: Cửa hàng Quận 1 - Chi nhánh A"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Địa chỉ
-                </label>
+              <div className="field">
+                <label>Địa chỉ</label>
                 <input
                   type="text"
-                  className="ck-input ck-w-full"
                   value={newStore.address}
                   onChange={(e) =>
                     setNewStore({ ...newStore, address: e.target.value })
@@ -1424,13 +2295,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: 123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Điện thoại
-                </label>
+              <div className="field">
+                <label>Điện thoại</label>
                 <input
                   type="text"
-                  className="ck-input ck-w-full"
                   value={newStore.phone}
                   onChange={(e) =>
                     setNewStore({ ...newStore, phone: e.target.value })
@@ -1438,40 +2306,39 @@ const AdminPage = ({ onLogout, userData }) => {
                   placeholder="vd: 0901234567"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Loại cửa hàng (type)
-                </label>
-                <select
-                  className="ck-select ck-w-full ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                  value={newStore.type}
-                  onChange={(e) =>
-                    setNewStore({ ...newStore, type: e.target.value })
-                  }
-                >
-                  <option value="FRANCHISE">FRANCHISE</option>
-                  <option value="FLAGSHIP">FLAGSHIP</option>
-                  <option value="KIOSK">KIOSK</option>
-                </select>
-              </div>
-              <div className="ck-flex ck-gap-3 ck-pt-4">
+              {editingStore && (
+                <div className="field">
+                  <label>Nhân viên phụ trách</label>
+                  <select
+                    value={assignManagerId}
+                    onChange={(e) => setAssignManagerId(e.target.value)}
+                  >
+                    <option value="">Chưa có</option>
+                    {storeManagerOptionsForEdit(editingStore).map((u) => {
+                      const id = String(u.accountId ?? u.id ?? u.userId ?? "");
+                      return (
+                        <option key={id || `opt-${u.username}`} value={id}>
+                          {(u.name ?? u.fullName ?? u.username ?? id) || "—"}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+              <div className="form-actions">
                 <button
                   type="button"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-semibold"
-                  style={{ border: "none" }}
+                  className="btn-cancel"
                   onClick={() => {
                     setShowAddStore(false);
                     setEditingStore(null);
+                    setAssignManagerId("");
                   }}
                 >
                   Hủy
                 </button>
-                <button
-                  type="submit"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold"
-                  style={{ border: "none" }}
-                >
-                  {editingStore ? "Cập nhật cửa hàng" : "Thêm cửa hàng"}
+                <button type="submit" className="btn-submit">
+                  {editingStore ? "Lưu thay đổi" : "Thêm cửa hàng"}
                 </button>
               </div>
             </form>
@@ -1481,7 +2348,7 @@ const AdminPage = ({ onLogout, userData }) => {
 
       {(showAddCategory || editingCategory) && (
         <div
-          className="ck-modal-overlay"
+          className="ck-modal-overlay ingredient-form-modal"
           onClick={() => {
             setShowAddCategory(false);
             setEditingCategory(null);
@@ -1491,36 +2358,35 @@ const AdminPage = ({ onLogout, userData }) => {
           role="presentation"
         >
           <div
-            className="ck-modal-box ck-max-w-md ck-w-full ck-p-8"
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
             onClick={(e) => e.stopPropagation()}
             role="presentation"
           >
-            <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
-              <h3 className="ck-text-2xl ck-font-black ck-text-white">
-                {editingCategory ? "Sửa danh mục" : "Thêm danh mục"}
-              </h3>
+            <div className="form-header">
+              <div>
+                <h3>
+                  {editingCategory ? "Sửa danh mục" : "Thêm danh mục"}
+                </h3>
+              </div>
               <button
                 type="button"
-                className="ck-btn ck-p-2 ck-rounded-lg"
+                className="btn-close"
                 onClick={() => {
                   setShowAddCategory(false);
                   setEditingCategory(null);
                   setNewCategoryName("");
                   setNewCategoryDescription("");
                 }}
-                style={{ background: "none", border: "none" }}
+                aria-label="Đóng"
               >
-                <X size={24} className="ck-text-gray-400" />
+                <X size={18} />
               </button>
             </div>
-            <div className="ck-space-y-4">
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Tên danh mục *
-                </label>
+            <div className="form-body">
+              <div className="field">
+                <label>Tên danh mục *</label>
                 <input
                   type="text"
-                  className="ck-input ck-w-full"
                   value={
                     editingCategory ? editingCategory.name : newCategoryName
                   }
@@ -1532,16 +2398,12 @@ const AdminPage = ({ onLogout, userData }) => {
                         })
                       : setNewCategoryName(e.target.value)
                   }
-                  placeholder="Món Nước"
+                  placeholder="VD: Món nước"
                 />
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Mô tả
-                </label>
-                <input
-                  type="text"
-                  className="ck-input ck-w-full"
+              <div className="field">
+                <label>Mô tả</label>
+                <textarea
                   value={
                     editingCategory
                       ? (editingCategory.description ?? "")
@@ -1555,14 +2417,14 @@ const AdminPage = ({ onLogout, userData }) => {
                         })
                       : setNewCategoryDescription(e.target.value)
                   }
-                  placeholder="Các món có nước dùng như Phở, Bún"
+                  placeholder="VD: Phở, bún, hủ tiếu..."
+                  rows={3}
                 />
               </div>
-              <div className="ck-flex ck-gap-3 ck-pt-4">
+              <div className="form-actions">
                 <button
                   type="button"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-semibold"
-                  style={{ border: "none" }}
+                  className="btn-cancel"
                   onClick={() => {
                     setShowAddCategory(false);
                     setEditingCategory(null);
@@ -1574,8 +2436,7 @@ const AdminPage = ({ onLogout, userData }) => {
                 </button>
                 <button
                   type="button"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold"
-                  style={{ border: "none" }}
+                  className="btn-submit"
                   onClick={handleSaveCategory}
                 >
                   {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
@@ -1588,10 +2449,452 @@ const AdminPage = ({ onLogout, userData }) => {
 
       {(showAddProduct || editingProduct) && (
         <div
-          className="ck-modal-overlay"
+          className="ck-modal-overlay ingredient-form-modal"
           onClick={() => {
             setShowAddProduct(false);
             setEditingProduct(null);
+          }}
+          role="presentation"
+        >
+          <div
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <div className="form-header">
+              <div>
+                <h3>
+                  {editingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm mới"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => {
+                  setShowAddProduct(false);
+                  setEditingProduct(null);
+                }}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="form-body ck-max-h-[70vh] ck-overflow-y-auto">
+              <div className="form-row">
+                <div className="field">
+                  <label>Mã sản phẩm *</label>
+                  <input
+                    type="text"
+                    value={
+                      (editingProduct || newProduct).productId ||
+                      (editingProduct || newProduct).id || ""
+                    }
+                    onChange={(e) =>
+                      setNewProduct({ ...newProduct, productId: e.target.value })
+                    }
+                    placeholder="VD: PROD_PHO_01"
+                    readOnly={!!editingProduct}
+                  />
+                  {!editingProduct && (
+                    <span className="helper">Chữ hoa, không dấu</span>
+                  )}
+                </div>
+                <div className="field">
+                  <label>Danh mục *</label>
+                  <select
+                    value={
+                      (editingProduct || newProduct).categoryId ??
+                      (editingProduct || newProduct).category ??
+                      ""
+                    }
+                    onChange={(e) =>
+                      setNewProduct({ ...newProduct, categoryId: e.target.value })
+                    }
+                  >
+                    <option value="">-- Chọn danh mục --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <label>Tên sản phẩm *</label>
+                <input
+                  type="text"
+                  value={
+                    (editingProduct || newProduct).productName ??
+                    (editingProduct || newProduct).name ?? ""
+                  }
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, productName: e.target.value })
+                  }
+                  placeholder="VD: Phở bò đặc biệt"
+                />
+              </div>
+              <div className="form-row">
+                <div className="field">
+                  <label>Giá bán (đ) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={
+                      (editingProduct || newProduct).sellingPrice ??
+                      (editingProduct || newProduct).price ?? ""
+                    }
+                    onChange={(e) =>
+                      setNewProduct({ ...newProduct, sellingPrice: e.target.value })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+                <div className="field">
+                  <label>Đơn vị *</label>
+                  <select
+                    value={(editingProduct || newProduct).baseUnit ?? ""}
+                    onChange={(e) =>
+                      setNewProduct({ ...newProduct, baseUnit: e.target.value })
+                    }
+                  >
+                    <option value="">-- Chọn đơn vị --</option>
+                    <option value="TO">TO - Tô</option>
+                    <option value="PHAN">PHAN - Phần</option>
+                    <option value="LY">LY - Ly</option>
+                    <option value="CAI">CAI - Cái</option>
+                    <option value="DIA">DIA - Đĩa</option>
+                  </select>
+                </div>
+              </div>
+              <div className="sep" />
+              <div className="section-label">
+                Công thức nguyên liệu
+                <span className="section-helper">Tùy chọn, có thể thêm sau</span>
+              </div>
+              {(newProduct.ingredients || []).length === 0 ? (
+                <div className="field" style={{ marginBottom: 8 }}>
+                  <div
+                    className="product-add-ing-btn"
+                    onClick={() =>
+                      setNewProduct((p) => ({
+                        ...p,
+                        ingredients: [
+                          ...(p.ingredients || []),
+                          { ingredientId: "", amountNeeded: 0.1 },
+                        ],
+                      }))
+                    }
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setNewProduct((p) => ({
+                          ...p,
+                          ingredients: [
+                            ...(p.ingredients || []),
+                            { ingredientId: "", amountNeeded: 0.1 },
+                          ],
+                        }));
+                      }
+                    }}
+                  >
+                    <Plus size={14} />
+                    Thêm nguyên liệu vào công thức
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {(newProduct.ingredients || []).map((row, idx) => (
+                    <div key={idx} className="formula-row">
+                      <div className="field">
+                        {idx === 0 && <label>Nguyên liệu</label>}
+                        <select
+                          value={row.ingredientId ?? ""}
+                          onChange={(e) =>
+                            setNewProduct((p) => ({
+                              ...p,
+                              ingredients: p.ingredients.map((it, i) =>
+                                i === idx ? { ...it, ingredientId: e.target.value } : it,
+                              ),
+                            }))
+                          }
+                        >
+                          <option value="">-- Chọn nguyên liệu --</option>
+                          {ingredients.map((ing) => (
+                            <option
+                              key={ing.id ?? ing.ingredientId}
+                              value={ing.ingredientId ?? ing.id}
+                            >
+                              {ing.ingredientName ?? ing.name ?? ing.ingredientId ?? ing.id}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        {idx === 0 && <label>Lượng dùng</label>}
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="0.001"
+                          value={row.amountNeeded ?? ""}
+                          onChange={(e) =>
+                            setNewProduct((p) => ({
+                              ...p,
+                              ingredients: p.ingredients.map((it, i) =>
+                                i === idx
+                                  ? { ...it, amountNeeded: Number(e.target.value) || 0 }
+                                  : it,
+                              ),
+                            }))
+                          }
+                          placeholder="0.1"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="formula-row-rm"
+                        onClick={() =>
+                          setNewProduct((p) => ({
+                            ...p,
+                            ingredients: p.ingredients.filter((_, i) => i !== idx),
+                          }))
+                        }
+                        title="Xóa dòng"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="product-add-ing-btn"
+                    onClick={() =>
+                      setNewProduct((p) => ({
+                        ...p,
+                        ingredients: [
+                          ...(p.ingredients || []),
+                          { ingredientId: "", amountNeeded: 0.1 },
+                        ],
+                      }))
+                    }
+                  >
+                    <Plus size={14} />
+                    Thêm nguyên liệu vào công thức
+                  </button>
+                </>
+              )}
+              <div className="form-actions">
+                {editingProduct && (
+                  <button
+                    type="button"
+                    className="ck-btn ck-px-4 ck-py-2 ck-rounded-lg ck-font-semibold ck-bg-red-500-20 ck-text-red-400"
+                    style={{ flex: "0 0 auto", border: "1px solid rgba(239,68,68,0.4)" }}
+                    onClick={async () => {
+                      if (
+                        window.confirm(
+                          `Xóa sản phẩm "${editingProduct.name || editingProduct.productName}"?`,
+                        )
+                      ) {
+                        await handleDeleteProduct(editingProduct);
+                        setShowAddProduct(false);
+                        setEditingProduct(null);
+                      }
+                    }}
+                  >
+                    Xóa
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowAddProduct(false);
+                    setEditingProduct(null);
+                  }}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={handleSaveProduct}
+                >
+                  {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddIngredient && (
+        <div
+          className="ck-modal-overlay ingredient-form-modal"
+          onClick={() => {
+            setShowAddIngredient(false);
+            setEditingIngredient(null);
+          }}
+          role="presentation"
+        >
+          <div
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <div className="form-header">
+              <div>
+                <h3>
+                  {editingIngredient ? "Chỉnh sửa nguyên liệu" : "Thêm nguyên liệu"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => {
+                  setShowAddIngredient(false);
+                  setEditingIngredient(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              className="form-body"
+              onSubmit={
+                editingIngredient ? handleUpdateIngredient : handleCreateIngredient
+              }
+            >
+              {editingIngredient && (
+                <div className="editing-bar">
+                  <span>
+                    Đang sửa: <strong>{editingIngredient.name ?? editingIngredient.ingredientName}</strong>
+                  </span>
+                  {editingIngredient.version != null && (
+                    <span className="version">v{editingIngredient.version}</span>
+                  )}
+                </div>
+              )}
+
+              <div className="field">
+                <label>Tên nguyên liệu *</label>
+                <input
+                  type="text"
+                  value={ingredientForm.name}
+                  onChange={(e) =>
+                    setIngredientForm({ ...ingredientForm, name: e.target.value })
+                  }
+                  placeholder="VD: Thịt bò Úc"
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="field">
+                  <label>Đơn vị</label>
+                  <select
+                    value={ingredientForm.unit}
+                    onChange={(e) =>
+                      setIngredientForm({ ...ingredientForm, unit: e.target.value })
+                    }
+                  >
+                    <option value="">-- Chọn đơn vị --</option>
+                    {Object.entries(units).map(([groupName, items]) => (
+                      <optgroup key={groupName} label={groupName}>
+                        {Array.isArray(items)
+                          ? items.map((u) => (
+                              <option key={u.code} value={u.code}>
+                                {u.label ?? u.code}
+                              </option>
+                            ))
+                          : null}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Đơn giá (đ)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={ingredientForm.unitCost}
+                    onChange={(e) =>
+                      setIngredientForm({
+                        ...ingredientForm,
+                        unitCost: e.target.value,
+                      })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {editingIngredient && (
+                <div className="form-row">
+                  <div className="field">
+                    <label>Tồn kho</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={ingredientForm.kitchenStock}
+                      onChange={(e) =>
+                        setIngredientForm({
+                          ...ingredientForm,
+                          kitchenStock: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Mức tối thiểu</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={ingredientForm.minThreshold}
+                      onChange={(e) =>
+                        setIngredientForm({
+                          ...ingredientForm,
+                          minThreshold: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                    <p className="helper">Cảnh báo khi tồn kho ≤ mức này</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowAddIngredient(false);
+                    setEditingIngredient(null);
+                  }}
+                >
+                  Hủy
+                </button>
+                <button type="submit" className="btn-submit">
+                  {editingIngredient ? "Lưu thay đổi" : "Thêm nguyên liệu"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {(ingredientDetailLoading || detailIngredient !== null) && (
+        <div
+          className="ck-modal-overlay"
+          onClick={() => {
+            setDetailIngredient(null);
+            setIngredientDetailLoading(false);
           }}
           role="presentation"
         >
@@ -1602,252 +2905,213 @@ const AdminPage = ({ onLogout, userData }) => {
           >
             <div className="ck-flex ck-items-center ck-justify-between ck-mb-6">
               <h3 className="ck-text-2xl ck-font-black ck-text-white">
-                {editingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm"}
+                Chi tiết nguyên liệu
               </h3>
               <button
                 type="button"
                 className="ck-btn ck-p-2 ck-rounded-lg"
                 onClick={() => {
-                  setShowAddProduct(false);
-                  setEditingProduct(null);
+                  setDetailIngredient(null);
+                  setIngredientDetailLoading(false);
                 }}
                 style={{ background: "none", border: "none" }}
               >
                 <X size={24} className="ck-text-gray-400" />
               </button>
             </div>
-            <div className="ck-space-y-4 ck-max-h-[70vh] ck-overflow-y-auto">
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Mã sản phẩm
-                </label>
-                <input
-                  type="text"
-                  className="ck-input ck-w-full"
-                  value={
-                    (editingProduct || newProduct).productId ||
-                    (editingProduct || newProduct).id
-                  }
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, productId: e.target.value })
-                  }
-                  placeholder="PHO-01"
-                />
+            {ingredientDetailLoading ? (
+              <p className="ck-text-gray-400">Đang tải...</p>
+            ) : detailIngredient ? (
+              <div className="ck-space-y-4">
+                <div>
+                  <span className="ck-text-sm ck-text-gray-500">Tên</span>
+                  <p className="ck-font-semibold ck-text-white">
+                    {detailIngredient.name ?? detailIngredient.ingredientName}
+                  </p>
+                </div>
+                <div>
+                  <span className="ck-text-sm ck-text-gray-500">Mã</span>
+                  <p className="ck-mono ck-text-gray-400">
+                    {detailIngredient.ingredientId ?? detailIngredient.id}
+                  </p>
+                </div>
+                <div>
+                  <span className="ck-text-sm ck-text-gray-500">Tồn kho / Ngưỡng tối thiểu</span>
+                  <p className="ck-text-white">
+                    {Number(detailIngredient.kitchenStock).toLocaleString()} /{" "}
+                    {Number(detailIngredient.minThreshold).toLocaleString()}{" "}
+                    {detailIngredient.unit ?? "KG"}
+                  </p>
+                </div>
+                <div>
+                  <span className="ck-text-sm ck-text-gray-500">Đơn giá (VND)</span>
+                  <p className="ck-mono ck-text-white">
+                    {Number(detailIngredient.unitCost).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <span className="ck-text-sm ck-text-gray-500">Giá trị tồn (VND)</span>
+                  <p className="ck-mono ck-text-white">
+                    {(
+                      (Number(detailIngredient.kitchenStock) || 0) *
+                      (Number(detailIngredient.unitCost) || 0)
+                    ).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <span className="ck-text-sm ck-text-gray-500">Trạng thái</span>
+                  <p>
+                    <span
+                      className={`ck-badge ${
+                        getIngredientStatus(detailIngredient) === "empty"
+                          ? "ck-badge-red"
+                          : getIngredientStatus(detailIngredient) === "low"
+                            ? "ck-badge-yellow"
+                            : "ck-badge-green"
+                      }`}
+                    >
+                      {getIngredientStatus(detailIngredient) === "empty"
+                        ? "Hết hàng"
+                        : getIngredientStatus(detailIngredient) === "low"
+                          ? "Sắp hết"
+                          : "Đủ hàng"}
+                    </span>
+                  </p>
+                </div>
               </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div
+          className="ck-modal-overlay ingredient-form-modal"
+          onClick={() => !importSubmitting && setShowImportModal(false)}
+          role="presentation"
+        >
+          <div
+            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <div className="form-header">
               <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Tên sản phẩm *
-                </label>
-                <input
-                  type="text"
-                  className="ck-input ck-w-full"
-                  value={
-                    (editingProduct || newProduct).productName ||
-                    (editingProduct || newProduct).name
-                  }
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      productName: e.target.value,
-                    })
-                  }
-                  placeholder="Phở Bò"
-                />
+                <h3>Tạo phiếu nhập kho</h3>
               </div>
-              <div>
-                <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                  Danh mục
-                </label>
-                <select
-                  className="ck-select ck-w-full ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                  value={
-                    (editingProduct || newProduct).categoryId ||
-                    (editingProduct || newProduct).category
-                  }
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, categoryId: e.target.value })
-                  }
-                >
-                  <option value="">-- Chọn danh mục --</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div
-                className="ck-grid-2 ck-gap-4"
-                style={{ gridTemplateColumns: "1fr 1fr" }}
+              <button
+                type="button"
+                className="btn-close"
+                disabled={importSubmitting}
+                onClick={() => setShowImportModal(false)}
               >
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                    Giá bán (₫)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="ck-input ck-w-full"
-                    value={
-                      (editingProduct || newProduct).sellingPrice ??
-                      (editingProduct || newProduct).price
-                    }
-                    onChange={(e) =>
-                      setNewProduct({
-                        ...newProduct,
-                        sellingPrice: e.target.value,
-                      })
-                    }
-                    placeholder="55000"
-                  />
-                </div>
-                <div>
-                  <label className="ck-block ck-text-sm ck-font-semibold ck-text-gray-300 ck-mb-2">
-                    Đơn vị
-                  </label>
-                  <select
-                    className="ck-select ck-w-full ck-px-4 ck-py-3 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-xl"
-                    value={(editingProduct || newProduct).baseUnit || "TÔ"}
-                    onChange={(e) =>
-                      setNewProduct({ ...newProduct, baseUnit: e.target.value })
-                    }
-                  >
-                    <option value="TÔ">TÔ</option>
-                    <option value="KG">KG</option>
-                    <option value="HỘP">HỘP</option>
-                  </select>
-                </div>
-              </div>
-              <div className="ck-flex ck-items-center ck-gap-2">
-                <input
-                  type="checkbox"
-                  id="prod-active"
-                  checked={(editingProduct || newProduct).isActive !== false}
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitImport} className="form-body">
+              <div className="field">
+                <label>Ghi chú phiếu nhập</label>
+                <textarea
+                  className="ck-input ck-w-full ck-min-h-[64px] ck-py-2.5 ck-px-3 ck-rounded-xl ck-resize-none"
+                  placeholder="VD: Nhập hàng thịt đợt 1..."
+                  value={importForm.note}
                   onChange={(e) =>
-                    setNewProduct({ ...newProduct, isActive: e.target.checked })
+                    setImportForm((prev) => ({ ...prev, note: e.target.value }))
                   }
-                  className="ck-rounded"
                 />
-                <label
-                  htmlFor="prod-active"
-                  className="ck-text-sm ck-font-semibold ck-text-gray-300"
-                >
-                  Đang bán
-                </label>
               </div>
-              <div>
-                <div className="ck-flex ck-justify-between ck-items-center ck-mb-2">
-                  <label className="ck-text-sm ck-font-semibold ck-text-gray-300">
-                    Công thức (nguyên liệu &amp; lượng)
-                  </label>
+
+              <div className="field">
+                <label>Danh sách nguyên liệu nhập ({importForm.items.length} dòng)</label>
+                <div className="ck-rounded-xl ck-border ck-border-gray-700 ck-overflow-hidden ck-bg-gray-900/40">
+                  <div
+                    className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-text-xs ck-font-medium ck-text-gray-500 ck-border-b ck-border-gray-700"
+                    style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
+                  >
+                    <span>Nguyên liệu</span>
+                    <span>Số lượng</span>
+                    <span>Đơn giá (đ)</span>
+                    <span />
+                  </div>
+                  {importForm.items.map((row, index) => (
+                    <div
+                      key={index}
+                      className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-border-b ck-border-gray-700/50 last:ck-border-b-0 hover:ck-bg-gray-800/40 ck-transition-colors"
+                      style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
+                    >
+                      <select
+                        className="ck-select ck-w-full ck-px-3 ck-py-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-lg ck-text-sm"
+                        value={row.ingredientId}
+                        onChange={(e) =>
+                          handleImportRowChange(index, "ingredientId", e.target.value)
+                        }
+                      >
+                        <option value="">-- Chọn nguyên liệu --</option>
+                        {ingredients.map((ing) => (
+                          <option
+                            key={ing.ingredientId ?? ing.id}
+                            value={ing.ingredientId ?? ing.id}
+                          >
+                            {ing.name ?? ing.ingredientName} ({ing.unit ?? "KG"})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-sm"
+                        value={row.quantity}
+                        onChange={(e) =>
+                          handleImportRowChange(index, "quantity", e.target.value)
+                        }
+                        placeholder="0"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-sm"
+                        value={row.importPrice}
+                        onChange={(e) =>
+                          handleImportRowChange(index, "importPrice", e.target.value)
+                        }
+                        placeholder="0"
+                      />
+                      <button
+                        type="button"
+                        className="import-remove-row-btn"
+                        onClick={() => handleRemoveImportRow(index)}
+                        title="Xóa dòng"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
                   <button
                     type="button"
-                    className="ck-btn ck-px-3 ck-py-1 ck-rounded-lg ck-bg-gray-700 ck-text-white ck-text-sm"
-                    onClick={() =>
-                      setNewProduct((p) => ({
-                        ...p,
-                        ingredients: [
-                          ...(p.ingredients || []),
-                          { ingredientId: "", amountNeeded: 0 },
-                        ],
-                      }))
-                    }
+                    className="import-add-row-btn ck-w-full ck-py-2.5 ck-px-3 ck-text-sm ck-flex ck-items-center ck-justify-center ck-gap-2 ck-transition-colors"
+                    onClick={handleAddImportRow}
                   >
-                    + Dòng
+                    <Plus size={14} />
+                    Thêm dòng nguyên liệu
                   </button>
                 </div>
-                {(newProduct.ingredients || []).map((row, idx) => (
-                  <div
-                    key={idx}
-                    className="ck-flex ck-gap-2 ck-mb-2 ck-items-center"
-                  >
-                    <select
-                      className="ck-select ck-flex-1 ck-min-w-0"
-                      value={row.ingredientId}
-                      onChange={(e) =>
-                        setNewProduct((p) => ({
-                          ...p,
-                          ingredients: p.ingredients.map((it, i) =>
-                            i === idx
-                              ? { ...it, ingredientId: e.target.value }
-                              : it,
-                          ),
-                        }))
-                      }
-                    >
-                      <option value="">-- Nguyên liệu --</option>
-                      {ingredients.map((ing) => (
-                        <option
-                          key={ing.id ?? ing.ingredientId}
-                          value={ing.ingredientId ?? ing.id}
-                        >
-                          {ing.ingredientName ??
-                            ing.name ??
-                            ing.ingredientId ??
-                            ing.id}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="ck-input ck-w-24"
-                      placeholder="Lượng"
-                      value={row.amountNeeded}
-                      onChange={(e) =>
-                        setNewProduct((p) => ({
-                          ...p,
-                          ingredients: p.ingredients.map((it, i) =>
-                            i === idx
-                              ? {
-                                  ...it,
-                                  amountNeeded: Number(e.target.value) || 0,
-                                }
-                              : it,
-                          ),
-                        }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="ck-btn ck-p-2 ck-rounded-lg ck-bg-red-500-20 ck-text-red-400"
-                      onClick={() =>
-                        setNewProduct((p) => ({
-                          ...p,
-                          ingredients: p.ingredients.filter(
-                            (_, i) => i !== idx,
-                          ),
-                        }))
-                      }
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
               </div>
-              <div className="ck-flex ck-gap-3 ck-pt-4">
+
+              <div className="form-actions">
                 <button
                   type="button"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-semibold"
-                  style={{ border: "none" }}
-                  onClick={() => {
-                    setShowAddProduct(false);
-                    setEditingProduct(null);
-                  }}
+                  className="btn-cancel"
+                  onClick={() => !importSubmitting && setShowImportModal(false)}
                 >
                   Hủy
                 </button>
-                <button
-                  type="button"
-                  className="ck-btn ck-flex-1 ck-px-4 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold"
-                  style={{ border: "none" }}
-                  onClick={handleSaveProduct}
-                >
-                  {editingProduct ? "Lưu thay đổi" : "Thêm sản phẩm"}
+                <button type="submit" className="btn-submit" disabled={importSubmitting}>
+                  {importSubmitting ? "Đang tạo phiếu..." : "Tạo phiếu nhập"}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
