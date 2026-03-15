@@ -3,14 +3,12 @@ import {
   Activity,
   CheckCircle,
   XCircle,
-  LayoutDashboard,
   Plus,
   FileText,
   Package,
   BarChart3,
   Store,
   Users,
-  ChefHat,
 } from "../components/icons/Icons";
 
 /** Cấu hình hiển thị trạng thái đơn hàng */
@@ -23,7 +21,6 @@ export const ORDER_STATUS = {
 
 /** Menu sidebar trang cửa hàng franchise */
 export const FRANCHISE_MENU = [
-  { id: "dashboard", name: "Tổng quan", icon: LayoutDashboard },
   { id: "create-order", name: "Tạo đơn hàng", icon: Plus },
   { id: "orders", name: "Đơn hàng của tôi", icon: FileText },
   { id: "inventory", name: "Tồn kho", icon: Package },
@@ -36,8 +33,7 @@ export const ADMIN_TABS = [
   { id: "accounts", label: "Tài khoản", icon: Users },
   { id: "stores", label: "Cửa hàng", icon: Store },
   { id: "kitchen", label: "Danh mục & Sản phẩm", icon: Package },
-  { id: "formulas", label: "Công thức", icon: ChefHat },
-  { id: "inventory", label: "Nhập kho", icon: FileText },
+  { id: "ingredients", label: "Quản lý kho", icon: BarChart3 },
 ];
 /** Enum SystemRole (BE) — trùng tên và nhãn */
 export const SYSTEM_ROLES = [

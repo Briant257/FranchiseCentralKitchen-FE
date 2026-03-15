@@ -1,0 +1,1154 @@
+/* Giao diện Quản lý kho — đồng bộ nền tối với hệ thống Admin */
+.ingredient-polished {
+  --ff: "Outfit", "Segoe UI", sans-serif;
+  --fm: "JetBrains Mono", "Consolas", monospace;
+  --bg: transparent;
+  --surface: #1f2937;
+  --surface2: #374151;
+  --surface3: #4b5563;
+  --border: #4b5563;
+  --border2: #6b7280;
+  --text: #f9fafb;
+  --text2: #d1d5db;
+  --text3: #9ca3af;
+  --green: #22c55e;
+  --green-bg: rgba(34, 197, 94, 0.2);
+  --green-text: #86efac;
+  --amber: #f59e0b;
+  --amber-bg: rgba(245, 158, 11, 0.2);
+  --amber-text: #fcd34d;
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.2);
+  --red-text: #fca5a5;
+  --teal: #14b8a6;
+  --teal-bg: rgba(20, 184, 166, 0.2);
+  --teal-text: #5eead4;
+  --teal-mid: #2dd4bf;
+  --accent: #f9fafb;
+  --purple: #a78bfa;
+  --purple-bg: rgba(167, 139, 250, 0.2);
+  --orange: #f97316;
+
+  font-family: var(--ff);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ingredient-polished .ing-app {
+  padding: 24px 20px;
+  min-height: 400px;
+  background: var(--bg);
+}
+
+/* Header */
+.ingredient-polished .header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ingredient-polished .header-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 6px;
+}
+.ingredient-polished .header-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  line-height: 1.1;
+}
+.ingredient-polished .header-sub {
+  font-size: 13px;
+  color: var(--text2);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ingredient-polished .pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  animation: ing-pulse 2s ease-in-out infinite;
+}
+@keyframes ing-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(21, 128, 61, 0);
+  }
+}
+.ingredient-polished .header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding-top: 4px;
+}
+
+/* Buttons */
+.ingredient-polished .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--ff);
+  transition: all 0.18s;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text2);
+  letter-spacing: 0.01em;
+}
+.ingredient-polished .btn:hover {
+  border-color: var(--border2);
+  color: var(--text);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.ingredient-polished .btn:active {
+  transform: translateY(0);
+}
+.ingredient-polished .btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.ingredient-polished .btn-dark {
+  background: var(--surface3);
+  color: var(--text);
+  border-color: var(--border2);
+}
+.ingredient-polished .btn-dark:hover {
+  background: var(--border2);
+  color: var(--text);
+  border-color: var(--border2);
+}
+.ingredient-polished .btn-teal {
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.35);
+}
+.ingredient-polished .btn-teal:hover {
+  background: linear-gradient(135deg, #0d6b64, #0b8a80);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.45);
+}
+.ingredient-polished .btn-teal:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+.ingredient-polished .btn-outline-teal {
+  border: 1.5px solid #14b8a6;
+  color: #5eead4;
+  background: rgba(20, 184, 166, 0.08);
+}
+.ingredient-polished .btn-outline-teal:hover {
+  border-color: #2dd4bf;
+  color: #f9fafb;
+  background: rgba(20, 184, 166, 0.2);
+  box-shadow: 0 4px 14px rgba(20, 184, 166, 0.25);
+}
+.ingredient-polished .btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* Tabs */
+.ingredient-polished .tabs {
+  display: flex;
+  gap: 1px;
+  background: var(--surface2);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 24px;
+  width: fit-content;
+  border: 1.5px solid var(--border);
+}
+.ingredient-polished .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text3);
+  border: none;
+  background: none;
+  font-family: var(--ff);
+  transition: all 0.18s;
+  letter-spacing: 0.01em;
+}
+.ingredient-polished .tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+}
+
+/* Stats */
+.ingredient-polished .stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.ingredient-polished .stat {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.18s,
+    box-shadow 0.18s;
+  animation: ing-fadeIn 0.3s ease both;
+}
+.ingredient-polished .stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+}
+.ingredient-polished .stat::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 0 14px 0 60px;
+  opacity: 0.06;
+}
+.ingredient-polished .stat-warn::after {
+  background: var(--amber);
+}
+.ingredient-polished .stat-danger::after {
+  background: var(--red);
+}
+.ingredient-polished .stat-teal::after {
+  background: var(--teal);
+}
+.ingredient-polished .stat-s1::after {
+  background: var(--orange);
+}
+.ingredient-polished .stat-s2::after {
+  background: var(--purple);
+}
+.ingredient-polished .stat-s3::after {
+  background: var(--teal);
+}
+.ingredient-polished .stat-s4::after {
+  background: var(--green);
+}
+.ingredient-polished .stat:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.ingredient-polished .stat:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.ingredient-polished .stat:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.ingredient-polished .stat:nth-child(4) {
+  animation-delay: 0.2s;
+}
+@keyframes ing-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ingredient-polished .stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.ingredient-polished .stat-val {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+  line-height: 1;
+}
+.ingredient-polished .stat-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 5px;
+}
+
+/* Toolbar */
+.ingredient-polished .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.ingredient-polished .search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 280px;
+}
+.ingredient-polished .search-wrap svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--text3);
+  pointer-events: none;
+}
+.ingredient-polished .search-wrap input {
+  width: 100%;
+  padding: 9px 13px 9px 34px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: var(--ff);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border 0.18s;
+}
+.ingredient-polished .search-wrap input:focus {
+  border-color: var(--teal-mid);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+.ingredient-polished .filt-group {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+.ingredient-polished .filt {
+  padding: 5px 13px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--ff);
+  cursor: pointer;
+  color: var(--text3);
+  transition: all 0.15s;
+}
+.ingredient-polished .filt.active {
+  background: var(--accent);
+  color: #111827;
+}
+.ingredient-polished .filt:not(.active):hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+.ingredient-polished .ml-auto {
+  margin-left: auto;
+}
+.ingredient-polished .toolbar-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+}
+
+/* Empty state */
+.ingredient-polished .empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text3);
+  font-size: 13px;
+}
+.ingredient-polished .empty-state svg {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 12px;
+  display: block;
+  opacity: 0.3;
+}
+
+/* Product grid (Danh mục & Sản phẩm) */
+.ingredient-polished .product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.ingredient-polished .product-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.ingredient-polished .product-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.15);
+  border-color: var(--border2);
+}
+.ingredient-polished .product-card .pc-cat {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  margin-bottom: 10px;
+  letter-spacing: 0.02em;
+  background: var(--surface2);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.ingredient-polished .product-card .pc-cat.pc-cat-cat {
+  background: var(--teal-bg);
+  color: var(--teal-text);
+  border-color: rgba(20, 184, 166, 0.4);
+}
+.ingredient-polished .product-card .pc-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-bottom: 5px;
+  line-height: 1.3;
+  color: var(--text);
+}
+.ingredient-polished .product-card .pc-id {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-bottom: 10px;
+}
+.ingredient-polished .product-card .pc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.ingredient-polished .product-card .pc-price {
+  font-family: var(--fm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--orange);
+}
+.ingredient-polished .product-card .pc-unit {
+  font-size: 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: var(--fm);
+  color: var(--text2);
+}
+.ingredient-polished .product-card .pc-formula-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--teal-bg);
+  border: 1px solid rgba(20, 184, 166, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ingredient-polished .product-card .pc-formula-badge svg {
+  width: 11px;
+  height: 11px;
+  color: var(--teal);
+}
+
+/* Category grid (Danh mục & Sản phẩm) */
+.ingredient-polished .cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.ingredient-polished .cat-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  transition: all 0.2s;
+}
+.ingredient-polished .cat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border-color: var(--border2);
+}
+.ingredient-polished .cat-card .cat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  font-size: 18px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+.ingredient-polished .cat-card .cat-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+.ingredient-polished .cat-card .cat-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+.ingredient-polished .cat-card .cat-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ingredient-polished .cat-card .cat-id {
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--text3);
+}
+.ingredient-polished .cat-card .cat-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--amber-bg);
+  color: var(--amber-text);
+}
+.ingredient-polished .cat-card .cat-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.ingredient-polished .cat-card .cat-btn-edit {
+  flex: 1;
+  border-color: var(--border2);
+  color: var(--text2);
+}
+.ingredient-polished .cat-card .cat-btn-edit:hover {
+  border-color: var(--teal);
+  color: var(--teal-text);
+  background: var(--teal-bg);
+}
+.ingredient-polished .cat-card .cat-btn-delete {
+  border-color: var(--border2);
+  color: var(--text3);
+}
+.ingredient-polished .cat-card .cat-btn-delete:hover {
+  border-color: var(--red);
+  color: var(--red-text);
+  background: var(--red-bg);
+}
+
+/* Table */
+.ingredient-polished .tbl-wrap {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+.ingredient-polished .tbl-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ingredient-polished .tbl-wrap thead {
+  background: var(--surface2);
+}
+.ingredient-polished .tbl-wrap th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1.5px solid var(--border);
+}
+.ingredient-polished .tbl-wrap td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  font-size: 13px;
+}
+.ingredient-polished .tbl-wrap tbody tr:last-child td {
+  border-bottom: none;
+}
+.ingredient-polished .tbl-wrap tbody tr {
+  transition: background 0.12s;
+}
+.ingredient-polished .tbl-wrap tbody tr:hover td {
+  background: rgba(55, 65, 81, 0.6);
+}
+.ingredient-polished .ing-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.ingredient-polished .ing-id {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+.ingredient-polished .stock-main {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ingredient-polished .stock-min {
+  color: var(--text3);
+  font-weight: 400;
+  font-size: 12px;
+}
+.ingredient-polished .stock-bar {
+  width: 80px;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+.ingredient-polished .stock-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+.ingredient-polished .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 99px;
+  letter-spacing: 0.02em;
+}
+.ingredient-polished .badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.ingredient-polished .b-ok {
+  background: var(--green-bg);
+  color: var(--green-text);
+}
+.ingredient-polished .b-ok::before {
+  background: var(--green);
+}
+.ingredient-polished .b-low {
+  background: var(--amber-bg);
+  color: var(--amber-text);
+}
+.ingredient-polished .b-low::before {
+  background: var(--amber);
+  animation: ing-pulse-amber 1.5s infinite;
+}
+@keyframes ing-pulse-amber {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(180, 83, 9, 0);
+  }
+}
+.ingredient-polished .b-empty {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+.ingredient-polished .b-empty::before {
+  background: var(--red);
+}
+.ingredient-polished .chip {
+  font-family: var(--fm);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--text2);
+}
+.ingredient-polished .price-val {
+  font-family: var(--fm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.ingredient-polished .act-btns {
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ingredient-polished .tbl-wrap tbody tr:hover .act-btns {
+  opacity: 1;
+}
+.ingredient-polished .act-btn {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: var(--ff);
+  cursor: pointer;
+  color: var(--text2);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.ingredient-polished .act-btn:hover {
+  border-color: var(--border2);
+  color: var(--text);
+  background: var(--surface2);
+}
+.ingredient-polished .import-btn {
+  background: var(--teal-bg);
+  color: var(--teal-text);
+  border-color: #99f6e4;
+}
+.ingredient-polished .import-btn:hover {
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+/* Chữ "Chưa có" (cửa hàng / người phụ trách) — báo đỏ để user chú ý */
+.ingredient-polished .empty-warn {
+  color: var(--red) !important;
+  font-weight: 600;
+}
+
+.ingredient-polished .empty-row td {
+  text-align: center;
+  padding: 48px;
+  color: var(--text3);
+  font-size: 13px;
+}
+
+/* History tab */
+.ingredient-polished .history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ingredient-polished .history-empty {
+  text-align: center;
+  padding: 48px;
+  color: var(--text3);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .ingredient-polished .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .ingredient-polished .stats {
+    grid-template-columns: 1fr;
+  }
+  .ingredient-polished .header {
+    flex-direction: column;
+  }
+  .ingredient-polished .header-actions {
+    width: 100%;
+  }
+}
+
+/* Modal form Thêm nguyên liệu — overlay trong suốt, form đồng bộ theme tối với page */
+.ingredient-form-modal.ck-modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+.ingredient-form-modal .ingredient-form-box {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+  border: 1px solid #374151;
+  overflow: hidden;
+}
+.ingredient-form-modal .ingredient-form-box .form-header {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #374151;
+  background: rgba(31, 41, 55, 0.8);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ingredient-form-modal .ingredient-form-box .form-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f9fafb;
+  margin: 0 0 8px 0;
+}
+.ingredient-form-modal .ingredient-form-box .form-header .api-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  letter-spacing: 0.02em;
+}
+.ingredient-form-modal .ingredient-form-box .form-header .api-tag.put {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+}
+.ingredient-form-modal .ingredient-form-box .form-body {
+  padding: 20px 22px 24px;
+  background: transparent;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #d1d5db;
+  letter-spacing: 0.02em;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  input[type="text"],
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  input[type="number"],
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  input[type="email"],
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  input[type="password"],
+.ingredient-form-modal .ingredient-form-box .form-body .field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #4b5563;
+  border-radius: 0.75rem;
+  font-size: 13px;
+  background: #111827;
+  color: #f9fafb;
+  outline: none;
+  transition: border-color 0.18s;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  input::placeholder,
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  textarea::placeholder {
+  color: #6b7280;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .field input:focus,
+.ingredient-form-modal .ingredient-form-box .form-body .field textarea:focus {
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+}
+.ingredient-form-modal .ingredient-form-box .form-body .field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #4b5563;
+  border-radius: 0.75rem;
+  font-size: 13px;
+  background: #1f2937;
+  color: #f9fafb;
+  outline: none;
+  cursor: pointer;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .field .helper {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #374151;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .form-actions button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 0.75rem;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .form-actions
+  .btn-cancel {
+  background: #374151;
+  border: 1px solid #4b5563;
+  color: #d1d5db;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .form-actions
+  .btn-cancel:hover {
+  background: #4b5563;
+  border-color: #6b7280;
+  color: #f9fafb;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .form-actions
+  .btn-submit {
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: #fff;
+  border: none;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .form-actions
+  .btn-submit:hover {
+  background: linear-gradient(135deg, #0d6b64, #0b8a80);
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.35);
+}
+.ingredient-form-modal .ingredient-form-box .form-header .btn-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #374151;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ingredient-form-modal .ingredient-form-box .form-header .btn-close:hover {
+  background: #4b5563;
+  color: #f9fafb;
+}
+.ingredient-form-modal .ingredient-form-box .editing-bar {
+  background: rgba(55, 65, 81, 0.6);
+  border: 1px solid #4b5563;
+  border-radius: 0.75rem;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ingredient-form-modal .ingredient-form-box .editing-bar strong {
+  color: #f9fafb;
+}
+.ingredient-form-modal .ingredient-form-box .editing-bar .version {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #374151;
+  color: #9ca3af;
+}
+
+/* Nút Thêm dòng nguyên liệu trong modal nhập kho — liền mạch, bắt mắt */
+.ingredient-form-modal .ingredient-form-box .import-add-row-btn {
+  color: #5eead4;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 184, 166, 0.06) 0%,
+    transparent 100%
+  );
+  border: 1px dashed rgba(20, 184, 166, 0.5);
+  border-radius: 0.75rem;
+  font-weight: 500;
+  min-height: 44px;
+}
+.ingredient-form-modal .ingredient-form-box .import-add-row-btn:hover {
+  color: #f9fafb;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 184, 166, 0.18) 0%,
+    rgba(20, 184, 166, 0.06) 100%
+  );
+  border-color: #14b8a6;
+  border-style: solid;
+  box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.2);
+}
+
+/* Nút Xóa dòng trong modal nhập kho — đồng bộ với hàng, bắt mắt */
+.ingredient-form-modal .ingredient-form-box .import-remove-row-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #374151;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.ingredient-form-modal .ingredient-form-box .import-remove-row-btn:hover {
+  border-color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+/* Form Thêm/Sửa sản phẩm — giống product_management.html */
+.ingredient-form-modal .ingredient-form-box .form-body .sep {
+  height: 1.5px;
+  background: #374151;
+  margin: 20px 0;
+  border-radius: 1px;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .section-label
+  .section-helper {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #6b7280;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .formula-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 36px;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 10px 12px;
+  background: rgba(55, 65, 81, 0.5);
+  border-radius: 0.75rem;
+  border: 1px solid #4b5563;
+  margin-bottom: 8px;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .formula-row .field {
+  margin-bottom: 0;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .formula-row-rm {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #374151;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s;
+  align-self: flex-end;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .formula-row-rm:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border-color: #f87171;
+}
+.ingredient-form-modal .ingredient-form-box .form-body .product-add-ing-btn {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px dashed #4b5563;
+  border-radius: 0.75rem;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.18s;
+  margin-top: 4px;
+}
+.ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .product-add-ing-btn:hover {
+  background: rgba(20, 184, 166, 0.08);
+  color: #5eead4;
+  border-color: rgba(20, 184, 166, 0.5);
+}

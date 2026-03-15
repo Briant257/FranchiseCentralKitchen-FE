@@ -833,6 +833,22 @@ input.ck-border-gray-600:focus {
   z-index: 40;
 }
 
+/* Badge "Admin" — nổi bật, thể hiện đây là trang Admin */
+.admin-page-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.4);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
 .ck-sidebar {
   width: 16rem;
   background: linear-gradient(to bottom, #111827, #000);

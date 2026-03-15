@@ -359,6 +359,16 @@ const auth = {
   deleteMasterProduct: (id) =>
     request(`/api/products/${id}`, { method: "DELETE" }),
 
+  /** Danh sách đơn vị tính (Master Data). GET /api/common/units → { "Nhóm": [{ code, label }], ... } */
+  getCommonUnits: async () => {
+    try {
+      const res = await request("/api/common/units");
+      return res && typeof res === "object" ? res : {};
+    } catch {
+      return {};
+    }
+  },
+
   // --- Quản lý Cửa hàng ---
   getStores: async () => {
     try {
@@ -405,8 +415,19 @@ const auth = {
     }
   },
 
+  /**
+   * Tạo danh mục sản phẩm. POST /api/categories
+   * Body: { name, description }
+   * Response: { id, name, description }
+   */
   createCategory: (b) =>
-    request("/api/categories", { method: "POST", body: JSON.stringify(b) }),
+    request("/api/categories", {
+      method: "POST",
+      body: JSON.stringify({
+        name: (b.name ?? "").trim(),
+        description: (b.description ?? "").trim() || "",
+      }),
+    }),
   deleteCategory: (id) =>
     request(`/api/categories/${id}`, { method: "DELETE" }),
 
@@ -597,7 +618,11 @@ function mapProduct(p) {
 }
 
 const productsApi = {
-  /** Danh sách sản phẩm: hỗ trợ phân trang, tìm kiếm, lọc giá */
+  /**
+   * Lấy danh sách sản phẩm. GET /api/products (không body)
+   * Response: { totalItems, data: [...], totalPages, currentPage }
+   * Mỗi phần tử trong data: { productId, productName, categoryId, categoryName, sellingPrice, baseUnit, active }
+   */
   async getList(params = {}) {
     const q = new URLSearchParams();
     if (params.page != null) q.set("page", params.page);
@@ -641,23 +666,40 @@ const productsApi = {
 };
 
 const categoriesApi = {
-  /** Danh sách danh mục (nếu backend có GET /api/categories) */
+  /**
+   * Danh sách danh mục sản phẩm. GET /api/categories
+   * Hỗ trợ: mảng trực tiếp, hoặc { data }, { content }, { categories }.
+   */
   async getList() {
     try {
       const res = await request("/api/categories");
-      return Array.isArray(res) ? res : res.data || [];
-    } catch {
+      if (Array.isArray(res)) return res;
+      if (Array.isArray(res?.data)) return res.data;
+      if (Array.isArray(res?.content)) return res.content;
+      if (Array.isArray(res?.categories)) return res.categories;
+      if (process.env.NODE_ENV === "development" && res != null) {
+        console.warn("[GET /api/categories] Response không phải mảng:", res);
+      }
+      return [];
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[GET /api/categories] Lỗi:", err?.message || err);
+      }
       return [];
     }
   },
 
-  /** Tạo danh mục. Body: { name, description }. */
+  /**
+   * Tạo danh mục sản phẩm. POST /api/categories
+   * Request: { name, description }
+   * Response: { id, name, description }
+   */
   async create(body) {
     return request("/api/categories", {
       method: "POST",
       body: JSON.stringify({
-        name: body.name,
-        description: body.description || "",
+        name: (body.name ?? "").trim(),
+        description: (body.description ?? "").trim() || "",
       }),
     });
   },
@@ -666,7 +708,7 @@ const categoriesApi = {
 // --- Ingredients & Inventory ---
 
 const ingredientsApi = {
-  /** Danh sách nguyên liệu (GET /api/ingredients) */
+  /** Danh sách nguyên liệu. GET /api/ingredients → [{ ingredientId, version, name, kitchenStock, unit, unitCost, minThreshold }] */
   async getList() {
     try {
       const res = await request("/api/ingredients");
@@ -676,14 +718,46 @@ const ingredientsApi = {
     }
   },
 
-  /** Tạo nguyên liệu. Body: { ingredientId, ingredientName, unit }. */
+  /** Chi tiết nguyên liệu. GET /api/ingredients/{id} */
+  async getById(id) {
+    return request(`/api/ingredients/${encodeURIComponent(id)}`);
+  },
+
+  /**
+   * Tạo nguyên liệu. POST /api/ingredients
+   * Body: { name, kitchenStock, unit, unitCost, minThreshold }
+   * Response: { ingredientId, version, name, kitchenStock, unit, unitCost, minThreshold }
+   */
   async create(body) {
     return request("/api/ingredients", {
       method: "POST",
       body: JSON.stringify({
-        ingredientId: body.ingredientId ?? body.id,
-        ingredientName: body.ingredientName ?? body.name,
-        unit: body.unit || "kg",
+        name: (body.name ?? "").trim(),
+        kitchenStock: Number(body.kitchenStock) ?? 0,
+        unit: (body.unit || "KG").toUpperCase(),
+        unitCost: Number(body.unitCost) ?? 0,
+        minThreshold: Number(body.minThreshold) ?? 0,
+      }),
+    });
+  },
+
+  /**
+   * Cập nhật nguyên liệu. PUT /api/ingredients/{id}
+   * Body: { name, ingredientName, unit, price, unitCost, stockQuantity, kitchenStock, minThreshold, description? }
+   */
+  async update(id, body) {
+    return request(`/api/ingredients/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: (body.name ?? body.ingredientName ?? "").trim(),
+        ingredientName: (body.name ?? body.ingredientName ?? "").trim(),
+        unit: (body.unit || "KG").toUpperCase(),
+        price: Number(body.unitCost ?? body.price) ?? 0,
+        unitCost: Number(body.unitCost ?? body.price) ?? 0,
+        stockQuantity: Number(body.kitchenStock ?? body.stockQuantity) ?? 0,
+        kitchenStock: Number(body.kitchenStock ?? body.stockQuantity) ?? 0,
+        minThreshold: Number(body.minThreshold) ?? 0,
+        description: body.description?.trim() || undefined,
       }),
     });
   },
@@ -761,6 +835,16 @@ const api = {
 
   async getCategories() {
     return categoriesApi.getList();
+  },
+
+  /** Danh sách đơn vị tính (Master Data). GET /api/common/units */
+  async getCommonUnits() {
+    try {
+      const res = await request("/api/common/units");
+      return res && typeof res === "object" ? res : {};
+    } catch {
+      return {};
+    }
   },
 
   async getStores() {
@@ -974,6 +1058,8 @@ const api = {
   deleteCategory: (id) =>
     request(`/api/categories/${id}`, { method: "DELETE" }),
   createIngredient: (body) => ingredientsApi.create(body),
+  getIngredient: (id) => ingredientsApi.getById(id),
+  updateIngredient: (id, body) => ingredientsApi.update(id, body),
   createProduct: (body) => productsApi.create(body),
   deleteProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
   importInventory: (body) => inventoryApi.import(body),
@@ -1613,11 +1699,6 @@ const api = {
     }),
   updateProduct: (id, b) =>
     request(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(b) }),
-  updateIngredient: (id, b) =>
-    request(`/api/ingredients/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(b),
-    }),
 
   // 4. Bổ sung các hàm thao tác Sự cố
   createIncident: (b) =>
