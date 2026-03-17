@@ -8,9 +8,9 @@ import {
   UserPlus,
   X,
   XCircle,
-  Eye,
   Trash2,
   Search,
+  Package,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
@@ -35,6 +35,10 @@ const AdminPage = ({ onLogout, userData }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [detailProduct, setDetailProduct] = useState(null);
+  const [detailProductFormula, setDetailProductFormula] = useState([]);
+  const [detailProductFormulaLoading, setDetailProductFormulaLoading] =
+    useState(false);
   const [kitchenSubTab, setKitchenSubTab] = useState("products");
   const [productSearch, setProductSearch] = useState("");
   const [productCatFilter, setProductCatFilter] = useState("all");
@@ -197,7 +201,7 @@ const AdminPage = ({ onLogout, userData }) => {
     if (ingredientFilter === "low" && status !== "low") return false;
     if (ingredientFilter === "ok" && status !== "ok") return false;
     const q = (ingredientSearch || "").trim().toLowerCase();
-    if (q && !((ing.name || "").toLowerCase().includes(q))) return false;
+    if (q && !(ing.name || "").toLowerCase().includes(q)) return false;
     return true;
   });
   const ingredientStats = {
@@ -205,7 +209,8 @@ const AdminPage = ({ onLogout, userData }) => {
     low: ingredients.filter((i) => getIngredientStatus(i) === "low").length,
     empty: ingredients.filter((i) => getIngredientStatus(i) === "empty").length,
     totalValue: ingredients.reduce(
-      (sum, i) => sum + (Number(i.kitchenStock) || 0) * (Number(i.unitCost) || 0),
+      (sum, i) =>
+        sum + (Number(i.kitchenStock) || 0) * (Number(i.unitCost) || 0),
       0,
     ),
   };
@@ -281,7 +286,10 @@ const AdminPage = ({ onLogout, userData }) => {
   const handleAddImportRow = () => {
     setImportForm((prev) => ({
       ...prev,
-      items: [...prev.items, { ingredientId: "", quantity: "", importPrice: "" }],
+      items: [
+        ...prev.items,
+        { ingredientId: "", quantity: "", importPrice: "" },
+      ],
     }));
   };
 
@@ -708,29 +716,10 @@ const AdminPage = ({ onLogout, userData }) => {
     }
   };
 
-  const handleDeleteCategory = async (cat) => {
-    const prods = await api.getProducts();
-    const inCat = prods.filter(
-      (p) => String(p.categoryId) === String(cat.id) || p.category === cat.name,
-    );
-    if (inCat.length > 0) {
-      window.alert(
-        `Không thể xóa. Còn ${inCat.length} sản phẩm thuộc danh mục "${cat.name}".`,
-      );
-      return;
-    }
-    if (!window.confirm(`Xóa danh mục "${cat.name}"?`)) return;
-    try {
-      await api.deleteCategory(cat.id);
-      await loadAdminData();
-      window.alert("✅ Đã xóa danh mục!");
-    } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không xóa được"));
-    }
-  };
-
   const handleSaveProduct = async () => {
-    const p = editingProduct || newProduct;
+    // Luôn đọc dữ liệu mới nhất từ newProduct (kể cả khi đang sửa),
+    // vì toàn bộ input trong form đều đang ghi vào state newProduct.
+    const p = newProduct;
     const productId = (p.productId || p.id || "").trim();
     const productName = (p.productName || p.name || "").trim();
     const rawCategoryId =
@@ -781,9 +770,43 @@ const AdminPage = ({ onLogout, userData }) => {
     }
     try {
       if (editingProduct) {
+        const editId = editingProduct.id ?? editingProduct.productId;
+        await api.updateProduct(editId, {
+          productName,
+          categoryId,
+          sellingPrice,
+          baseUnit: finalBaseUnit,
+        });
+        if (payloadIngredients.length > 0) {
+          await api.upsertFormula({
+            productId: String(editId),
+            ingredients: payloadIngredients,
+          });
+        } else {
+          try {
+            await api.deleteFormula(editId);
+          } catch (_) {}
+        }
         setEditingProduct(null);
-        window.alert("Chức năng sửa sản phẩm đang cập nhật.");
         setShowAddProduct(false);
+        setNewProduct({
+          productId: "",
+          productName: "",
+          categoryId: "",
+          sellingPrice: "",
+          baseUnit: "",
+          isActive: true,
+          ingredients: [
+            {
+              ingredientId: "",
+              amountNeeded: 0.1,
+              ingredientName: null,
+              unit: null,
+            },
+          ],
+        });
+        await loadAdminData();
+        window.alert("✅ Đã lưu thay đổi sản phẩm!");
         return;
       }
       await api.createProduct({
@@ -794,6 +817,9 @@ const AdminPage = ({ onLogout, userData }) => {
         baseUnit: finalBaseUnit,
         ingredients: payloadIngredients,
       });
+      if (payloadIngredients.length > 0) {
+        await api.upsertFormula({ productId, ingredients: payloadIngredients });
+      }
       setShowAddProduct(false);
       setNewProduct({
         productId: "",
@@ -802,26 +828,19 @@ const AdminPage = ({ onLogout, userData }) => {
         sellingPrice: "",
         baseUnit: "",
         isActive: true,
-        ingredients: [],
+        ingredients: [
+          {
+            ingredientId: "",
+            amountNeeded: 0.1,
+            ingredientName: null,
+            unit: null,
+          },
+        ],
       });
       await loadAdminData();
       window.alert("✅ Thêm sản phẩm thành công!");
     } catch (err) {
       window.alert("Lỗi: " + (err?.message || "Không lưu được"));
-    }
-  };
-
-  const handleDeleteProduct = async (product) => {
-    if (
-      !window.confirm(`Xóa sản phẩm "${product.name || product.productName}"?`)
-    )
-      return;
-    try {
-      await api.deleteProduct(product.id ?? product.productId);
-      await loadAdminData();
-      window.alert("✅ Đã xóa sản phẩm!");
-    } catch (err) {
-      window.alert("Lỗi: " + (err.message || "Không xóa được"));
     }
   };
 
@@ -836,8 +855,7 @@ const AdminPage = ({ onLogout, userData }) => {
       const id = (p.id || p.productId || "").toString().toLowerCase();
       const cat = getProductCategoryName(p);
       const matchSearch = !q || name.includes(q) || id.includes(q);
-      const matchCat =
-        productCatFilter === "all" || cat === productCatFilter;
+      const matchCat = productCatFilter === "all" || cat === productCatFilter;
       return matchSearch && matchCat;
     });
     return list;
@@ -846,25 +864,21 @@ const AdminPage = ({ onLogout, userData }) => {
     const total = products.length;
     const categoriesCount = categories.length;
     const withFormula = products.filter(
-      (p) => (p.ingredients && p.ingredients.length > 0),
+      (p) => p.ingredients && p.ingredients.length > 0,
     ).length;
     const prices = products
       .map((p) => Number(p.sellingPrice ?? p.price ?? 0))
       .filter((n) => n > 0);
     const avgPrice =
       prices.length > 0
-        ? Math.round(
-            prices.reduce((a, b) => a + b, 0) / prices.length,
-          )
+        ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
         : 0;
     return { total, categoriesCount, withFormula, avgPrice };
   })();
   const productCategoryOptions = [
     "all",
     ...Array.from(
-      new Set(
-        products.map((p) => getProductCategoryName(p)).filter(Boolean),
-      ),
+      new Set(products.map((p) => getProductCategoryName(p)).filter(Boolean)),
     ),
   ];
 
@@ -950,7 +964,10 @@ const AdminPage = ({ onLogout, userData }) => {
             <div className="form-header">
               <div>
                 <h3>Chỉnh sửa tài khoản</h3>
-                <span className="helper" style={{ marginTop: 4, display: "block" }}>
+                <span
+                  className="helper"
+                  style={{ marginTop: 4, display: "block" }}
+                >
                   {editAccountUser.name ?? editAccountUser.fullName} (
                   {editAccountUser.roleRaw ?? editAccountUser.role})
                 </span>
@@ -987,7 +1004,9 @@ const AdminPage = ({ onLogout, userData }) => {
               </div>
               {editAccountForm.roleName === "STORE_MANAGER" && (
                 <div className="field">
-                  <label>Cửa hàng <span className="helper">(tùy chọn)</span></label>
+                  <label>
+                    Cửa hàng <span className="helper">(tùy chọn)</span>
+                  </label>
                   <select
                     value={String(editAccountForm.storeId ?? "")}
                     onChange={(e) =>
@@ -1101,8 +1120,12 @@ const AdminPage = ({ onLogout, userData }) => {
             <div className="form-header">
               <div>
                 <h3>Hoán đổi cửa hàng giữa 2 Quản lý</h3>
-                <span className="helper" style={{ marginTop: 4, display: "block" }}>
-                  Chọn 2 Quản lý cửa hàng (STORE_MANAGER) đang có cửa hàng để hoán đổi cửa hàng phụ trách.
+                <span
+                  className="helper"
+                  style={{ marginTop: 4, display: "block" }}
+                >
+                  Chọn 2 Quản lý cửa hàng (STORE_MANAGER) đang có cửa hàng để
+                  hoán đổi cửa hàng phụ trách.
                 </span>
               </div>
               <button
@@ -1374,9 +1397,16 @@ const AdminPage = ({ onLogout, userData }) => {
                                     })()
                                   : "_";
                               return (
-                                <td style={{ color: "var(--text2)", fontSize: 13 }}>
+                                <td
+                                  style={{
+                                    color: "var(--text2)",
+                                    fontSize: 13,
+                                  }}
+                                >
                                   {storeName === "Chưa có" ? (
-                                    <span className="empty-warn">{storeName}</span>
+                                    <span className="empty-warn">
+                                      {storeName}
+                                    </span>
                                   ) : (
                                     storeName
                                   )}
@@ -1515,13 +1545,18 @@ const AdminPage = ({ onLogout, userData }) => {
                             {(() => {
                               const mgr = getManagerForStore(s);
                               return (
-                              <td style={{ color: "var(--text2)", fontSize: 13 }}>
-                                {mgr === "Chưa có" ? (
-                                  <span className="empty-warn">{mgr}</span>
-                                ) : (
-                                  mgr
-                                )}
-                              </td>
+                                <td
+                                  style={{
+                                    color: "var(--text2)",
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  {mgr === "Chưa có" ? (
+                                    <span className="empty-warn">{mgr}</span>
+                                  ) : (
+                                    mgr
+                                  )}
+                                </td>
                               );
                             })()}
                             <td style={{ textAlign: "center" }}>
@@ -1647,7 +1682,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   </div>
                   <div className="stat stat-s2">
                     <div className="stat-label">Danh mục</div>
-                    <div className="stat-val" style={{ color: "var(--purple, #a78bfa)" }}>
+                    <div
+                      className="stat-val"
+                      style={{ color: "var(--purple, #a78bfa)" }}
+                    >
                       {productStats.categoriesCount}
                     </div>
                     <div className="stat-sub">phân loại</div>
@@ -1704,17 +1742,22 @@ const AdminPage = ({ onLogout, userData }) => {
                     </div>
                     <div className="product-grid">
                       {filteredProducts.length === 0 ? (
-                        <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
+                        <div
+                          className="empty-state"
+                          style={{ gridColumn: "1 / -1" }}
+                        >
                           {products.length === 0
-                            ? "Chưa có sản phẩm. Bấm \"Thêm sản phẩm\" để tạo."
+                            ? 'Chưa có sản phẩm. Bấm "Thêm sản phẩm" để tạo.'
                             : "Không tìm thấy sản phẩm phù hợp bộ lọc."}
                         </div>
                       ) : (
                         filteredProducts.map((p) => {
                           const catName = getProductCategoryName(p);
-                          const hasFormula = p.ingredients && p.ingredients.length > 0;
+                          const hasFormula =
+                            p.ingredients && p.ingredients.length > 0;
                           const price = Number(p.sellingPrice ?? p.price ?? 0);
-                          const unit = (p.baseUnit || "").toString().trim() || "—";
+                          const unit =
+                            (p.baseUnit || "").toString().trim() || "—";
                           const pcCatClass = `pc-cat pc-cat-${catName ? "cat" : "other"}`;
                           return (
                             <div
@@ -1722,18 +1765,53 @@ const AdminPage = ({ onLogout, userData }) => {
                               className="product-card"
                               role="button"
                               tabIndex={0}
-                              onClick={() => {
-                                setEditingProduct(p);
-                                setShowAddProduct(true);
-                                setNewProduct({
-                                  productId: p.productId ?? p.id,
-                                  productName: p.productName ?? p.name,
-                                  categoryId: p.categoryId ?? categories.find((c) => c.name === catName)?.id ?? "",
-                                  sellingPrice: String(p.sellingPrice ?? p.price ?? ""),
-                                  baseUnit: p.baseUnit ?? "",
-                                  isActive: p.isActive !== false,
-                                  ingredients: p.ingredients || [],
-                                });
+                              onClick={async () => {
+                                setDetailProduct(p);
+                                setDetailProductFormula([]);
+                                setDetailProductFormulaLoading(true);
+                                const id1 = p.productId ?? p.id;
+                                const id2 = p.id ?? p.productId;
+                                const idsToTry = [id1]
+                                  .concat(id1 !== id2 ? [id2] : [])
+                                  .map(String)
+                                  .filter(Boolean);
+                                let formulaList = [];
+                                // Ưu tiên lấy công thức từ API mới getFormula,
+                                // nếu không có thì fallback sang getRecipeOfProduct (API cũ),
+                                // cuối cùng fallback sang p.ingredients (nếu có) để tránh luôn hiển thị rỗng.
+                                for (const id of idsToTry) {
+                                  try {
+                                    const formula = await api.getFormula(id);
+                                    const listFromFormula =
+                                      formula?.ingredients ??
+                                      (Array.isArray(formula) ? formula : []);
+                                    if (listFromFormula.length > 0) {
+                                      formulaList = listFromFormula;
+                                      break;
+                                    }
+                                  } catch (_) {}
+                                  try {
+                                    const legacy = await api.getRecipeOfProduct(
+                                      id,
+                                    );
+                                    const listFromLegacy =
+                                      legacy?.ingredients ??
+                                      (Array.isArray(legacy) ? legacy : []);
+                                    if (listFromLegacy.length > 0) {
+                                      formulaList = listFromLegacy;
+                                      break;
+                                    }
+                                  } catch (_) {}
+                                }
+                                if (
+                                  formulaList.length === 0 &&
+                                  Array.isArray(p.ingredients) &&
+                                  p.ingredients.length > 0
+                                ) {
+                                  formulaList = p.ingredients;
+                                }
+                                setDetailProductFormula(formulaList);
+                                setDetailProductFormulaLoading(false);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
@@ -1743,14 +1821,24 @@ const AdminPage = ({ onLogout, userData }) => {
                               }}
                             >
                               {hasFormula && (
-                                <div className="pc-formula-badge" title="Có công thức">
-                                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <div
+                                  className="pc-formula-badge"
+                                  title="Có công thức"
+                                >
+                                  <svg
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                  >
                                     <polyline points="2 8 6 12 14 4" />
                                   </svg>
                                 </div>
                               )}
                               <div className={pcCatClass}>{catName || "—"}</div>
-                              <div className="pc-name">{p.name ?? p.productName}</div>
+                              <div className="pc-name">
+                                {p.name ?? p.productName}
+                              </div>
                               <div className="pc-id">{p.id ?? p.productId}</div>
                               <div className="pc-footer">
                                 <div className="pc-price">
@@ -1769,7 +1857,9 @@ const AdminPage = ({ onLogout, userData }) => {
                 {kitchenSubTab === "categories" && (
                   <div id="tab-categories">
                     <div className="toolbar">
-                      <span className="toolbar-label">Quản lý danh mục món</span>
+                      <span className="toolbar-label">
+                        Quản lý danh mục món
+                      </span>
                       <button
                         type="button"
                         className="btn btn-sm ml-auto"
@@ -1786,49 +1876,52 @@ const AdminPage = ({ onLogout, userData }) => {
                     </div>
                     <div className="cat-grid">
                       {categories.length === 0 ? (
-                        <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
-                          Chưa có danh mục. Bấm &quot;Thêm danh mục&quot; để tạo.
+                        <div
+                          className="empty-state"
+                          style={{ gridColumn: "1 / -1" }}
+                        >
+                          Chưa có danh mục. Bấm &quot;Thêm danh mục&quot; để
+                          tạo.
                         </div>
                       ) : (
                         categories.map((cat) => {
                           const count = products.filter(
-                            (p) => getProductCategoryName(p) === cat.name || String(p.categoryId) === String(cat.id),
+                            (p) =>
+                              getProductCategoryName(p) === cat.name ||
+                              String(p.categoryId) === String(cat.id),
                           ).length;
                           return (
                             <div key={cat.id} className="cat-card">
                               <div className="cat-icon">
-                                {cat.name && (cat.name.toLowerCase().includes("cơm") ? "🍚" : cat.name.toLowerCase().includes("nước") || cat.name.toLowerCase().includes("nuoc") ? "🍜" : cat.name.toLowerCase().includes("uống") || cat.name.toLowerCase().includes("uong") ? "🧋" : cat.name.toLowerCase().includes("tráng") || cat.name.toLowerCase().includes("trang") ? "🍮" : "🍽")}
+                                {cat.name &&
+                                  (cat.name.toLowerCase().includes("cơm")
+                                    ? "🍚"
+                                    : cat.name.toLowerCase().includes("nước") ||
+                                        cat.name.toLowerCase().includes("nuoc")
+                                      ? "🍜"
+                                      : cat.name
+                                            .toLowerCase()
+                                            .includes("uống") ||
+                                          cat.name
+                                            .toLowerCase()
+                                            .includes("uong")
+                                        ? "🧋"
+                                        : cat.name
+                                              .toLowerCase()
+                                              .includes("tráng") ||
+                                            cat.name
+                                              .toLowerCase()
+                                              .includes("trang")
+                                          ? "🍮"
+                                          : "🍽")}
                               </div>
                               <div className="cat-name">{cat.name}</div>
-                              <div className="cat-desc">{cat.description || "Chưa có mô tả"}</div>
+                              <div className="cat-desc">
+                                {cat.description || "Chưa có mô tả"}
+                              </div>
                               <div className="cat-meta">
                                 <span className="cat-id">ID: {cat.id}</span>
                                 <span className="cat-count">{count} món</span>
-                              </div>
-                              <div className="cat-actions">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm cat-btn-edit"
-                                  onClick={() => {
-                                    setEditingCategory(cat);
-                                    setShowAddCategory(true);
-                                    setNewCategoryName(cat.name);
-                                    setNewCategoryDescription(cat.description || "");
-                                  }}
-                                  title="Sửa"
-                                >
-                                  <Eye size={14} />
-                                  Sửa
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm cat-btn-delete"
-                                  onClick={() => handleDeleteCategory(cat)}
-                                  title="Xóa"
-                                >
-                                  <Trash2 size={14} />
-                                  Xóa
-                                </button>
                               </div>
                             </div>
                           );
@@ -1873,7 +1966,9 @@ const AdminPage = ({ onLogout, userData }) => {
                       onClick={() => {
                         setImportForm({
                           note: "",
-                          items: [{ ingredientId: "", quantity: "", importPrice: "" }],
+                          items: [
+                            { ingredientId: "", quantity: "", importPrice: "" },
+                          ],
                         });
                         setShowImportModal(true);
                       }}
@@ -1985,7 +2080,7 @@ const AdminPage = ({ onLogout, userData }) => {
                             <tr className="empty-row">
                               <td colSpan={7}>
                                 {ingredients.length === 0
-                                  ? "Chưa có nguyên liệu. Bấm \"Thêm nguyên liệu\" để tạo."
+                                  ? 'Chưa có nguyên liệu. Bấm "Thêm nguyên liệu" để tạo.'
                                   : "Không có dữ liệu phù hợp bộ lọc."}
                               </td>
                             </tr>
@@ -2004,10 +2099,17 @@ const AdminPage = ({ onLogout, userData }) => {
                                     ? "Sắp hết"
                                     : "Đủ hàng";
                               const badgeClass =
-                                status === "empty" ? "b-empty" : status === "low" ? "b-low" : "b-ok";
+                                status === "empty"
+                                  ? "b-empty"
+                                  : status === "low"
+                                    ? "b-low"
+                                    : "b-ok";
                               const barPct =
                                 min > 0
-                                  ? Math.min(100, Math.round((stock / (min * 3)) * 100))
+                                  ? Math.min(
+                                      100,
+                                      Math.round((stock / (min * 3)) * 100),
+                                    )
                                   : 100;
                               const barColor =
                                 status === "empty"
@@ -2022,13 +2124,17 @@ const AdminPage = ({ onLogout, userData }) => {
                               return (
                                 <tr key={id}>
                                   <td>
-                                    <div className="ing-name">{ing.name ?? ing.ingredientName}</div>
+                                    <div className="ing-name">
+                                      {ing.name ?? ing.ingredientName}
+                                    </div>
                                     <div className="ing-id">{shortId}</div>
                                   </td>
                                   <td>
                                     <div className="stock-main">
                                       {stock.toLocaleString("vi-VN")}{" "}
-                                      <span className="stock-min">/ {min} min</span>
+                                      <span className="stock-min">
+                                        / {min} min
+                                      </span>
                                     </div>
                                     <div className="stock-bar">
                                       <div
@@ -2041,18 +2147,27 @@ const AdminPage = ({ onLogout, userData }) => {
                                     </div>
                                   </td>
                                   <td>
-                                    <span className="chip">{ing.unit ?? "KG"}</span>
+                                    <span className="chip">
+                                      {ing.unit ?? "KG"}
+                                    </span>
                                   </td>
                                   <td>
                                     <span className="price-val">
                                       {unitCost.toLocaleString("vi-VN")}đ
                                     </span>
                                   </td>
-                                  <td style={{ fontSize: 13, color: "var(--text2)" }}>
+                                  <td
+                                    style={{
+                                      fontSize: 13,
+                                      color: "var(--text2)",
+                                    }}
+                                  >
                                     {value.toLocaleString("vi-VN")}đ
                                   </td>
                                   <td>
-                                    <span className={`badge ${badgeClass}`}>{statusLabel}</span>
+                                    <span className={`badge ${badgeClass}`}>
+                                      {statusLabel}
+                                    </span>
                                   </td>
                                   <td>
                                     <div className="act-btns">
@@ -2105,7 +2220,13 @@ const AdminPage = ({ onLogout, userData }) => {
                 {ingredientSubTab === "history" && (
                   <div id="tab-history">
                     <div className="toolbar">
-                      <span style={{ fontSize: 13, color: "var(--text2)", fontWeight: 500 }}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text2)",
+                          fontWeight: 500,
+                        }}
+                      >
                         Phiếu nhập gần đây
                       </span>
                     </div>
@@ -2118,7 +2239,6 @@ const AdminPage = ({ onLogout, userData }) => {
                 )}
               </>
             )}
-
           </div>
         </div>
       </main>
@@ -2364,9 +2484,7 @@ const AdminPage = ({ onLogout, userData }) => {
           >
             <div className="form-header">
               <div>
-                <h3>
-                  {editingCategory ? "Sửa danh mục" : "Thêm danh mục"}
-                </h3>
+                <h3>{editingCategory ? "Sửa danh mục" : "Thêm danh mục"}</h3>
               </div>
               <button
                 type="button"
@@ -2464,7 +2582,7 @@ const AdminPage = ({ onLogout, userData }) => {
             <div className="form-header">
               <div>
                 <h3>
-                  {editingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm mới"}
+                  {editingProduct ? "Cập nhật sản phẩm" : "Thêm sản phẩm mới"}
                 </h3>
               </div>
               <button
@@ -2487,10 +2605,14 @@ const AdminPage = ({ onLogout, userData }) => {
                     type="text"
                     value={
                       (editingProduct || newProduct).productId ||
-                      (editingProduct || newProduct).id || ""
+                      (editingProduct || newProduct).id ||
+                      ""
                     }
                     onChange={(e) =>
-                      setNewProduct({ ...newProduct, productId: e.target.value })
+                      setNewProduct({
+                        ...newProduct,
+                        productId: e.target.value,
+                      })
                     }
                     placeholder="VD: PROD_PHO_01"
                     readOnly={!!editingProduct}
@@ -2508,12 +2630,17 @@ const AdminPage = ({ onLogout, userData }) => {
                       ""
                     }
                     onChange={(e) =>
-                      setNewProduct({ ...newProduct, categoryId: e.target.value })
+                      setNewProduct({
+                        ...newProduct,
+                        categoryId: e.target.value,
+                      })
                     }
                   >
                     <option value="">-- Chọn danh mục --</option>
                     {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -2524,10 +2651,14 @@ const AdminPage = ({ onLogout, userData }) => {
                   type="text"
                   value={
                     (editingProduct || newProduct).productName ??
-                    (editingProduct || newProduct).name ?? ""
+                    (editingProduct || newProduct).name ??
+                    ""
                   }
                   onChange={(e) =>
-                    setNewProduct({ ...newProduct, productName: e.target.value })
+                    setNewProduct({
+                      ...newProduct,
+                      productName: e.target.value,
+                    })
                   }
                   placeholder="VD: Phở bò đặc biệt"
                 />
@@ -2541,10 +2672,14 @@ const AdminPage = ({ onLogout, userData }) => {
                     step="1000"
                     value={
                       (editingProduct || newProduct).sellingPrice ??
-                      (editingProduct || newProduct).price ?? ""
+                      (editingProduct || newProduct).price ??
+                      ""
                     }
                     onChange={(e) =>
-                      setNewProduct({ ...newProduct, sellingPrice: e.target.value })
+                      setNewProduct({
+                        ...newProduct,
+                        sellingPrice: e.target.value,
+                      })
                     }
                     placeholder="0"
                   />
@@ -2569,7 +2704,9 @@ const AdminPage = ({ onLogout, userData }) => {
               <div className="sep" />
               <div className="section-label">
                 Công thức nguyên liệu
-                <span className="section-helper">Tùy chọn, có thể thêm sau</span>
+                <span className="section-helper">
+                  Tùy chọn, có thể thêm sau
+                </span>
               </div>
               {(newProduct.ingredients || []).length === 0 ? (
                 <div className="field" style={{ marginBottom: 8 }}>
@@ -2615,7 +2752,9 @@ const AdminPage = ({ onLogout, userData }) => {
                             setNewProduct((p) => ({
                               ...p,
                               ingredients: p.ingredients.map((it, i) =>
-                                i === idx ? { ...it, ingredientId: e.target.value } : it,
+                                i === idx
+                                  ? { ...it, ingredientId: e.target.value }
+                                  : it,
                               ),
                             }))
                           }
@@ -2626,7 +2765,10 @@ const AdminPage = ({ onLogout, userData }) => {
                               key={ing.id ?? ing.ingredientId}
                               value={ing.ingredientId ?? ing.id}
                             >
-                              {ing.ingredientName ?? ing.name ?? ing.ingredientId ?? ing.id}
+                              {ing.ingredientName ??
+                                ing.name ??
+                                ing.ingredientId ??
+                                ing.id}
                             </option>
                           ))}
                         </select>
@@ -2643,7 +2785,10 @@ const AdminPage = ({ onLogout, userData }) => {
                               ...p,
                               ingredients: p.ingredients.map((it, i) =>
                                 i === idx
-                                  ? { ...it, amountNeeded: Number(e.target.value) || 0 }
+                                  ? {
+                                      ...it,
+                                      amountNeeded: Number(e.target.value) || 0,
+                                    }
                                   : it,
                               ),
                             }))
@@ -2657,7 +2802,9 @@ const AdminPage = ({ onLogout, userData }) => {
                         onClick={() =>
                           setNewProduct((p) => ({
                             ...p,
-                            ingredients: p.ingredients.filter((_, i) => i !== idx),
+                            ingredients: p.ingredients.filter(
+                              (_, i) => i !== idx,
+                            ),
                           }))
                         }
                         title="Xóa dòng"
@@ -2685,26 +2832,6 @@ const AdminPage = ({ onLogout, userData }) => {
                 </>
               )}
               <div className="form-actions">
-                {editingProduct && (
-                  <button
-                    type="button"
-                    className="ck-btn ck-px-4 ck-py-2 ck-rounded-lg ck-font-semibold ck-bg-red-500-20 ck-text-red-400"
-                    style={{ flex: "0 0 auto", border: "1px solid rgba(239,68,68,0.4)" }}
-                    onClick={async () => {
-                      if (
-                        window.confirm(
-                          `Xóa sản phẩm "${editingProduct.name || editingProduct.productName}"?`,
-                        )
-                      ) {
-                        await handleDeleteProduct(editingProduct);
-                        setShowAddProduct(false);
-                        setEditingProduct(null);
-                      }
-                    }}
-                  >
-                    Xóa
-                  </button>
-                )}
                 <button
                   type="button"
                   className="btn-cancel"
@@ -2720,7 +2847,7 @@ const AdminPage = ({ onLogout, userData }) => {
                   className="btn-submit"
                   onClick={handleSaveProduct}
                 >
-                  {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
+                  {editingProduct ? "Cập nhật công thức" : "Tạo sản phẩm"}
                 </button>
               </div>
             </div>
@@ -2745,7 +2872,9 @@ const AdminPage = ({ onLogout, userData }) => {
             <div className="form-header">
               <div>
                 <h3>
-                  {editingIngredient ? "Chỉnh sửa nguyên liệu" : "Thêm nguyên liệu"}
+                  {editingIngredient
+                    ? "Chỉnh sửa nguyên liệu"
+                    : "Thêm nguyên liệu"}
                 </h3>
               </div>
               <button
@@ -2763,16 +2892,24 @@ const AdminPage = ({ onLogout, userData }) => {
             <form
               className="form-body"
               onSubmit={
-                editingIngredient ? handleUpdateIngredient : handleCreateIngredient
+                editingIngredient
+                  ? handleUpdateIngredient
+                  : handleCreateIngredient
               }
             >
               {editingIngredient && (
                 <div className="editing-bar">
                   <span>
-                    Đang sửa: <strong>{editingIngredient.name ?? editingIngredient.ingredientName}</strong>
+                    Đang sửa:{" "}
+                    <strong>
+                      {editingIngredient.name ??
+                        editingIngredient.ingredientName}
+                    </strong>
                   </span>
                   {editingIngredient.version != null && (
-                    <span className="version">v{editingIngredient.version}</span>
+                    <span className="version">
+                      v{editingIngredient.version}
+                    </span>
                   )}
                 </div>
               )}
@@ -2783,7 +2920,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   type="text"
                   value={ingredientForm.name}
                   onChange={(e) =>
-                    setIngredientForm({ ...ingredientForm, name: e.target.value })
+                    setIngredientForm({
+                      ...ingredientForm,
+                      name: e.target.value,
+                    })
                   }
                   placeholder="VD: Thịt bò Úc"
                   autoFocus
@@ -2796,7 +2936,10 @@ const AdminPage = ({ onLogout, userData }) => {
                   <select
                     value={ingredientForm.unit}
                     onChange={(e) =>
-                      setIngredientForm({ ...ingredientForm, unit: e.target.value })
+                      setIngredientForm({
+                        ...ingredientForm,
+                        unit: e.target.value,
+                      })
                     }
                   >
                     <option value="">-- Chọn đơn vị --</option>
@@ -2936,7 +3079,9 @@ const AdminPage = ({ onLogout, userData }) => {
                   </p>
                 </div>
                 <div>
-                  <span className="ck-text-sm ck-text-gray-500">Tồn kho / Ngưỡng tối thiểu</span>
+                  <span className="ck-text-sm ck-text-gray-500">
+                    Tồn kho / Ngưỡng tối thiểu
+                  </span>
                   <p className="ck-text-white">
                     {Number(detailIngredient.kitchenStock).toLocaleString()} /{" "}
                     {Number(detailIngredient.minThreshold).toLocaleString()}{" "}
@@ -2944,13 +3089,17 @@ const AdminPage = ({ onLogout, userData }) => {
                   </p>
                 </div>
                 <div>
-                  <span className="ck-text-sm ck-text-gray-500">Đơn giá (VND)</span>
+                  <span className="ck-text-sm ck-text-gray-500">
+                    Đơn giá (VND)
+                  </span>
                   <p className="ck-mono ck-text-white">
                     {Number(detailIngredient.unitCost).toLocaleString()}
                   </p>
                 </div>
                 <div>
-                  <span className="ck-text-sm ck-text-gray-500">Giá trị tồn (VND)</span>
+                  <span className="ck-text-sm ck-text-gray-500">
+                    Giá trị tồn (VND)
+                  </span>
                   <p className="ck-mono ck-text-white">
                     {(
                       (Number(detailIngredient.kitchenStock) || 0) *
@@ -2959,7 +3108,9 @@ const AdminPage = ({ onLogout, userData }) => {
                   </p>
                 </div>
                 <div>
-                  <span className="ck-text-sm ck-text-gray-500">Trạng thái</span>
+                  <span className="ck-text-sm ck-text-gray-500">
+                    Trạng thái
+                  </span>
                   <p>
                     <span
                       className={`ck-badge ${
@@ -2980,6 +3131,165 @@ const AdminPage = ({ onLogout, userData }) => {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {detailProduct !== null && (
+        <div
+          className="ck-modal-overlay ingredient-form-modal"
+          onClick={() => setDetailProduct(null)}
+          role="presentation"
+        >
+          <div
+            className="ck-modal-box ingredient-form-box product-detail-box ck-max-w-lg ck-w-full"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <div className="form-header">
+              <div>
+                <h3>Chi tiết sản phẩm</h3>
+              </div>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setDetailProduct(null)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="form-body ck-max-h-[70vh] ck-overflow-y-auto">
+              <div className="form-row">
+                <div className="field">
+                  <label>Mã sản phẩm</label>
+                  <div className="product-detail-value">
+                    {detailProduct.productId ?? detailProduct.id ?? "—"}
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Danh mục</label>
+                  <div className="product-detail-value">
+                    {getProductCategoryName(detailProduct) || "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="field">
+                <label>Tên sản phẩm</label>
+                <div className="product-detail-value product-detail-value--name">
+                  {detailProduct.productName ?? detailProduct.name ?? "—"}
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="field">
+                  <label>Giá bán (đ)</label>
+                  <div className="product-detail-value product-detail-value--price">
+                    {Number(
+                      detailProduct.sellingPrice ?? detailProduct.price ?? 0,
+                    ).toLocaleString("vi-VN")}
+                    ₫
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Đơn vị</label>
+                  <div className="product-detail-value">
+                    {detailProduct.baseUnit ?? "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="sep" />
+              <div className="section-label">Công thức nguyên liệu</div>
+              {detailProductFormulaLoading ? (
+                <div className="product-detail-loading">Đang tải...</div>
+              ) : detailProductFormula.length === 0 ? (
+                <div className="product-detail-empty">
+                  <Package size={28} />
+                  <span>Chưa thêm nguyên liệu vào công thức</span>
+                </div>
+              ) : (
+                <div className="product-detail-formula-list">
+                  {detailProductFormula.map((ing, i) => (
+                    <div key={i} className="product-detail-formula-item">
+                      <div className="product-detail-formula-icon">
+                        <Package size={18} />
+                      </div>
+                      <div className="product-detail-formula-info">
+                        <span className="product-detail-formula-name">
+                          {ing.ingredientName ??
+                            ing.name ??
+                            ing.ingredientId ??
+                            "—"}
+                        </span>
+                      </div>
+                      <div className="product-detail-formula-qty">
+                        <span className="product-detail-formula-amount">
+                          {Number(
+                            ing.amountNeeded ?? ing.amount ?? 0,
+                          ).toLocaleString("vi-VN")}
+                        </span>
+                        <span className="product-detail-formula-unit">
+                          {ing.unit ?? "KG"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={() => {
+                    const p = detailProduct;
+                    const catNameForProduct = getProductCategoryName(p);
+                    const productId = String(p.productId ?? p.id ?? "");
+                    setDetailProduct(null);
+                    setEditingProduct(p);
+                    setNewProduct({
+                      productId: productId || (p.productId ?? p.id),
+                      productName: p.productName ?? p.name,
+                      categoryId:
+                        p.categoryId ??
+                        categories.find((c) => c.name === catNameForProduct)
+                          ?.id ??
+                        "",
+                      sellingPrice: String(p.sellingPrice ?? p.price ?? ""),
+                      baseUnit: p.baseUnit ?? "",
+                      isActive: p.isActive !== false,
+                      ingredients:
+                        detailProductFormula.length > 0
+                          ? detailProductFormula.map((i) => ({
+                              ingredientId: String(
+                                i.ingredientId ?? i.id ?? "",
+                              ).trim(),
+                              amountNeeded:
+                                Number(i.amountNeeded ?? i.amount ?? 0) || 0.1,
+                              ingredientName: i.ingredientName ?? null,
+                              unit: i.unit ?? null,
+                            }))
+                          : [
+                              {
+                                ingredientId: "",
+                                amountNeeded: 0.1,
+                                ingredientName: null,
+                                unit: null,
+                              },
+                            ],
+                    });
+                    setShowAddProduct(true);
+                  }}
+                >
+                  Cập nhật sản phẩm
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setDetailProduct(null)}
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -3023,7 +3333,9 @@ const AdminPage = ({ onLogout, userData }) => {
               </div>
 
               <div className="field">
-                <label>Danh sách nguyên liệu nhập ({importForm.items.length} dòng)</label>
+                <label>
+                  Danh sách nguyên liệu nhập ({importForm.items.length} dòng)
+                </label>
                 <div className="ck-rounded-xl ck-border ck-border-gray-700 ck-overflow-hidden ck-bg-gray-900/40">
                   <div
                     className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-text-xs ck-font-medium ck-text-gray-500 ck-border-b ck-border-gray-700"
@@ -3044,7 +3356,11 @@ const AdminPage = ({ onLogout, userData }) => {
                         className="ck-select ck-w-full ck-px-3 ck-py-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-lg ck-text-sm"
                         value={row.ingredientId}
                         onChange={(e) =>
-                          handleImportRowChange(index, "ingredientId", e.target.value)
+                          handleImportRowChange(
+                            index,
+                            "ingredientId",
+                            e.target.value,
+                          )
                         }
                       >
                         <option value="">-- Chọn nguyên liệu --</option>
@@ -3053,7 +3369,8 @@ const AdminPage = ({ onLogout, userData }) => {
                             key={ing.ingredientId ?? ing.id}
                             value={ing.ingredientId ?? ing.id}
                           >
-                            {ing.name ?? ing.ingredientName} ({ing.unit ?? "KG"})
+                            {ing.name ?? ing.ingredientName} ({ing.unit ?? "KG"}
+                            )
                           </option>
                         ))}
                       </select>
@@ -3064,7 +3381,11 @@ const AdminPage = ({ onLogout, userData }) => {
                         className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-sm"
                         value={row.quantity}
                         onChange={(e) =>
-                          handleImportRowChange(index, "quantity", e.target.value)
+                          handleImportRowChange(
+                            index,
+                            "quantity",
+                            e.target.value,
+                          )
                         }
                         placeholder="0"
                       />
@@ -3074,7 +3395,11 @@ const AdminPage = ({ onLogout, userData }) => {
                         className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-sm"
                         value={row.importPrice}
                         onChange={(e) =>
-                          handleImportRowChange(index, "importPrice", e.target.value)
+                          handleImportRowChange(
+                            index,
+                            "importPrice",
+                            e.target.value,
+                          )
                         }
                         placeholder="0"
                       />
@@ -3107,7 +3432,11 @@ const AdminPage = ({ onLogout, userData }) => {
                 >
                   Hủy
                 </button>
-                <button type="submit" className="btn-submit" disabled={importSubmitting}>
+                <button
+                  type="submit"
+                  className="btn-submit"
+                  disabled={importSubmitting}
+                >
                   {importSubmitting ? "Đang tạo phiếu..." : "Tạo phiếu nhập"}
                 </button>
               </div>

@@ -1070,6 +1070,17 @@ const api = {
   importInventory: (body) => inventoryApi.import(body),
   cook: (body) => kitchenApi.cook(body),
 
+  /**
+   * Upsert công thức cho sản phẩm.
+   * AdminPage đang gọi api.upsertFormula({ productId, ingredients }).
+   * Mapping thẳng sang API backend: POST /api/formulas.
+   */
+  upsertFormula: (body) =>
+    request("/api/formulas", {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+    }),
+
   // =========================================================
   // Đơn hàng STORE_MANAGER (cửa hàng)
   // =========================================================
