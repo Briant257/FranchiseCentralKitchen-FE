@@ -1,0 +1,70 @@
+[33mfe2d85e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m complete
+[33mda477c8[m conflict before merge code
+[33m7607cd6[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Merge pull request #33 from Briant257/fe/storepage
+[33m5a53f39[m redesign store UI and add necessary store APIs
+[33m8ca6fa7[m Merge pull request #32 from Briant257/fe/updatepage
+[33m795353b[m Integrate new APIs for products, ingredients, inventory, and the kitchen into the admin page
+[33m2501da1[m Merge pull request #31 from Briant257/fe/updatepage
+[33mad9d82d[m update admin layout, add user sub-pages and integrate APIs
+[33m6208a47[m Merge pull request #30 from Briant257/fe/updatepage
+[33m2fff314[m update layout setting for all page
+[33m2e9526a[m Merge pull request #29 from Briant257/fe/updatepage
+[33m5a15196[m fix: settings layout override
+[33mb823be7[m UpdataManager.jsx
+[33m38d2b78[m Merge pull request #26 from Briant257/fe/updatepage
+[33m55f15c9[m fix: resolve merge conflict with main
+[33m8a463c2[m update admin page, API integration and layout
+[33m3705dea[m Merge pull request #25 from Briant257/fe/Manager
+[33m0a24e79[m Merge pull request #24 from Briant257/fe/CentralKitchen
+[33m0fe4196[m NewManager
+[33mb8227db[m NewCentralKitchen
+[33macf018b[m NewCentralKitchen
+[33m6ea6383[m New
+[33m0d66bd8[m fix conflict and update manager
+[33m6c62e21[m update before switch branch
+[33m877e3f6[m ManagerNew
+[33m870b0bc[m add SupplyCoordinator feature
+[33m2428c0f[m resolve merge conflict
+[33m25bf60c[m Merge remote-tracking branch 'origin/main' into fe/SupplyCoordinator
+[33m745044f[m add CentralKitchen from supply
+[33mcb8e43d[m Merge branch 'main' into fe/adminapi
+[33mfa7f75f[m Revert "update page admin and role"
+[33m46438af[m update page admin and role
+[33mdb4cc82[m[33m ([m[1;31morigin/fe/adminapi[m[33m)[m Revert "update page admin and role"
+[33m0f73dbd[m update page admin and role
+[33mcae0867[m add SupplyCoordinator
+[33m3377510[m combackAdmin
+[33mda0bf05[m update new CentralKitchen
+[33m7f7268a[m resolve merge conflict
+[33m1d9d54a[m resolve merge conflict
+[33m8b0fe84[m save code before update
+[33m836c591[m Merge branch 'fe/adminapi'
+[33ma1349cf[m update page admin and api more
+[33m95d8f25[m update page admin and api more
+[33m0cd5c8b[m new CentralKitchen
+[33mdd10b8f[m Merge branch 'main' of https://github.com/Briant258/FranchiseCentralKitchen-FE
+[33m2230b02[m update central kitchen feature
+[33ma1b5974[m Merge branch 'main' into fe/adminapi
+[33m57e6c98[m update api admin
+[33m45fd083[m update api admin
+[33m6504c24[m more email user
+[33m4193dff[m fix conflict
+[33m49f666e[m Update code cứng thành code mềm Manager
+[33m1321106[m Sữa code cứng thành mềm CentralKitchen
+[33m9626c82[m update api and package
+[33mc856e6e[m Manager
+[33mcc0902a[m Đẩy phần centralKitchen
+[33m6633738[m Update code cứng thành code mềm Manager
+[33me1090c2[m Sữa code cứng thành mềm CentralKitchen
+[33m1742d8d[m update api and package
+[33md7471fb[m Manager
+[33mc8d9274[m Đẩy phần centralKitchen
+[33m0b0fcb8[m[33m ([m[1;31morigin/master[m[33m)[m Briant257/fe/layoutlogin
+[33mab42d6f[m[33m ([m[1;31morigin/fe/layoutlogin[m[33m)[m Remove .env from tracking
+[33mf4d77cb[m update layout login
+[33m9d0de5d[m Briant257/fe/api
+[33m8e9f26a[m fix api/local
+[33m7f4f175[m update/fix api
+[33md7c0bda[m Fe/page/login/admin/centralkitchen
+[33m342ca2d[m login management
+[33m09e7173[m Initialize project using Create React App
