@@ -69,7 +69,6 @@ const payload = {
       alert("Lỗi báo cáo hao hụt!");
     }
   };
-
   // STATE: NHẬP KHO (IMPORT INVENTORY)
   const [showImportModal, setShowImportModal] = useState(false);
   const [importData, setImportData] = useState({
@@ -183,7 +182,6 @@ const payload = {
       setErrorModal({ show: true, message: err.message || "Lỗi hệ thống khi cập nhật trạng thái!" });
     }
   };
-
   // ĐÃ FIX 2: HÀM HOÀN THÀNH HÀNG LOẠT (BULK COMPLETE)
   const handleBulkComplete = async () => {
     const activeRuns = productionRuns.filter(r => r.status === "COOKING").map(r => r.id);
@@ -211,14 +209,16 @@ const payload = {
     }
   };
 
-  const handleConfirmCook = async () => {
+ // HÀM: CHỐT GOM ĐƠN & XUẤT KHO (1 CLICK ĂN TRỌN)
+  const handleConfirmAggregation = async () => {
     try {
-     await api.confirmAggregation({ status: "PENDING" });
+      // FE chỉ cần gọi API này, không cần truyền payload phức tạp nếu BE không yêu cầu
+      await api.confirmAggregation({}); 
       setShowAggModal(false);
-      loadData();
-      alert("✅ Đã chốt đơn và tạo mẻ nấu thành công!");
+      loadData(); // Tải lại dữ liệu để cập nhật số lượng kho và trạng thái đơn
+      alert("✅ Đã chốt gom đơn, xuất kho và chuyển trạng thái sẵn sàng giao thành công!");
     } catch (err) {
-      alert("Lỗi chốt đơn, thử lại sau!");
+      alert("❌ Lỗi chốt gom đơn, vui lòng thử lại sau!");
       setShowAggModal(false);
     }
   };
@@ -885,12 +885,6 @@ const payload = {
                 
                 <div className="ck-flex ck-gap-3">
                   <button
-                    onClick={() => setShowManualCookModal(true)}
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors"
-                  >
-                    🍳 Nấu Chủ Động
-                  </button>
-                  <button
                     onClick={handleOpenAggregation}
                     className="ck-btn ck-px-4 ck-py-2 ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none shadow-lg shadow-orange-500/30 ck-flex ck-items-center ck-gap-2"
                   >
@@ -927,6 +921,7 @@ const payload = {
                              <button onClick={() => handleViewRecipe(run)} className="ck-p-1.5 ck-bg-gray-800 ck-text-gray-400 hover:ck-text-blue-400 ck-rounded-lg ck-transition-colors ck-border-none ck-cursor-pointer" title="Xem công thức">
   <Eye size={16} />
 </button>
+
                               {run.status === "COOKING" && (
                                 <button 
                                   onClick={() => {
@@ -1050,9 +1045,14 @@ const payload = {
               <button onClick={() => setShowAggModal(false)} className="ck-w-full ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors ck-cursor-pointer">
                 Hủy
               </button>
-              <button onClick={handleConfirmCook} className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-orange-500/30">
-                Chốt Nấu
-              </button>
+              {/* Nút bấm đã được cập nhật Text và gọi đúng hàm mới */}
+  <button 
+    onClick={handleConfirmAggregation} 
+    className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-orange-500/30"
+  >
+    Chốt Gom Đơn & Xuất Kho
+  </button>
+  
             </div>
           </div>
         </div>
