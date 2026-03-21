@@ -252,9 +252,8 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                       <tr>
                         <th className="ck-py-4 ck-px-6 ck-text-center">Chọn</th>
                         <th className="ck-py-4 ck-px-6 ck-text-center">Mã Đơn</th>
-                        <th className="ck-py-4 ck-px-6 ck-text-center">Cửa hàng</th>
+                        <th className="ck-py-4 ck-px-6 ck-text-center">Giao đến cửa hàng</th>
                         <th className="ck-py-4 ck-px-6 ck-text-center">Trạng thái</th>
-                        {/* Đã xóa cột Tổng tiền ở đây */}
                       </tr>
                     </thead>
                     <tbody className="ck-text-white ck-text-sm">
@@ -272,14 +271,17 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                               />
                             </td>
                             <td className="ck-py-4 ck-px-6 ck-font-mono ck-text-red-400 ck-font-bold ck-text-center">{o.orderId || o.id || o.order_id}</td>
-                            <td className="ck-py-4 ck-px-6 ck-font-bold ck-text-center">{o.storeName || o.store || o.store_id || "KFC Store"}</td>
+                            <td className="ck-py-4 ck-px-6 ck-font-bold ck-text-center">
+                                <span className="ck-text-blue-300 ck-bg-blue-900/30 ck-px-3 ck-py-1 ck-rounded-lg ck-inline-flex ck-items-center ck-gap-2">
+                                    🏪 {o.storeName || o.store_name || o.name || o.store || o.storeId || "Chưa xác định"}
+                                </span>
+                            </td>
                             <td className="ck-py-4 ck-px-6 ck-text-center">
                               <div className="ck-flex ck-items-center ck-justify-center ck-gap-2">
                                 <Clock size={14} className="ck-text-blue-400" />
                                 <span className="ck-font-medium">{o.status || "READY"}</span>
                               </div>
                             </td>
-                            {/* Đã xóa data Tổng tiền ở đây */}
                           </tr>
                         ))
                       )}
@@ -288,81 +290,85 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
               </div>
             )}
-
             {/* TAB 2: CHUYẾN ĐANG CHẠY */}
             {activeTab === "Chuyến đang chạy" && (
               <div className="ck-space-y-6 ck-animate-fade-in">
                 <div className="ck-flex ck-justify-between ck-items-center">
                   <h3 className="ck-text-xl ck-font-bold">Quản lý lộ trình Logistics</h3>
-                  <button onClick={fetchAllData} className="ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2 ck-rounded-lg ck-border-none hover:ck-bg-gray-700">
+                  <button onClick={fetchAllData} className="ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2 ck-rounded-lg ck-border-none hover:ck-bg-gray-700 ck-cursor-pointer">
                     ↻ Làm mới
                   </button>
                 </div>
-                <div className="ck-grid ck-grid-cols-2 ck-gap-6">
+                
+                <div className="ck-grid ck-grid-cols-3 ck-gap-6"> 
                   {activeShipments.length === 0 ? (
-                    <p className="ck-text-gray-500 ck-col-span-2">Không có chuyến hàng nào đang chạy.</p>
+                    <p className="ck-text-gray-500 ck-col-span-3 ck-text-center ck-py-10">Không có chuyến hàng nào đang chạy.</p>
                   ) : (
-                    activeShipments.map((s) => (
-                      <div key={s.shipmentId || s.id || s.shipment_id} className="ck-bg-gray-900 ck-border-l-4 ck-border-l-orange-500 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl">
-                        <div className="ck-flex ck-justify-between ck-mb-4">
-                          <span className="ck-text-orange-400 ck-font-mono font-bold">{s.shipmentId || s.id || s.shipment_id}</span>
-                          <span className="ck-text-xs ck-bg-orange-500/20 ck-text-orange-400 ck-px-2 ck-py-1 ck-rounded-lg">
-                            {s.status || "ACTIVE"}
-                          </span>
-                        </div>
-                        <div className="ck-space-y-3 ck-text-sm ck-text-gray-400">
-                          {!s.driverId && !s.driverName && !s.driver_name ? (
-                            <div className="ck-flex ck-flex-col ck-gap-2">
-                              <select 
-                                className="ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-lg ck-p-2 ck-text-white ck-outline-none"
-                                value={selectedDrivers[s.shipmentId || s.id || s.shipment_id] || ""}
-                                onChange={(e) => setSelectedDrivers({...selectedDrivers, [s.shipmentId || s.id || s.shipment_id]: e.target.value})}
-                              >
-                                <option value="">-- Chọn tài xế để gán --</option>
-                                {drivers.map(d => (
-                                  <option key={d.accountId || d.id || d.user_id} value={d.accountId || d.id || d.user_id}>
-                                    {d.fullName || d.name || d.full_name || d.username}
-                                  </option>
-                                ))}
-                              </select>
-                              <button 
-                                onClick={() => handleAssignDriver(s.shipmentId || s.id || s.shipment_id)}
-                                className="ck-w-full ck-py-2 ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-rounded-lg ck-font-bold ck-border-none"
-                              >
-                                Xác nhận gán tài xế
-                              </button>
+                    activeShipments.map((s) => {
+                      // Logic khóa cứng ô chọn nếu đã có tài xế
+                      const hasDriver = Boolean(s.driverId || s.driver_id || s.driverName || s.driver_name || s.driver || s.accountId);
+
+                      return (
+                        <div key={s.shipmentId || s.id || s.shipment_id} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl hover:ck-border-orange-500 ck-transition-all group shadow-xl ck-flex ck-flex-col">
+                          <div className="ck-flex ck-justify-between ck-mb-4">
+                            <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
+                              <Package className="ck-text-orange-400" size={32} />
                             </div>
-                          ) : (
-                            <>
-                              <p className="ck-flex ck-justify-between">
-                                <span>Tài xế:</span> <span className="ck-text-white">{s.driverName || s.driver || s.driver_name || "Chưa rõ"}</span>
-                              </p>
-                              <p className="ck-flex ck-justify-between">
-                                <span>Biển số:</span> <span className="ck-text-white">{s.plate || s.vehicle_plate || "Chưa có"}</span>
-                              </p>
-                            </>
-                          )}
-                          <p className="ck-flex ck-justify-between">
-                            <span>Số lượng đơn:</span> <span className="ck-text-white">{s.orderCount || s.orders?.length || 0} đơn</span>
-                          </p>
-                        </div>
-                        <div className="ck-flex ck-gap-2 ck-mt-6">
-                          <button 
-                            onClick={() => handleViewDetails(s.shipmentId || s.id || s.shipment_id)}
-                            className="ck-flex-1 ck-py-2.5 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border-none"
-                          >
-                            Chi tiết món
-                          </button>
+                          </div>
                           
-                          <button 
-                            onClick={() => handleMarkDelivered(s.shipmentId || s.id || s.shipment_id)}
-                            className="ck-flex-1 ck-py-2.5 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none"
-                          >
-                            Xe Tới Nơi
-                          </button>
+                          <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1 ck-line-clamp-1">
+                            {s.storeName || s.store_name || s.name || s.store || s.destinationStore || "Đang tải..."}
+                          </h3>
+                          
+                          <div className="ck-mt-2 ck-mb-4 ck-flex-1">
+                            {!hasDriver ? (
+                              <div className="ck-flex ck-flex-col ck-gap-2">
+                                <select 
+                                  className="ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-lg ck-p-2 ck-text-white ck-outline-none ck-text-sm"
+                                  value={selectedDrivers[s.shipmentId || s.id || s.shipment_id] || ""}
+                                  onChange={(e) => setSelectedDrivers({...selectedDrivers, [s.shipmentId || s.id || s.shipment_id]: e.target.value})}
+                                >
+                                  <option value="">-- Chọn tài xế --</option>
+                                  {drivers.map(d => (
+                                    <option key={d.accountId || d.id || d.user_id} value={d.accountId || d.id || d.user_id}>
+                                      {d.fullName || d.name || d.full_name || d.username}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button 
+                                  onClick={() => handleAssignDriver(s.shipmentId || s.id || s.shipment_id)}
+                                  className="ck-w-full ck-py-2 ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-rounded-lg ck-text-xs ck-font-bold ck-border-none ck-cursor-pointer transition-colors"
+                                >
+                                  Gán tài xế
+                                </button>
+                              </div>
+                            ) : (
+                              // Đã khóa cứng, và ĐÃ XÓA dòng "Biển số" theo yêu cầu
+                              <div className="ck-bg-gray-800/60 ck-border ck-border-gray-700/50 ck-p-3 ck-rounded-xl">
+                                <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
+                                  Tài xế: <span className="ck-text-green-400 ck-font-bold">{s.driverName || s.driver || s.driver_name || s.driverId || s.driver_id || "Đã phân công"}</span>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="ck-flex ck-flex-col ck-gap-2 ck-pt-4 ck-border-t ck-border-gray-800 mt-auto">
+                            <button 
+                              onClick={() => handleViewDetails(s.shipmentId || s.id || s.shipment_id)}
+                              className="ck-w-full ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-text-sm ck-font-bold ck-border-none transition-colors ck-cursor-pointer"
+                            >
+                              Chi tiết món
+                            </button>
+                            <button 
+                              onClick={() => handleMarkDelivered(s.shipmentId || s.id || s.shipment_id)}
+                              className="ck-w-full ck-py-2 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-rounded-xl ck-text-sm ck-font-bold ck-border-none transition-colors ck-cursor-pointer"
+                            >
+                              Xe Tới Nơi
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -372,34 +378,60 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
             {activeTab === "Lịch sử chuyến" && (
               <div className="ck-space-y-6 ck-animate-fade-in">
                 <h3 className="ck-text-xl ck-font-bold">Lịch sử điều phối</h3>
-                <div className="ck-grid ck-grid-cols-2 ck-gap-6">
+                <div className="ck-grid ck-grid-cols-3 ck-gap-6"> 
                   {historyShipments.length === 0 ? (
-                    <p className="ck-text-gray-500 ck-col-span-2">Chưa có chuyến hàng nào hoàn thành.</p>
+                    <p className="ck-text-gray-500 ck-col-span-3 ck-text-center ck-py-10">Chưa có chuyến hàng nào hoàn thành.</p>
                   ) : (
-                    historyShipments.map((s) => (
-                      <div key={s.shipmentId || s.id || s.shipment_id} className="ck-bg-gray-900 ck-border-l-4 ck-border-l-green-500 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl ck-opacity-70">
-                        <div className="ck-flex ck-justify-between ck-mb-4">
-                          <span className="ck-text-green-400 ck-font-mono font-bold">{s.shipmentId || s.id || s.shipment_id}</span>
-                          <span className="ck-text-xs ck-bg-green-500/20 ck-text-green-400 ck-px-2 ck-py-1 ck-rounded-lg">
-                            {s.status || "DELIVERED"}
-                          </span>
+                    historyShipments.map((s) => {
+                      // SỬA Ở ĐÂY: Xử lý format ngày tháng năm và giờ
+                      const rawTime = s.delivered_at || s.deliveredAt || s.resolved_at || s.resolvedAt;
+                      let formattedTime = "Hoàn tất";
+                      
+                      if (rawTime) {
+                        const d = new Date(rawTime);
+                        if (!isNaN(d.getTime())) {
+                          formattedTime = d.toLocaleDateString('vi-VN', { 
+                            day: '2-digit', 
+                            month: '2-digit', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+                        }
+                      }
+
+                      return (
+                        <div key={s.shipmentId || s.id || s.shipment_id} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl ck-opacity-80 hover:ck-opacity-100 hover:ck-border-green-500 ck-transition-all group shadow-xl ck-flex ck-flex-col">
+                          <div className="ck-flex ck-justify-between ck-mb-4">
+                            <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
+                              <AlertTriangle className="ck-text-green-400" size={32} />
+                            </div>
+                          </div>
+                          
+                          <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1 ck-line-clamp-1">
+                            {s.storeName || s.store_name || s.name || s.store || s.destinationStore || "Đang tải..."}
+                          </h3>
+
+                          <div className="ck-mt-2 ck-mb-4 ck-flex-1">
+                            <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
+                              Tài xế: <span className="ck-text-white ck-font-medium">{s.driverName || s.driver || s.driver_name || "N/A"}</span>
+                            </p>
+                            <p className="ck-text-sm ck-text-gray-400">
+                              Hoàn tất lúc: <span className="ck-text-white ck-font-medium">{formattedTime}</span>
+                            </p>
+                          </div>
+
+                          <div className="ck-pt-4 ck-border-t ck-border-gray-800 mt-auto ck-flex ck-justify-end">
+                            <button 
+                              onClick={() => handleViewDetails(s.shipmentId || s.id || s.shipment_id)}
+                              className="ck-text-sm ck-font-bold ck-text-green-400 group-hover:ck-translate-x-1 ck-transition-transform ck-bg-transparent ck-border-none ck-cursor-pointer"
+                            >
+                              Chi tiết →
+                            </button>
+                          </div>
                         </div>
-                        <div className="ck-space-y-2 ck-text-sm ck-text-gray-400">
-                          <p className="ck-flex ck-justify-between">
-                            <span>Tài xế:</span> <span className="ck-text-white">{s.driverName || s.driver || s.driver_name || "N/A"}</span>
-                          </p>
-                          <p className="ck-flex ck-justify-between">
-                            <span>Thời gian xong:</span> <span className="ck-text-white">{s.deliveredAt || s.resolved_at || "Hoàn tất"}</span>
-                          </p>
-                        </div>
-                        <button 
-                          onClick={() => handleViewDetails(s.shipmentId || s.id || s.shipment_id)}
-                          className="ck-w-full ck-mt-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border-none"
-                        >
-                          Xem lại chi tiết
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
