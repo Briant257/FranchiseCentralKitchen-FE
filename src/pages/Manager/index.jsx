@@ -388,6 +388,65 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       setImportSubmitting(false);
     }
   };
+  // --- BỔ SUNG LOGIC GOM CỤM DỮ LIỆU BIỂU ĐỒ ---
+  const chartData = React.useMemo(() => {
+    const raw = dashboardData?.exportTrend || [];
+    if (raw.length === 0) return [];
+
+    // Chuẩn hóa dữ liệu thô
+    const normalized = raw.map(d => ({
+      date: d.date || d.timeLabel || "",
+      val: Number(d.revenue || d.exportValue || d.totalValue || 0),
+      count: Number(d.orderCount || d.totalOrders || 0)
+    }));
+
+    const len = normalized.length;
+
+    // 1. Khoảng thời gian <= 14 ngày: Hiện theo từng ngày
+    if (len <= 14) {
+      return normalized.map(d => ({
+        label: d.date.split('-').slice(1).reverse().join('/'), // VD: 27/03
+        val: d.val,
+        count: d.count,
+        tooltipTitle: `Ngày: ${d.date.split('-').reverse().join('/')}`
+      }));
+    } 
+    // 2. Khoảng thời gian từ 15 -> 60 ngày: Nhóm theo Tuần (7 ngày 1 cột)
+    else if (len <= 60) {
+      const grouped = [];
+      for (let i = 0; i < len; i += 7) {
+        const chunk = normalized.slice(i, i + 7);
+        const sumVal = chunk.reduce((acc, curr) => acc + curr.val, 0);
+        const sumCount = chunk.reduce((acc, curr) => acc + curr.count, 0);
+        const start = chunk[0].date.split('-').slice(1).reverse().join('/');
+        const end = chunk[chunk.length - 1].date.split('-').slice(1).reverse().join('/');
+        
+        grouped.push({
+          label: `${start} - ${end}`,
+          val: sumVal,
+          count: sumCount,
+          tooltipTitle: `Từ ${start} đến ${end}`
+        });
+      }
+      return grouped;
+    } 
+    // 3. Khoảng thời gian > 60 ngày: Nhóm theo Tháng
+    else {
+      const monthMap = {};
+      normalized.forEach(d => {
+        const parts = d.date.split('-'); 
+        let monthKey = "Khác";
+        if (parts.length >= 2) monthKey = `${parts[1]}/${parts[0]}`; // MM/YYYY
+
+        if (!monthMap[monthKey]) {
+          monthMap[monthKey] = { label: `T${parts[1]}`, val: 0, count: 0, tooltipTitle: `Tháng ${monthKey}` };
+        }
+        monthMap[monthKey].val += d.val;
+        monthMap[monthKey].count += d.count;
+      });
+      return Object.values(monthMap);
+    }
+  }, [dashboardData?.exportTrend]);
 
 
   // ==========================================
@@ -599,49 +658,50 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                     </h3>
                     <span className="ck-text-xs ck-text-gray-500 ck-font-mono">Xu hướng các ngày gần đây</span>
                   </div>
-                  
-                  <div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-end ck-justify-between ck-p-4 ck-gap-2 ck-h-[250px]">
-  {dashboardData?.exportTrend?.length > 0 ? (
-    dashboardData.exportTrend.map((day, i) => {
-      // 💡 SỬA Ở ĐÂY: Lấy dữ liệu linh hoạt, hỗ trợ cả key cũ và key mới từ API
-      const val = Number(day.revenue || day.exportValue || day.totalValue || 0);
-      const count = Number(day.orderCount || day.totalOrders || 0);
-      const dateStr = day.date || day.timeLabel || "";
-      
-      // Tính toán chiều cao linh hoạt dựa trên val
-      const maxVal = Math.max(...dashboardData.exportTrend.map(d => Number(d.revenue || d.exportValue || d.totalValue || 0))) || 1;
-      const heightPercent = val > 0 ? Math.max((val / maxVal) * 100, 5) : 0;
+<div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-end ck-justify-between ck-p-3 ck-gap-2 ck-h-[280px] ck-mt-4 ck-overflow-hidden">
+  {chartData.length > 0 ? (
+    chartData.map((item, i) => {
+      // Tính toán phần trăm chiều cao của cột
+      const maxVal = Math.max(...chartData.map(d => d.val)) || 1;
+      const heightPercent = item.val > 0 ? Math.max((item.val / maxVal) * 100, 5) : 0;
       
       return (
-        <div key={i} className="ck-flex ck-flex-col ck-items-center ck-flex-1 ck-h-full ck-justify-end ck-relative ck-group">
-          {/* Tooltip khi hover */}
-          <div className="ck-opacity-0 group-hover:ck-opacity-100 ck-transition-opacity ck-bg-gray-800 ck-text-white ck-text-xs ck-p-2 ck-rounded-lg ck-mb-2 ck-absolute ck--top-12 ck-whitespace-nowrap ck-z-10 ck-border ck-border-gray-700 ck-pointer-events-none ck-text-center shadow-lg">
-            <span className="ck-font-bold ck-text-blue-400">{val.toLocaleString()}đ</span>
-            <br/>
-            <span className="ck-text-gray-400">{count} đơn</span>
+        // Thêm ck-pt-14 (padding top) để tạo trần nhà vĩnh viễn cho hộp đen
+        <div key={i} className="ck-flex ck-flex-col ck-items-center ck-flex-1 ck-h-full ck-justify-end ck-relative ck-pt-14">
+          
+          {/* 1. HỘP NHÃN CỐ ĐỊNH Ở TRÊN CÙNG (Nằm trọn trong vùng ck-pt-14) */}
+          <div 
+            className="ck-absolute ck-top-0 ck-left-1/2 ck--translate-x-1/2 ck-w-[95%] ck-max-w-[65px] ck-bg-gray-800 ck-border ck-border-gray-600 ck-rounded-lg ck-py-1.5 ck-px-1 ck-flex ck-flex-col ck-items-center ck-justify-center ck-z-10 shadow-md"
+            style={{ minHeight: '48px' }}
+          >
+            <span className="ck-text-blue-400 ck-font-bold ck-text-[10px] xl:ck-text-[11px] ck-truncate ck-w-full ck-text-center">
+              {item.val > 0 ? `${(item.val / 1000).toLocaleString()}k` : '0đ'}
+            </span>
+            <span className="ck-text-gray-400 ck-text-[9px] ck-mt-0.5">
+              {item.count} đơn
+            </span>
           </div>
           
-          {/* Cột biểu đồ */}
+          {/* 2. CỘT BIỂU ĐỒ (Chỉ mọc trong phần không gian còn lại) */}
           <div className="ck-w-full ck-flex-1 ck-flex ck-flex-col ck-justify-end ck-items-center">
-            <span className="ck-text-[10px] ck-text-blue-400 ck-font-bold ck-mb-1 ck-text-center">
-              {val > 0 ? `${(val / 1000).toLocaleString()}k` : ""}
-            </span>
-            
             <div 
-              className="ck-w-full ck-max-w-[40px] ck-rounded-t-md ck-cursor-pointer hover:ck-opacity-80 ck-transition-all"
+              className="ck-w-full ck-max-w-[40px] ck-rounded-t-sm ck-transition-all"
               style={{ 
                 height: `${heightPercent}%`, 
-                minHeight: val > 0 ? '10px' : '0px',
-                background: val > 0 ? 'linear-gradient(to top, #2563eb, #60a5fa)' : 'transparent'
+                minHeight: item.val > 0 ? '4px' : '0px',
+                background: item.val > 0 ? '#3b82f6' : 'transparent' 
               }}
-              title={`Ngày: ${dateStr}\nGiá trị: ${val.toLocaleString()}đ`}
             ></div>
           </div>
           
-          {/* Ngày tháng dưới chân cột */}
-          <div className="ck-h-8 ck-w-full ck-flex ck-items-center ck-justify-center ck-border-t ck-border-gray-700 ck-mt-2">
-            <span className="ck-text-[10px] ck-text-gray-500 ck-font-mono">
-              {dateStr ? dateStr.split('-').slice(1).join('/') : ''}
+          {/* 3. TRỤC NGÀY THÁNG Ở DƯỚI CÙNG */}
+          <div className="ck-h-8 ck-w-full ck-flex ck-items-center ck-justify-center ck-border-t ck-border-gray-700 ck-mt-2 ck-pt-2">
+            <span 
+              className="ck-text-gray-400 ck-font-medium ck-truncate" 
+              title={item.label}
+              style={{ fontSize: item.label.length > 5 ? '9px' : '11px' }} 
+            >
+              {item.label}
             </span>
           </div>
 
