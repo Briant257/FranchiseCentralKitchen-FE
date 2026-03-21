@@ -1571,6 +1571,7 @@ const api = {
   getRecipeOfProduct: (pId) => request(`/api/formulas/${pId}`),
   saveRecipe: (b) => request("/api/formulas", { method: "POST", body: JSON.stringify(b) }),
   deleteRecipe: (productId) => request(`/api/formulas/${productId}`, { method: "DELETE" }),
+  getReportedShipments: async () => toArray(await request("/api/shipments/reported")),
 
   exportAnalyticsCSV: async (startDate, endDate) => {
     try {

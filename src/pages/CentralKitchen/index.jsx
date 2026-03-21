@@ -28,6 +28,9 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showManualCookModal, setShowManualCookModal] = useState(false);
   const [manualCookData, setManualCookData] = useState({ productId: "", quantity: "", note: "" });
 
+  // STATE: SỰ CỐ & KHIẾU NẠI (GIAI ĐOẠN 4)
+  const [reportedShipments, setReportedShipments] = useState([]);
+
   // STATE: BÁO CÁO HAO HỤT
   const [showWastageModal, setShowWastageModal] = useState(false);
   const [wastageData, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
@@ -69,15 +72,29 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
+  // HÀM: DUYỆT ĐỀN BÙ VÀ TẠO ĐƠN BÙ (COMP-xxx)
+  const handleResolveReplacement = async (shipId) => {
+    if (window.confirm(`Xác nhận duyệt đền bù cho chuyến xe ${shipId} và tự động lên mẻ nấu bù?`)) {
+      try {
+        await api.resolveReplacement(shipId);
+        alert("✅ Đã tạo đơn bù (COMP-xxx) thành công. Hãy qua Tab 'Đơn' để tiến hành nấu!");
+        loadData(); // Tải lại toàn bộ dữ liệu để cập nhật mẻ nấu mới và xóa sự cố khỏi danh sách
+      } catch (err) {
+        alert("❌ Lỗi duyệt đền bù: " + (err.message || "Vui lòng thử lại"));
+      }
+    }
+  };
+
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [runsData, catsData, prodsData, ingsData] =
+      const [runsData, catsData, prodsData, ingsData, reportedData] =
         await Promise.all([
           api.getProductionRuns().catch(() => []),
           api.getCategories().catch(() => []),
           api.getProducts().catch(() => []),
-          api.getIngredients().catch(() => [])
+          api.getIngredients().catch(() => []),
+          api.getReportedShipments().catch(() => []) 
         ]);
 
       // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
@@ -116,6 +133,8 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
       setCategories(Array.isArray(catsData) ? catsData : []);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
+      // SET STATE CHO DANH SÁCH SỰ CỐ
+      setReportedShipments(Array.isArray(reportedData) ? reportedData : []);
 
       // Map dữ liệu thực tế từ Database cho Nguyên liệu
       const mappedIngredients = (Array.isArray(ingsData) ? ingsData : []).map(
@@ -438,7 +457,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         {/* LEFT SIDEBAR */}
         <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col ck-justify-between" style={{ width: "20%", flexShrink: 0 }}>
           <ul className="ck-space-y-2 ck-flex-1 ck-mt-2" style={{ listStyleType: "none", padding: 0, margin: 0 }}>
-            {["Tổng Quan", "Đơn"].map((item, idx) => (
+            {["Tổng Quan", "Đơn", "Sự Cố"].map((item, idx) => (
               <li key={idx}>
                 <button
                   type="button"
@@ -904,14 +923,82 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
             </div>
           )}
 
+          {/* ======================= TAB SỰ CỐ - XỬ LÝ KHIẾU NẠI ======================= */}
+          {activeKitchenTab === "Sự Cố" && (
+            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
+              <div className="ck-flex ck-justify-between ck-items-center">
+                <div>
+                  <h2 className="ck-text-2xl ck-font-black ck-text-white">Xử lý Sự cố & Khiếu nại</h2>
+                  <p className="ck-text-sm ck-text-gray-400 mt-1">Duyệt thiếu hàng từ Cửa hàng báo về để lên đơn bù (COMP)</p>
+                </div>
+                <button
+                  onClick={loadData} disabled={isRefreshing}
+                  className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-flex ck-items-center ck-gap-2"
+                >
+                  {isRefreshing ? "⏳ Đang tải..." : "🔄 Làm mới"}
+                </button>
+              </div>
+
+              <div className="ck-grid ck-grid-cols-2 ck-gap-6">
+                {reportedShipments.length === 0 ? (
+                  <div className="ck-col-span-2 ck-bg-green-500/10 ck-border ck-border-green-500/30 ck-rounded-2xl ck-p-8 ck-text-center">
+                    <span className="ck-text-4xl">🎉</span>
+                    <h3 className="ck-text-lg ck-font-bold ck-text-green-400 ck-mt-2">Mọi thứ đang hoàn hảo!</h3>
+                    <p className="ck-text-gray-400">Không có cửa hàng nào báo thiếu hàng hay sự cố giao nhận.</p>
+                  </div>
+                ) : (
+                  reportedShipments.map((issue, idx) => (
+                    <div key={issue.shipmentId || idx} className="ck-bg-red-900/10 ck-border ck-border-red-500/30 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col ck-card-hover">
+                      <div className="ck-flex ck-justify-between ck-items-start ck-mb-4">
+                        <div>
+                          <h3 className="ck-text-lg ck-font-bold ck-text-white">{issue.storeName}</h3>
+                          <p className="ck-text-sm ck-text-gray-400">
+                            Mã chuyến: <span className="ck-text-blue-400 ck-font-mono ck-font-bold">{issue.shipmentId}</span>
+                          </p>
+                        </div>
+                        <span className="ck-bg-red-500/20 ck-text-red-400 ck-px-3 ck-py-1 ck-rounded-lg ck-text-xs ck-font-bold ck-animate-pulse">
+                          {issue.status === "ISSUE_REPORTED" ? "⚠️ THIẾU HÀNG" : issue.status}
+                        </span>
+                      </div>
+
+                      <div className="ck-bg-gray-900 ck-rounded-xl ck-p-4 ck-mb-4 ck-flex-1 ck-border ck-border-gray-800">
+                        <p className="ck-text-xs ck-text-gray-500 ck-uppercase ck-font-bold ck-mb-2">Chi tiết hàng thiếu:</p>
+                        <ul className="ck-space-y-3">
+                          {(issue.missingItems || []).map((item, i) => (
+                            <li key={i} className="ck-flex ck-justify-between ck-items-center ck-text-sm ck-border-b ck-border-gray-800 ck-pb-2 last:ck-border-0 last:ck-pb-0">
+                              <span className="ck-text-gray-300">
+                                {item.productName}
+                                {item.issueNote && (
+                                  <span className="ck-block ck-text-[11px] ck-text-red-400 italic ck-mt-0.5">💬 "{item.issueNote}"</span>
+                                )}
+                              </span>
+                              <span className="ck-bg-red-500/10 ck-text-red-400 ck-px-2 ck-py-1 ck-rounded ck-font-black">
+                                -{item.missingQuantity}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <button
+                        onClick={() => handleResolveReplacement(issue.shipmentId)}
+                        className="ck-w-full ck-bg-red-600 hover:ck-bg-red-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors shadow-lg shadow-red-500/20"
+                      >
+                        🚀 Duyệt đền bù & Lên mẻ nấu
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
       {/* ====================================================================== */}
       {/* CÁC MODALS TRỢ NĂNG XUẤT HIỆN KHI CẦN                                  */}
       {/* ====================================================================== */}
-      
-      {/* MODAL NHẬP KHO ĐÃ ĐƯỢC XÓA Ở ĐÂY */}
 
       {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU */}
       {showAggModal && (
