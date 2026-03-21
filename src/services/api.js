@@ -462,10 +462,8 @@ const auth = {
   cancelOrder: (id) => request(`/api/orders/${id}/cancel`, { method: "PUT" }),
 
   // --- Công thức (BOM) ---
-  // --- Công thức (FORMULA - Cập nhật API mới) ---
 
   /** Lấy toàn bộ công thức (dùng cho màn hình quản lý/ADMIN). */
-  // Giả định backend có API GET /api/formulas để lấy danh sách
   getManagerRecipes: async () => toArray(await request("/api/formulas")),
 
   /** Xem Công Thức của 1 sản phẩm theo productId. GET /api/formulas/{productId} */
@@ -474,8 +472,6 @@ const auth = {
   /**
    * Lưu / Cập nhật Công thức (Upsert).
    * POST /api/formulas
-   * body ví dụ:
-   * { productId: "PRD_GA_RAN", ingredients: [{ ingredientId: "ING_THIT_GA", amountNeeded: 0.25 }] }
    */
   saveRecipe: (b) =>
     request("/api/formulas", { method: "POST", body: JSON.stringify(b) }),
@@ -485,10 +481,6 @@ const auth = {
     request(`/api/formulas/${productId}`, { method: "DELETE" }),
 
 
-  /**
-   * Lưu / Cập nhật Công thức (Upsert). POST /api/formulas
-   * Body: { productId, ingredients: [{ ingredientId, amountNeeded }] }
-   */
   upsertFormula: (body) =>
     request("/api/formulas", {
       method: "POST",
@@ -500,9 +492,7 @@ const auth = {
         })),
       }),
     }),
-  /** Xem công thức theo productId. GET /api/formulas/{productId} */
   getFormula: (productId) => request(`/api/formulas/${productId}`),
-  /** Xóa công thức. DELETE /api/formulas/{productId} */
   deleteFormula: (productId) =>
     request(`/api/formulas/${productId}`, { method: "DELETE" }),
 
@@ -515,20 +505,19 @@ const auth = {
     }),
   cook: (b) =>
     request("/api/kitchen/cook", { method: "POST", body: JSON.stringify(b) }),
-  getActiveProductions: async () => api.getProductionRuns(), // Trỏ chung về 1 hàm cho đồng bộ
+  getActiveProductions: async () => api.getProductionRuns(),
   getProductionRuns: async () => {
     try {
       const res = await request("/api/kitchen/productions/active");
       const list = Array.isArray(res) ? res : (res?.data ?? []);
 
-      // Phiên dịch (Map) dữ liệu từ Backend sang Frontend
       return list.map(run => ({
-        id: run.runId || run.id || Math.random().toString(), // Tránh lỗi thiếu key
+        id: run.runId || run.id || Math.random().toString(),
         name: run.productName || run.name || "Mẻ nấu chưa có tên",
         status: run.status || "PENDING",
         totalQty: Number(run.plannedQty || run.totalQty || 0),
-        cookedQty: Number(run.cookedQty || 0), // Nếu DB chưa có thực tế nấu được bao nhiêu thì set = 0
-        details: run.details || [] // Giữ lại chi tiết các cửa hàng nếu có
+        cookedQty: Number(run.cookedQty || 0),
+        details: run.details || []
       }));
     } catch (error) {
       console.error("Lỗi lấy danh sách mẻ nấu:", error);
@@ -578,7 +567,6 @@ const auth = {
     return request("/api/auth/check-me", { method: "GET" });
   },
   getRevenueAnalytics: () => request("/api/manager/analytics/revenue"),
-  // Thay vì trả về [], mình lấy list sản phẩm để tính giá vốn
 
   // --- Báo cáo ---
   getReports: async () => toArray(await request("/api/reports")),
@@ -594,7 +582,6 @@ const auth = {
 
 // --- Products & Categories ---
 
-/** Map Product/response sang UI: productId, productName, categoryId, categoryName, sellingPrice, baseUnit, isActive. */
 function mapProduct(p) {
   return {
     id: p.productId || p.id,
@@ -616,11 +603,6 @@ function mapProduct(p) {
 }
 
 const productsApi = {
-  /**
-   * Lấy danh sách sản phẩm. GET /api/products (không body)
-   * Response: { totalItems, data: [...], totalPages, currentPage }
-   * Mỗi phần tử trong data: { productId, productName, categoryId, categoryName, sellingPrice, baseUnit, active }
-   */
   async getList(params = {}) {
     const q = new URLSearchParams();
     if (params.page != null) q.set("page", params.page);
@@ -639,10 +621,6 @@ const productsApi = {
     return (list || []).map(mapProduct);
   },
 
-  /**
-   * Tạo sản phẩm kèm công thức (admin). Request: { productId, productName, categoryId, sellingPrice, baseUnit, isActive, ingredients: [{ ingredientId, amountNeeded }] }.
-   * Response: { productId, productName, categoryId, categoryName, sellingPrice, baseUnit, isActive }.
-   */
   async create(body) {
     const res = await request("/api/products", {
       method: "POST",
@@ -664,10 +642,6 @@ const productsApi = {
 };
 
 const categoriesApi = {
-  /**
-   * Danh sách danh mục sản phẩm. GET /api/categories
-   * Hỗ trợ: mảng trực tiếp, hoặc { data }, { content }, { categories }.
-   */
   async getList() {
     try {
       const res = await request("/api/categories");
@@ -687,11 +661,6 @@ const categoriesApi = {
     }
   },
 
-  /**
-   * Tạo danh mục sản phẩm. POST /api/categories
-   * Request: { name, description }
-   * Response: { id, name, description }
-   */
   async create(body) {
     return request("/api/categories", {
       method: "POST",
@@ -706,7 +675,6 @@ const categoriesApi = {
 // --- Ingredients & Inventory ---
 
 const ingredientsApi = {
-  /** Danh sách nguyên liệu. GET /api/ingredients → [{ ingredientId, version, name, kitchenStock, unit, unitCost, minThreshold }] */
   async getList() {
     try {
       const res = await request("/api/ingredients");
@@ -716,17 +684,10 @@ const ingredientsApi = {
     }
   },
 
-
-  /** Chi tiết nguyên liệu. GET /api/ingredients/{id} */
   async getById(id) {
     return request(`/api/ingredients/${encodeURIComponent(id)}`);
   },
 
-  /**
-   * Tạo nguyên liệu. POST /api/ingredients
-   * Body: { name, kitchenStock, unit, unitCost, minThreshold }
-   * Response: { ingredientId, version, name, kitchenStock, unit, unitCost, minThreshold }
-   */
   async create(body) {
     return request("/api/ingredients", {
       method: "POST",
@@ -740,10 +701,6 @@ const ingredientsApi = {
     });
   },
 
-  /**
-   * Cập nhật nguyên liệu. PUT /api/ingredients/{id}
-   * Body: { name, ingredientName, unit, price, unitCost, stockQuantity, kitchenStock, minThreshold, description? }
-   */
   async update(id, body) {
     return request(`/api/ingredients/${encodeURIComponent(id)}`, {
       method: "PUT",
@@ -763,10 +720,6 @@ const ingredientsApi = {
 };
 
 const inventoryApi = {
-  /**
-   * Nhập kho (admin + manager). Request: { note, supplierId, items: [{ ingredientId, unit, quantity, importPrice }] }.
-   * Response: Phiếu nhập kho chi tiết (ticketId, importDate, note, totalAmount, status, createdByName, items).
-   */
   async import(body) {
     return request("/api/inventory/import", {
       method: "POST",
@@ -787,10 +740,6 @@ const inventoryApi = {
 // --- Kitchen ---
 
 const kitchenApi = {
-  /**
-   * Nấu thành phẩm (admin). Request: { productId, quantity, note }.
-   * Response: { runId, productName, plannedQty, status, productionDate }.
-   */
   async cook(body) {
     return request("/api/kitchen/cook", {
       method: "POST",
@@ -835,7 +784,6 @@ const api = {
     return categoriesApi.getList();
   },
 
-  /** Danh sách đơn vị tính (Master Data). GET /api/common/units */
   async getCommonUnits() {
     try {
       const res = await request("/api/common/units");
@@ -854,11 +802,6 @@ const api = {
     }
   },
 
-  /**
-   * Lấy danh sách tất cả cửa hàng — dùng cho Bảng (Table) và Dropdown trong Admin.
-   * GET /api/stores/all
-   * Response: Array<{ storeId, name, address, phone, type, isActive }>
-   */
   async getStoresAll() {
     try {
       const res = await request("/api/stores/all");
@@ -872,11 +815,6 @@ const api = {
     }
   },
 
-  /**
-   * Lấy danh sách tiệm đang trống Quản lý.
-   * GET /api/stores/empty-stores
-   * Response: Array<{ storeId, name, address, phone, type, isActive }>
-   */
   async getEmptyStores() {
     try {
       const res = await request("/api/stores/empty-stores");
@@ -890,15 +828,6 @@ const api = {
     }
   },
 
-  /**
-   * Tạo cửa hàng mới. POST /api/stores
-   * @typedef {Object} StoreRequest
-   * @property {string} name - Tên cửa hàng (vd: "Cửa hàng Quận 1 - Chi nhánh A")
-   * @property {string} address - Địa chỉ (vd: "123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM")
-   * @property {string} phone - Số điện thoại (vd: "0901234567")
-   * @property {string} type - Loại: "FRANCHISE" | "FLAGSHIP" | "KIOSK"
-   * Ví dụ: { "name": "Cửa hàng Quận 1 - Chi nhánh A", "address": "123 Lê Lợi...", "phone": "0901234567", "type": "FRANCHISE" }
-   */
   createStore(b) {
     const body = {
       name: (b.name ?? "").trim(),
@@ -912,9 +841,6 @@ const api = {
     });
   },
 
-  /**
-   * Cập nhật cửa hàng. PUT /api/stores/{id} — Body: StoreRequest (name, address, phone, type)
-   */
   updateStore(id, b) {
     const body = {
       name: (b.name ?? "").trim(),
@@ -932,13 +858,6 @@ const api = {
     return request(`/api/stores/${id}`, { method: "DELETE" });
   },
 
-  /**
-   * Đóng/mở cửa hàng (Admin).
-   * PUT /api/store/settings/{storeId}/active
-   * Body: { "isActive": true | false }
-   * @param {string} storeId - Mã cửa hàng
-   * @param {boolean} isActive - true = mở, false = đóng
-   */
   async updateStoreActive(storeId, isActive) {
     const id = String(storeId ?? "").trim();
     if (!id) throw new Error("Không có mã cửa hàng.");
@@ -948,12 +867,6 @@ const api = {
     });
   },
 
-  /**
-   * Gán Quản lý cho cửa hàng.
-   * PUT /api/stores/{storeId}/assign-manager?accountId=...
-   * @param {string} storeId - Mã cửa hàng
-   * @param {string} accountId - Mã tài khoản (STORE_MANAGER) cần gán
-   */
   assignStoreManager(storeId, accountId) {
     const sid = String(storeId ?? "").trim();
     const aid = String(accountId ?? "").trim();
@@ -966,15 +879,6 @@ const api = {
     );
   },
 
-  // =========================================================
-  // STORE_MANAGER — Role: Quản lý cửa hàng
-  // 5.1 Giỏ hàng: add (POST), update (PUT), get (GET), remove (DELETE), checkout (POST)
-  // 5.2 Đơn hàng: DS đơn (GET), Chi tiết (GET /orders/{orderId}), Tạo nhanh (POST /standard|/urgent)
-  // 5.3 Nhận hàng: Báo thiếu/hỏng POST /api/shipments/{shipmentId}/report
-  // 5.4 Cài đặt tiệm: Xem/Sửa profile GET|PUT /api/store/settings/profile
-  // =========================================================
-
-  /** Xem giỏ hàng. GET /api/store/cart (5.1) */
   async getStoreCart() {
     try {
       const res = await request("/api/store/cart");
@@ -985,10 +889,6 @@ const api = {
     }
   },
 
-  /**
-   * Thêm món vào giỏ. POST /api/store/cart/add (5.1)
-   * Body: { productId, quantity } (quantity mặc định 1)
-   */
   addToStoreCart(body) {
     return request("/api/store/cart/add", {
       method: "POST",
@@ -999,10 +899,6 @@ const api = {
     });
   },
 
-  /**
-   * Sửa số lượng 1 món. PUT /api/store/cart/update (5.1)
-   * Body: { productId, quantity }
-   */
   updateStoreCartItem(body) {
     return request("/api/store/cart/update", {
       method: "PUT",
@@ -1013,17 +909,12 @@ const api = {
     });
   },
 
-  /** Xóa 1 món khỏi giỏ. DELETE /api/store/cart/remove/{productId} (5.1) */
   removeFromStoreCart(productId) {
     return request(`/api/store/cart/remove/${productId}`, {
       method: "DELETE",
     });
   },
 
-  /**
-   * Chốt đơn từ giỏ. POST /api/store/cart/checkout (5.1)
-   * Body: { orderType: "STANDARD", note?: string }
-   */
   checkoutStoreCart(body) {
     return request("/api/store/cart/checkout", {
       method: "POST",
@@ -1034,7 +925,6 @@ const api = {
     });
   },
 
-  /** Xem profile tiệm. GET /api/store/settings/profile (5.4) */
   async getStoreProfile() {
     try {
       const res = await request("/api/store/settings/profile");
@@ -1044,10 +934,6 @@ const api = {
     }
   },
 
-  /**
-   * Sửa profile tiệm. PUT /api/store/settings/profile (5.4)
-   * Body: { name, address, phone }
-   */
   updateStoreProfile(body) {
     return request("/api/store/settings/profile", {
       method: "PUT",
@@ -1070,24 +956,12 @@ const api = {
   importInventory: (body) => inventoryApi.import(body),
   cook: (body) => kitchenApi.cook(body),
 
-  /**
-   * Upsert công thức cho sản phẩm.
-   * AdminPage đang gọi api.upsertFormula({ productId, ingredients }).
-   * Mapping thẳng sang API backend: POST /api/formulas.
-   */
   upsertFormula: (body) =>
     request("/api/formulas", {
       method: "POST",
       body: JSON.stringify(body || {}),
     }),
 
-  // =========================================================
-  // Đơn hàng STORE_MANAGER (cửa hàng)
-  // =========================================================
-
-  /**
-   * Danh sách đơn hàng của tiệm. GET /api/store/orders (5.2)
-   */
   async getStoreOrders() {
     try {
       const res = await request("/api/store/orders");
@@ -1097,19 +971,10 @@ const api = {
     }
   },
 
-  /**
-   * Chi tiết đơn hàng. GET /api/store/orders/{orderId} (5.2)
-   */
   getStoreOrderDetail(orderId) {
     return request(`/api/store/orders/${orderId}`);
   },
 
-  /**
-
-   * Tạo đơn nhanh không qua giỏ. POST /api/store/orders/standard hoặc /urgent (5.2)
-   * Body: { deliveryDate, note?, items: [{ productId, quantity, price }] }
->>>>>>> 7607cd6dacecfcb14c31cbc25c21ae24d7c35f25
-   */
   createStoreOrder(body, orderType = "STANDARD") {
     const path =
       orderType === "URGENT"
@@ -1121,32 +986,10 @@ const api = {
     });
   },
 
-  // Giữ tương thích với code cũ: getOrders() trả danh sách đơn của tiệm
   async getOrders() {
     return this.getStoreOrders();
   },
 
-  /**
-   * Tạo tài khoản mới bởi Admin.
-   * POST /api/admin/register
-   *
-   * @typedef {Object} RegisterRequest
-   * @property {string} username - Tên đăng nhập (vd: "q1_store")
-   * @property {string} password - Mật khẩu (vd: "123")
-   * @property {string} fullName - Họ tên (vd: "Quản lý Quận 1")
-   * @property {string} role - Vai trò: "STORE_MANAGER" | "KITCHEN_MANAGER" | "ADMIN" | "MANAGER" | "COORDINATOR"
-   * @property {string} email - Email (vd: "quanlyq1@centralkitchen.com")
-   * @property {string} [storeId] - Mã cửa hàng, bắt buộc khi role = STORE_MANAGER (vd: "ST01")
-   * @property {string} [storeName] - Tên cửa hàng (tùy chọn)
-   *
-   * Ví dụ RegisterRequest:
-   * { "username": "q1_store", "password": "123", "fullName": "Quản lý Quận 1", "role": "STORE_MANAGER", "email": "quanlyq1@centralkitchen.com", "storeId": "ST01" }
-   *
-   * Response: AccountResponse (accountId, username, role, isActive, userId, fullName, email).
-   *
-   * @param {RegisterRequest & { name?: string }} data - Dữ liệu đăng ký (name được map sang fullName)
-   * @returns {Promise<string|object>}
-   */
   async createUser(data) {
     const raw = (data.role || "KITCHEN_MANAGER")
       .toUpperCase()
@@ -1157,7 +1000,6 @@ const api = {
         KITCHEN_STAFF: "KITCHEN_MANAGER",
         KITCHEN: "KITCHEN_MANAGER",
       }[raw] || raw;
-    /** @type {RegisterRequest} */
     const body = {
       username: (data.username ?? "").trim(),
       password: data.password ?? "",
@@ -1176,11 +1018,6 @@ const api = {
     return res.message ?? res.msg ?? res;
   },
 
-  /**
-   * Chuẩn hóa danh sách cửa hàng đang quản lý từ response account.
-   * Hỗ trợ: stores[], storeNames[], storeName (string).
-   * @returns {string} Chuỗi tên cửa hàng, phân cách bằng ", "
-   */
   resolveManagedStores(a) {
     if (!a) return "";
     const stores = a.stores;
@@ -1202,9 +1039,6 @@ const api = {
     return "";
   },
 
-  /**
-   * Danh sách tài khoản (AccountResponse): accountId, username, role, isActive, userId, fullName, email.
-   */
   async getUsers() {
     try {
       const list = await request("/api/admin/list-accounts");
@@ -1243,7 +1077,6 @@ const api = {
     }
   },
 
-  /** Chỉ tài khoản đang hoạt động (isActive = true). */
   async getActiveAccounts() {
     try {
       const list = await request("/api/admin/list-accounts/active");
@@ -1281,7 +1114,6 @@ const api = {
     }
   },
 
-  /** Chỉ tài khoản bị khóa / vô hiệu hóa (isActive = false). */
   async getInactiveAccounts() {
     try {
       const list = await request("/api/admin/list-accounts/inactive");
@@ -1319,20 +1151,6 @@ const api = {
     }
   },
 
-  /**
-   * Khóa / Mở khóa tài khoản (Admin).
-   * PUT /api/admin/accounts/{accountId}/status
-   * Body: { "isActive": true | false }
-   *
-   * Backend (Spring) cần:
-   * 1) SecurityConfig: requestMatchers PUT "/api/admin/accounts/{id}/status" với hasAuthority("ADMIN")
-   *    (Token role=ADMIN dùng hasAuthority; role=ROLE_ADMIN dùng hasRole("ADMIN"))
-   * 2) Controller: PutMapping "/accounts/{accountId}/status" với body DTO field isActive (boolean).
-   *
-   * @param {string} accountId - Mã tài khoản (UUID từ bảng accounts)
-   * @param {boolean} isActive - true = mở khóa, false = khóa
-   * @returns {Promise<object>} Response từ backend
-   */
   async updateAccountStatus(accountId, isActive) {
     const id = String(accountId ?? "").trim();
     if (!id) throw new Error("Không có mã tài khoản để cập nhật.");
@@ -1342,13 +1160,6 @@ const api = {
     });
   },
 
-  /**
-   * Cập nhật email tài khoản (Admin).
-   * PATCH /api/admin/accounts/{accountId}/email
-   * Body: { "email": "email_moi_tinh@gmail.com" }
-   * @param {string} accountId - Mã tài khoản (UUID)
-   * @param {object} data - { email }
-   */
   async updateAccount(accountId, data) {
     const id = String(accountId ?? "").trim();
     if (!id) throw new Error("Không có mã tài khoản.");
@@ -1360,12 +1171,6 @@ const api = {
     });
   },
 
-  /**
-   * Hoán đổi cửa hàng giữa 2 Quản lý (Admin).
-   * PUT /api/admin/accounts/swap-stores?accountId1=...&accountId2=...
-   * @param {string} accountId1 - Mã tài khoản 1 (STORE_MANAGER)
-   * @param {string} accountId2 - Mã tài khoản 2 (STORE_MANAGER)
-   */
   async swapStores(accountId1, accountId2) {
     const id1 = String(accountId1 ?? "").trim();
     const id2 = String(accountId2 ?? "").trim();
@@ -1379,12 +1184,6 @@ const api = {
     });
   },
 
-  /**
-   * Gán cửa hàng làm việc cho tài khoản (Admin).
-   * PATCH /api/admin/accounts/{accountId}/store?storeId=ST_001
-   * @param {string} accountId - Mã tài khoản (UUID)
-   * @param {string} storeId - Mã cửa hàng (vd: ST_001)
-   */
   async updateAccountStore(accountId, storeId) {
     const id = String(accountId ?? "").trim();
     if (!id) throw new Error("Không có mã tài khoản.");
@@ -1396,14 +1195,6 @@ const api = {
     );
   },
 
-  /**
-   * Thay đổi chức vụ tài khoản (Admin).
-   * PATCH /api/admin/accounts/{accountId}/role?roleName=...&storeId=...&replacementAccountId=...
-   * @param {string} accountId - Mã tài khoản (UUID)
-   * @param {string} roleName - ADMIN | MANAGER | COORDINATOR | KITCHEN_MANAGER | STORE_MANAGER
-   * @param {string} [storeId] - Mã cửa hàng (bắt buộc khi roleName = STORE_MANAGER)
-   * @param {string} [replacementAccountId] - Mã tài khoản thay thế (khi chuyển store manager sang role khác)
-   */
   async updateAccountRole(accountId, roleName, storeId, replacementAccountId) {
     const id = String(accountId ?? "").trim();
     if (!id) throw new Error("Không có mã tài khoản.");
@@ -1421,7 +1212,6 @@ const api = {
     );
   },
 
-  /** Lưu/cập nhật user (Admin): backend chưa có API bulk, giữ tương thích */
   async saveUsers(users) {
     return users;
   },
@@ -1433,20 +1223,11 @@ const api = {
     return [];
   },
 
-  /** Báo hoàn thành chuyến hàng. GET /api/shipments/{shipId}/report */
   async reportShipment(shipId) {
     const res = await request(`/api/shipments/${shipId}/report`);
     return res.message ?? res.msg ?? res;
   },
 
-  /**
-   * Store manager: Báo cáo thực giao. Request: { reportedItems: [{ productId, receivedQuantity, note }] }.
-   */
-
-  /**
-   * Báo cáo xe giao THIẾU/HỎNG hàng. POST /api/shipments/{shipmentId}/report (5.3)
-   * Body: { reportedItems: [{ productId, receivedQuantity, note }] }
-   */
   reportShipmentShortage(shipmentId, body) {
     return request(`/api/shipments/${shipmentId}/report`, {
       method: "POST",
@@ -1460,11 +1241,6 @@ const api = {
     });
   },
 
-  /**
-   * Chốt nhận ĐỦ HÀNG (STORE_MANAGER).
-   * PATCH /api/store/orders/{orderId}/confirm-receipt?updateStock=true
-   * Body: { note?: string }
-   */
   confirmOrderReceipt(orderId, body = {}, updateStock = true) {
     const q = new URLSearchParams();
     if (updateStock !== undefined) q.set("updateStock", String(updateStock));
@@ -1480,26 +1256,13 @@ const api = {
     });
   },
 
-  /**
-   * Phân tuyến tự động (admin). Request: { deliveryDate, maxOrdersPerTrip, maxUrgentPerTrip }.
-   * Response: { urgentOrders, standardOrders, urgentTripsCreated, standardTripsCreated, totalTripsCreated }.
-   */
-  // Sửa lại endpoint Phân tuyến tự động theo chuẩn RouteAllocationController
   autoRouting: async (body) => {
     return request("/api/logistics/allocate-routes", {
       method: "POST",
-      body: JSON.stringify(body || {}), // Hỗ trợ gửi body rỗng {} nếu muốn xếp tự động toàn bộ
+      body: JSON.stringify(body || {}),
     });
   },
 
-  // ====================================================================
-  // BỔ SUNG API: QUẢN LÝ (MANAGER) & BẾP TRUNG TĂM (CENTRAL KITCHEN)
-  // ====================================================================
-
-  // --- ANALYTICS (DASHBOARD) ---
-  /** * Lấy số liệu tổng quan Dashboard (API MỚI)
-   * Mapping với API: GET /api/manager/analytics/dashboard
-   */
   getManagerAnalytics: async (startDate, endDate) => {
     try {
       const q = new URLSearchParams();
@@ -1514,7 +1277,6 @@ const api = {
       return await request(path, { method: "GET" });
     } catch (error) {
       console.error("Lỗi lấy dữ liệu Analytics:", error);
-      // Trả về object rỗng với cấu trúc an toàn để UI không bị văng lỗi undefined
       return {
         totalExportValue: {},
         totalOrders: {},
@@ -1526,34 +1288,14 @@ const api = {
     }
   },
 
-  // Bạn có một hàm getRevenueAnalytics bị trùng chức năng, 
-  // hãy cập nhật luôn cho an toàn nếu có component nào đang gọi nhầm:
-  getRevenueAnalytics: async (startDate, endDate) => {
-    return api.getManagerAnalytics(startDate, endDate);
-  },
-
-  // --- QUẢN TRỊ ĐƠN HÀNG TRUNG TÂM (MANAGER/ADMIN) ---
-  /**
-   * Xem chi tiết một đơn hàng bất kỳ trong hệ thống
-   * Mapping với API: GET /api/orders/{orderId}
-   */
   getOrderDetails: async (orderId) => {
     return request(`/api/orders/${orderId}`, { method: "GET" });
   },
 
-  /**
-   * Quản lý hủy đơn hàng (Chỉ hủy khi trạng thái là NEW)
-   * Mapping với API: PUT /api/orders/{orderId}/cancel
-   */
   cancelManagerOrder: async (orderId) => {
     return request(`/api/orders/${orderId}/cancel`, { method: "PUT" });
   },
 
-  // --- QUẢN LÝ QUY ĐỔI ĐƠN VỊ (UNIT CONVERSION) ---
-  /**
-   * Tạo quy tắc quy đổi mới (Ví dụ: 1 Thùng = 10 Kg)
-   * Mapping với API: POST /api/manager/conversions
-   */
   createUnitConversion: async (body) => {
     return request("/api/manager/conversions", {
       method: "POST",
@@ -1561,10 +1303,6 @@ const api = {
     });
   },
 
-  /**
-   * Tính toán thử nghiệm quy đổi (Ví dụ: Test xem 5 Thùng là bao nhiêu Kg)
-   * Mapping với API: GET /api/manager/conversions/calculate?ingredientId=...&unit=...&quantity=...
-   */
   calculateConversion: async (ingredientId, unit, quantity) => {
     return request(
       `/api/manager/conversions/calculate?ingredientId=${ingredientId}&unit=${unit}&quantity=${quantity}`,
@@ -1574,11 +1312,13 @@ const api = {
     );
   },
 
-  // --- QUẢN LÝ HAO HỤT BẾP (WASTAGE) ---
-  /**
-   * Báo cáo hao hụt mẻ nấu, tự động hoàn trả/trừ kho nguyên liệu
-   * Mapping với API: POST /api/kitchen/wastage
-   */
+  submitStocktake: async (body) => {
+    return request("/api/inventory/stocktake", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   reportKitchenWastage: async (body) => {
     return request("/api/kitchen/wastage", {
       method: "POST",
@@ -1590,11 +1330,6 @@ const api = {
     });
   },
 
-  // --- LỆNH XUẤT BẾN (DISPATCH) ---
-  /**
-   * Quản lý/Điều phối viên bấm xuất bến cho chuyến xe
-   * Mapping với API: PATCH /api/logistics/shipments/{id}/dispatch
-   */
   dispatchShipment: async (shipmentId) => {
     return request(`/api/logistics/shipments/${shipmentId}/dispatch`, {
       method: "PATCH",
@@ -1609,18 +1344,13 @@ const api = {
     return res.message ?? res.msg ?? res;
   },
 
-  // ====================================================================
-  // BỔ SUNG CÁC HÀM BỊ THIẾU MÀ GIAO DIỆN MANAGER PAGE ĐANG GỌI
-  // ====================================================================
-
   getMasterProducts: async () => {
     try {
       const res = await request("/api/products");
       const list = Array.isArray(res) ? res : res?.data || [];
 
-      // Map dữ liệu từ Backend (camelCase) sang chuẩn giao diện (snake_case)
       return list.map((item) => ({
-        ...item, // Giữ lại các data gốc
+        ...item,
         product_id: item.productId || item.product_id || "",
         product_name: item.productName || item.product_name || "Chưa có tên",
         category: item.categoryName || item.category || "Chưa phân loại",
@@ -1638,15 +1368,12 @@ const api = {
       const res = await request("/api/ingredients");
       const list = Array.isArray(res) ? res : res?.data || [];
 
-      // Ép kiểu dữ liệu trả về khớp với các biến mà ManagerPage.js đang dùng
       return list.map((item) => ({
         ...item,
-        // DB là ingredient_id -> React cần item.ingredientId hoặc item.id
         ingredientId: item.ingredient_id || item.ingredientId || item.id,
-        // DB là name -> React cần item.ingredientName hoặc item.name
         ingredientName: item.name || item.ingredientName || item.name,
-        // Đơn vị gốc
         unit: item.unit || "KG",
+        stock: item.stock ?? item.kitchenStock ?? item.stockQuantity ?? item.quantity ?? 0,
       }));
     } catch (error) {
       console.error("Lỗi lấy kho:", error);
@@ -1654,7 +1381,6 @@ const api = {
     }
   },
 
-  // Trừ kho hàng loạt cho nhiều mẻ nấu cùng lúc
   updateBulkProductionStatus: async (runIds, status = "COMPLETED") => {
     return request(`/api/kitchen/productions/status/bulk?status=${status}`, {
       method: "PUT",
@@ -1662,23 +1388,27 @@ const api = {
     });
   },
 
-  // ĐÃ SỬA: Hàm `getKPIStats` map theo chuẩn API Dashboard mới
   getKPIStats: async (startDate, endDate) => {
     try {
-      // Gọi chung hàm getManagerAnalytics đã viết ở trên cho gọn
       const res = await api.getManagerAnalytics(startDate, endDate);
 
-      // Bọc fallback an toàn tránh lỗi
       const exportData = res.totalExportValue || {};
+      const importData = res.totalImportValue || {}; // MỚI
       const ordersData = res.totalOrders || {};
-      const wastageData = res.totalWastageValue || {};
+      const stocktakeData = res.totalStocktakeDiscrepancies || {}; // MỚI
 
       return [
         {
-          label: "Giá trị xuất kho",
+          label: "Doanh thu xuất kho",
           value: `${(exportData.currentValue || 0).toLocaleString()} ₫`,
           isUp: exportData.trend === "UP",
           change: `${exportData.growthPercentage || 0}%`
+        },
+        {
+          label: "Chi phí nhập hàng",
+          value: `${(importData.currentValue || 0).toLocaleString()} ₫`,
+          isUp: importData.trend === "UP",
+          change: `${importData.growthPercentage || 0}%`
         },
         {
           label: "Tổng đơn hàng",
@@ -1687,11 +1417,10 @@ const api = {
           change: `${ordersData.growthPercentage || 0}%`
         },
         {
-          label: "Giá trị hao hụt",
-          value: `${(wastageData.currentValue || 0).toLocaleString()} ₫`,
-          // Hao hụt tăng (UP) là biểu hiện xấu, bạn có thể cân nhắc đổi màu đỏ ở frontend
-          isUp: wastageData.trend === "UP",
-          change: `${wastageData.growthPercentage || 0}%`
+          label: "Số lần lệch kho",
+          value: stocktakeData.currentValue || 0,
+          isUp: stocktakeData.trend === "UP",
+          change: `${stocktakeData.growthPercentage || 0}%`
         }
       ];
     } catch (error) {
@@ -1701,25 +1430,8 @@ const api = {
   },
 
 
-  // 2 Mảng này Backend của bạn CHƯA CÓ API, mình cho trả về mảng rỗng [] trước để UI không bị crash (văng lỗi)
   getReports: async () => [],
 
-  // ĐÃ SỬA: Trả lại hàm mock Expenses fake để không bị lỗi .reduce() ở UI ManagerPage
-  getExpenses: async () => {
-    try {
-      const prods = await api.getProducts();
-      return prods.map((p) => ({
-        id: p.id || p.productId,
-        date: new Date().toISOString().split('T')[0],
-        supplier: "Kho trung tâm",
-        category: "Nhập nguyên liệu",
-        amount: p.price || p.sellingPrice || 0,
-        ref: "PO-MASTER",
-      }));
-    } catch { return []; }
-  },
-
-  // Các hàm Thêm/Sửa/Xóa từ giao diện Manager
   createMasterProduct: async (b) =>
     request("/api/products", { method: "POST", body: JSON.stringify(b) }),
   updateMasterProduct: async (id, b) =>
@@ -1731,25 +1443,17 @@ const api = {
     console.log("Chưa có API Report", b);
     return {};
   },
-  createExpense: async (b) => {
-    console.log("Chưa có API Expense", b);
-    return {};
-  },
 
-  // 1. Bổ sung các hàm lấy dữ liệu tổng bị thiếu
   getProductionRuns: async () =>
     toArray(await request("/api/kitchen/productions/active")),
 
   getKitchenAggregation: () => request("/api/kitchen/aggregation"),
-
-  // 2. Bổ sung các hàm thao tác Bếp & Đơn
 
   confirmAggregation: (b) =>
     request("/api/kitchen/aggregation/confirm", {
       method: "POST",
       body: JSON.stringify(b),
     }),
-  // Đã sửa lại đúng endpoint của kitchen và truyền status qua query params
   updateProductionRunStatus: (id, s) =>
     request(`/api/kitchen/productions/${id}/status?status=${s}`, {
       method: "PUT",
@@ -1760,11 +1464,10 @@ const api = {
   updateProductStatus: async (productId, isActive) => {
     return request(`/api/products/${productId}/status`, {
       method: "PUT",
-      body: JSON.stringify({ isActive: Boolean(isActive) }), // Hoặc gửi status tùy theo Backend expect
+      body: JSON.stringify({ isActive: Boolean(isActive) }),
     });
   },
 
-  // 3. Bổ sung các hàm CRUD cho Kho bếp
   updateCategory: (id, b) =>
     request(`/api/categories/${id}`, {
       method: "PUT",
@@ -1773,7 +1476,6 @@ const api = {
   updateProduct: (id, b) =>
     request(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(b) }),
 
-  // 4. Bổ sung các hàm thao tác Sự cố
   createIncident: (b) =>
     request("/api/incidents", { method: "POST", body: JSON.stringify(b) }),
   updateIncidentStatus: (id, s) =>
@@ -1782,16 +1484,13 @@ const api = {
       body: JSON.stringify({ status: s }),
     }),
 
-  // Cập nhật Cấu hình Hệ thống (System Config)
-  // Dùng dấu cộng nối chuỗi cho chắc ăn 100%, khỏi sợ lỗi format string
   updateSystemConfig: async (configKey, body) => {
     return request("/api/manager/configs/" + configKey, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
-  // 5. Cập nhật tên hàm báo cáo hao hụt
-  // (Trong component bạn gọi api.reportWastage, nên phải export đúng tên này)
+
   reportWastage: async (body) => {
     return request("/api/kitchen/wastage", {
       method: "POST",
@@ -1806,24 +1505,24 @@ const api = {
   markOrderPreparing: async (orderId) => {
     return request(`/api/orders/delivery/${orderId}/preparing`, {
       method: "POST",
-      // Thường API chuyển trạng thái không cần body, nếu BE yêu cầu thì thêm vào đây
       body: JSON.stringify({})
     });
   },
 
-  // Bổ sung: Quản lý cài đặt & trạng thái đóng/mở cửa hàng (StoreSettingsController)
-  updateStoreSettings: async (settingsData) => {
-    return request("/api/store/settings", {
-      method: "PUT",
-      body: JSON.stringify(settingsData), // Ví dụ truyền: { isActive: true }
+  markOrderReady: async (orderId) => {
+    return request(`/api/orders/delivery/${orderId}/ready`, {
+      method: "POST",
+      body: JSON.stringify({})
     });
   },
 
-  // ====================================================================
-  // BỔ SUNG API: ĐIỀU PHỐI CUNG ỨNG (COORDINATOR)
-  // ====================================================================
+  updateStoreSettings: async (settingsData) => {
+    return request("/api/store/settings", {
+      method: "PUT",
+      body: JSON.stringify(settingsData),
+    });
+  },
 
-  // 3.1. Chia Tuyến & Gom Xe (Gom xe tự động đã có ở autoRouting bên trên)
   getReadyOrders: async () => toArray(await request("/api/logistics/orders/ready")),
   manualAllocateRoutes: async (orderIds) => {
     return request("/api/logistics/orders/manual-allocate", {
@@ -1832,7 +1531,6 @@ const api = {
     });
   },
 
-  // 3.2. Điều Phối Tài Xế
   getDriverList: async () => toArray(await request("/api/logistics/orders/coordinators-list")),
   assignDriver: async (shipmentId, accountId) => {
     return request(`/api/shipments/${shipmentId}/assign`, {
@@ -1846,7 +1544,6 @@ const api = {
     });
   },
 
-  // 3.3. Tra cứu Lịch trình
   getActiveShipments: async () => toArray(await request("/api/logistics/orders/active")),
   getHistoryShipments: async () => toArray(await request("/api/logistics/orders/history")),
   getShipmentDetails: async (shipmentId) => {
@@ -1857,7 +1554,6 @@ const api = {
   getStoreHistoryForManager: (storeId) => request(`/api/orders/history?storeId=${storeId}`),
   getSystemConfigs: async () => {
     const res = await request("/api/manager/configs/map");
-    // Nếu res có thuộc tính data thì lấy data, không thì lấy chính nó
     return res?.data || res || {};
   },
   updateUnitConversion: (id, newFactor) =>
@@ -1878,13 +1574,11 @@ const api = {
 
   exportAnalyticsCSV: async (startDate, endDate) => {
     try {
-      // 1. Lấy token bằng hàm có sẵn trong file của bạn
       const token = storage.getToken();
       if (!token) {
         throw new Error("Không tìm thấy phiên đăng nhập!");
       }
 
-      // 2. Build URL động theo môi trường (giống cách bạn làm cũ)
       const q = new URLSearchParams();
       if (startDate) q.set("startDate", startDate);
       if (endDate) q.set("endDate", endDate);
@@ -1892,7 +1586,6 @@ const api = {
 
       const finalUrl = `${BASE_URL.replace(/\/$/, "")}/api/manager/analytics/export/csv${query ? `?${query}` : ""}`;
 
-      // 3. Dùng fetch gọi API kèm Token
       const response = await fetch(finalUrl, {
         method: 'GET',
         headers: {
@@ -1904,7 +1597,6 @@ const api = {
         throw new Error("Lỗi xác thực hoặc không tải được file từ Server!");
       }
 
-      // 4. Bọc dữ liệu thành Blob và tạo link tải ẩn
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
 
@@ -1913,9 +1605,8 @@ const api = {
       link.setAttribute('download', `Bao_Cao_Thong_Ke_${new Date().toISOString().split('T')[0]}.csv`);
 
       document.body.appendChild(link);
-      link.click(); // Giả lập click tải xuống
+      link.click();
 
-      // 5. Dọn dẹp rác trình duyệt
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
 

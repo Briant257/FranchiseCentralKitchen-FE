@@ -38,13 +38,12 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       return alert("Vui lòng chọn món và số lượng!");
     }
     try {
-      // Trong hàm handleManualCook sửa payload thành:
-const payload = {
-  productId: manualCookData.productId,
-  quantity: Number(manualCookData.quantity),
-  note: manualCookData.note || "",
-  status: "PENDING" // Ép trạng thái ban đầu
-};
+      const payload = {
+        productId: manualCookData.productId,
+        quantity: Number(manualCookData.quantity),
+        note: manualCookData.note || "",
+        status: "PENDING" // Ép trạng thái ban đầu
+      };
       await api.cook(payload);
       setShowManualCookModal(false);
       setManualCookData({ productId: "", quantity: "", note: "" });
@@ -69,14 +68,6 @@ const payload = {
       alert("Lỗi báo cáo hao hụt!");
     }
   };
-  // STATE: NHẬP KHO (IMPORT INVENTORY)
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importData, setImportData] = useState({
-    ingredientId: "",
-    quantity: "",
-    importPrice: "",
-    note: "",
-  });
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
@@ -90,33 +81,25 @@ const payload = {
         ]);
 
       // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
-      // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
-     // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
       const rawRuns = Array.isArray(runsData) ? runsData : (runsData?.data || []);
       const mappedRuns = rawRuns.map((run, idx) => {
         const rawBom = run.bom || run.ingredients || run.formula || [];
         
         // BƯỚC QUAN TRỌNG: CHUẨN HÓA TRẠNG THÁI (ÉP KIỂU)
         let currentStatus = String(run.status || "PENDING").toUpperCase();
-        // Nếu Backend trả về PLANNED, NEW, CREATED... thì ép về PENDING
         if (["PLANNED", "NEW", "CREATED", "WAITING", "TODO"].includes(currentStatus)) {
             currentStatus = "PENDING";
         } 
-        // Nếu Backend trả về IN_PROGRESS, PROCESSING... thì ép về COOKING
         else if (["IN_PROGRESS", "PROCESSING", "DOING", "COOKING"].includes(currentStatus)) {
             currentStatus = "COOKING";
         } 
-        // Nếu Backend trả về DONE, SUCCESS... thì ép về COMPLETED
         else if (["DONE", "FINISHED", "SUCCESS", "COMPLETED"].includes(currentStatus)) {
             currentStatus = "COMPLETED";
         }
 
         return {
           id: run.runId || run.id || `RUN_TEMP_${idx}`, 
-          
-          // SỬA DÒNG NÀY: Bắt thêm trường hợp Backend trả về product_id
           productId: run.productId || run.product_id || "", 
-          
           name: run.productName || run.name || "Đang tải tên món...", 
           status: currentStatus, 
           totalQty: Number(run.plannedQty || run.totalQty || 0), 
@@ -171,9 +154,6 @@ const payload = {
     completed: productionRuns.filter((r) => r.status === "COMPLETED").length,
   };
 
-  // ==========================================
-  // ĐÃ FIX 1: XỬ LÝ TRẠNG THÁI NẤU ĐÚNG API
-  // ==========================================
   const handleUpdateRunStatus = async (id, newStatus) => {
     try {
       await api.updateProductionRunStatus(id, newStatus);
@@ -182,7 +162,7 @@ const payload = {
       setErrorModal({ show: true, message: err.message || "Lỗi hệ thống khi cập nhật trạng thái!" });
     }
   };
-  // ĐÃ FIX 2: HÀM HOÀN THÀNH HÀNG LOẠT (BULK COMPLETE)
+
   const handleBulkComplete = async () => {
     const activeRuns = productionRuns.filter(r => r.status === "COOKING").map(r => r.id);
     if (activeRuns.length === 0) return alert("Không có mẻ nào đang nấu để chốt!");
@@ -198,7 +178,6 @@ const payload = {
     }
   };
 
-  // NÚT: GOM ĐƠN MỚI
   const handleOpenAggregation = async () => {
     try {
       const data = await api.getKitchenAggregation();
@@ -209,13 +188,11 @@ const payload = {
     }
   };
 
- // HÀM: CHỐT GOM ĐƠN & XUẤT KHO (1 CLICK ĂN TRỌN)
   const handleConfirmAggregation = async () => {
     try {
-      // FE chỉ cần gọi API này, không cần truyền payload phức tạp nếu BE không yêu cầu
       await api.confirmAggregation({}); 
       setShowAggModal(false);
-      loadData(); // Tải lại dữ liệu để cập nhật số lượng kho và trạng thái đơn
+      loadData();
       alert("✅ Đã chốt gom đơn, xuất kho và chuyển trạng thái sẵn sàng giao thành công!");
     } catch (err) {
       alert("❌ Lỗi chốt gom đơn, vui lòng thử lại sau!");
@@ -240,7 +217,6 @@ const payload = {
     id: "", name: "", category: "", price: "", stock: "", min: "", emoji: "🥪", baseUnit: "PHAN"
   });
 
-  // ĐÃ FIX 3: STATE CHO INGREDIENTS (NGUYÊN LIỆU)
   const [showAddIngredient, setShowAddIngredient] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState(null);
   const [newIngredient, setNewIngredient] = useState({
@@ -317,7 +293,6 @@ const payload = {
     }
   };
 
-  // HANDLER LƯU NGUYÊN LIỆU
   const handleSaveIngredient = async () => {
     if (!newIngredient.name || !newIngredient.unit) return alert("Vui lòng điền Tên và Đơn vị!");
     try {
@@ -342,7 +317,6 @@ const payload = {
     }
   };
 
-  // HANDLER XÓA NGUYÊN LIỆU
   const handleDeleteIngredient = async (ingId) => {
     if (window.confirm("Xóa nguyên liệu này khỏi hệ thống?")) {
       try {
@@ -354,56 +328,20 @@ const payload = {
     }
   };
 
-  // ---- XỬ LÝ NHẬP KHO (IMPORT INVENTORY) ----
-  const handleImportInventory = async () => {
-    if (!importData.ingredientId || !importData.quantity) {
-      return alert("Vui lòng chọn nguyên liệu và nhập số lượng!");
-    }
-    try {
-      const selectedIng = ingredients.find(i => String(i.id) === String(importData.ingredientId));
-      const unit = selectedIng ? selectedIng.unit : "KG";
-
-      const payload = {
-        note: importData.note || "Nhập kho đợt mới",
-        items: [
-          {
-            ingredientId: importData.ingredientId,
-            unit: unit.toUpperCase(),
-            quantity: Number(importData.quantity),
-            importPrice: Number(importData.importPrice || selectedIng?.unitCost || 0),
-          },
-        ],
-      };
-
-      await api.importInventory(payload);
-      setShowImportModal(false);
-      setImportData({ ingredientId: "", quantity: "", importPrice: "", note: "" });
-      loadData();
-      alert("✅ Nhập kho thành công!");
-    } catch (err) {
-      alert("Lỗi nhập kho: " + (err.message || "Kiểm tra lại kết nối"));
-    }
-  };
-
-  // Đóng các modal/form khi chuyển sub-tab
   const handleTabChange = (tab) => {
     setKitchenSubTab(tab);
     setShowAddCategory(false);
     setShowAddProduct(false);
     setShowAddIngredient(false);
   };
- // HÀM: XEM CÔNG THỨC (Tự động dò tìm ID nếu Backend giấu)
+
   const handleViewRecipe = async (run) => {
-    setSelectedRecipeRun(run); // Mở modal lên trước
+    setSelectedRecipeRun(run); 
     
-    // Nếu mẻ nấu chưa có công thức, bắt đầu đi lấy
     if (!run.bom || run.bom.length === 0) {
-      
-      // 1. TÌM ID MÓN ĂN: Lấy trực tiếp từ run, nếu không có thì dò trong danh sách products
       let pId = run.productId || run.product_id;
       
       if (!pId) {
-        // Dò ngược ID bằng tên món ăn
         const matchedProduct = products.find(p => p.name === run.name || p.productName === run.name);
         if (matchedProduct) {
             pId = matchedProduct.id || matchedProduct.productId;
@@ -416,11 +354,8 @@ const payload = {
         return;
       }
 
-      // 2. GỌI API LẤY CÔNG THỨC
       try {
         const recipeData = await api.getRecipeOfProduct(pId);
-        
-        // Hứng mọi trường hợp mảng mà Backend có thể trả về từ bảng formulas
         const rawBom = recipeData.ingredients || recipeData.items || recipeData.formulaItems || recipeData.bom || [];
         
         const mappedBom = rawBom.map(ing => ({
@@ -434,32 +369,27 @@ const payload = {
       } catch (err) {
         console.error("Lỗi tải công thức mẻ nấu:", err);
         
-        // 3. GIẢ LẬP NẾU BỊ CHẶN QUYỀN (LỖI 403)
         if (err.message.includes("quyền") || err.message.includes("403") || err.message.includes("Forbidden")) {
           console.warn("Backend đang cấm Bếp lấy công thức. Đổ dữ liệu giả lập để test UI...");
-          
-          // Tạo một công thức fake để giao diện hiển thị
           const mockBom = [
             { name: "Thịt / Gà (Nguyên liệu chính)", qtyPerItem: 0.25, unit: "KG" },
             { name: "Bột chiên / Gia vị", qtyPerItem: 0.05, unit: "KG" },
             { name: "Bao bì / Hộp giấy", qtyPerItem: 1, unit: "CÁI" }
           ];
-          
           setSelectedRecipeRun(prev => prev ? { ...prev, bom: mockBom } : prev);
-          
         } else {
-          // Báo lỗi thực tế nếu không phải lỗi 403
           alert("❌ Không thể tải công thức: " + err.message);
           setSelectedRecipeRun(null);
         }
       }
     }
   };
+
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6">
       <div className="ck-grain" />
 
-      {/* HEADER - Đã fix z-index = 50 để Menu Settings không bị đè */}
+      {/* HEADER */}
       <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-pb-4 ck-border-b ck-border-gray-800" style={{ zIndex: 50 }}>
         <div className="ck-flex ck-items-center ck-gap-4">
           <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
@@ -699,7 +629,7 @@ const payload = {
                       </>
                     )}
 
-                    {/* BẢNG NGUYÊN LIỆU (ĐÃ THÊM CRUD) */}
+                    {/* BẢNG NGUYÊN LIỆU (ĐÃ BỎ NÚT NHẬP KHO) */}
                     {kitchenSubTab === "ingredients" && (
                       <>
                         <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
@@ -716,13 +646,7 @@ const payload = {
                             >
                               + Thêm mới
                             </button>
-                            <button
-                              type="button"
-                              className="ck-btn ck-px-4 ck-py-2 ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none shadow-lg shadow-orange-500/30"
-                              onClick={() => setShowImportModal(true)}
-                            >
-                              📥 Nhập kho
-                            </button>
+                            {/* NÚT NHẬP KHO ĐÃ BỊ XOÁ TẠI ĐÂY */}
                           </div>
                         </div>
                         <table className="ck-w-full ck-text-left ck-border-collapse">
@@ -890,7 +814,6 @@ const payload = {
                   >
                     📦 Gom Đơn
                   </button>
-                  {/* ĐÃ FIX: THÊM NÚT HOÀN THÀNH HÀNG LOẠT BÊN CẠNH NÚT REFRESH */}
                   <button
                     onClick={handleBulkComplete}
                     className="ck-btn ck-px-4 ck-py-2 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none shadow-lg shadow-green-500/30 ck-flex ck-items-center ck-gap-2"
@@ -918,9 +841,9 @@ const payload = {
                           <div className="ck-flex ck-justify-between ck-items-start ck-mb-4">
                             <div className="ck-flex ck-items-center ck-gap-2">
                               <h3 className="ck-text-lg ck-font-bold ck-text-white">{run.name}</h3>
-                             <button onClick={() => handleViewRecipe(run)} className="ck-p-1.5 ck-bg-gray-800 ck-text-gray-400 hover:ck-text-blue-400 ck-rounded-lg ck-transition-colors ck-border-none ck-cursor-pointer" title="Xem công thức">
-  <Eye size={16} />
-</button>
+                              <button onClick={() => handleViewRecipe(run)} className="ck-p-1.5 ck-bg-gray-800 ck-text-gray-400 hover:ck-text-blue-400 ck-rounded-lg ck-transition-colors ck-border-none ck-cursor-pointer" title="Xem công thức">
+                                <Eye size={16} />
+                              </button>
 
                               {run.status === "COOKING" && (
                                 <button 
@@ -988,45 +911,7 @@ const payload = {
       {/* CÁC MODALS TRỢ NĂNG XUẤT HIỆN KHI CẦN                                  */}
       {/* ====================================================================== */}
       
-      {/* 1. MODAL NHẬP KHO */}
-      {showImportModal && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/80 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
-          <div className="ck-bg-gray-900 ck-border ck-border-orange-500 ck-rounded-2xl ck-p-8 ck-w-full ck-max-w-md ck-shadow-2xl">
-            <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-              <h2 className="ck-text-xl ck-font-black ck-text-white">Nhập Kho Tự Động</h2>
-              <button onClick={() => setShowImportModal(false)} className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-cursor-pointer">✕</button>
-            </div>
-            <div className="ck-space-y-4">
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Chọn Nguyên Liệu *</label>
-                <select value={importData.ingredientId} onChange={(e) => setImportData({ ...importData, ingredientId: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none">
-                  <option value="">-- Click để chọn --</option>
-                  {ingredients.map((ing) => (
-                    <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="ck-flex ck-gap-3">
-                <div className="ck-w-1/2">
-                  <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Số lượng nhập *</label>
-                  <input type="number" value={importData.quantity} onChange={(e) => setImportData({ ...importData, quantity: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none" placeholder="0" />
-                </div>
-                <div className="ck-w-1/2">
-                  <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Đơn giá nhập</label>
-                  <input type="number" value={importData.importPrice} onChange={(e) => setImportData({ ...importData, importPrice: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none" placeholder="(Tuỳ chọn)" />
-                </div>
-              </div>
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Ghi chú Phiếu nhập</label>
-                <input type="text" value={importData.note} onChange={(e) => setImportData({ ...importData, note: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none" placeholder="Ví dụ: Nhập hàng nhà cung cấp A..." />
-              </div>
-              <button onClick={handleImportInventory} className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-mt-2 shadow-lg shadow-orange-500/30">
-                Xác nhận Nhập kho
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL NHẬP KHO ĐÃ ĐƯỢC XÓA Ở ĐÂY */}
 
       {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU */}
       {showAggModal && (
@@ -1045,13 +930,12 @@ const payload = {
               <button onClick={() => setShowAggModal(false)} className="ck-w-full ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors ck-cursor-pointer">
                 Hủy
               </button>
-              {/* Nút bấm đã được cập nhật Text và gọi đúng hàm mới */}
-  <button 
-    onClick={handleConfirmAggregation} 
-    className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-orange-500/30"
-  >
-    Chốt Gom Đơn & Xuất Kho
-  </button>
+              <button 
+                onClick={handleConfirmAggregation} 
+                className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-orange-500/30"
+              >
+                Chốt Gom Đơn & Xuất Kho
+              </button>
   
             </div>
           </div>
@@ -1103,11 +987,11 @@ const payload = {
             </div>
             <div className="ck-p-6 ck-bg-gray-800/30 ck-rounded-b-2xl">
               <button 
-  onClick={() => setSelectedRecipeRun(null)} 
-  className="ck-w-full ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer"
->
-  Xác nhận & Đóng
-</button>
+                onClick={() => setSelectedRecipeRun(null)} 
+                className="ck-w-full ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer"
+              >
+                Xác nhận & Đóng
+              </button>
             </div>
           </div>
         </div>
