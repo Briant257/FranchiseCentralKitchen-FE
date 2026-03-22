@@ -31,10 +31,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   // STATE: SỰ CỐ & KHIẾU NẠI (GIAI ĐOẠN 4)
   const [reportedShipments, setReportedShipments] = useState([]);
 
-  // STATE: BÁO CÁO HAO HỤT
-  const [showWastageModal, setShowWastageModal] = useState(false);
-  const [wastageData, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
-
   // HÀM: TẠO MẺ CHỦ ĐỘNG
   const handleManualCook = async () => {
     if (!manualCookData.productId || !manualCookData.quantity) {
@@ -45,7 +41,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         productId: manualCookData.productId,
         quantity: Number(manualCookData.quantity),
         note: manualCookData.note || "",
-        status: "PENDING" // Ép trạng thái ban đầu
+        status: "PENDING"
       };
       await api.cook(payload);
       setShowManualCookModal(false);
@@ -58,27 +54,13 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  // HÀM: BÁO CÁO HAO HỤT
-  const handleReportWastage = async () => {
-    if (!wastageData.wasteQty) return alert("Vui lòng nhập số lượng hao hụt!");
-    try {
-      await api.reportWastage(wastageData);
-      setShowWastageModal(false);
-      setWastageData({ runId: "", runName: "", wasteQty: "", reason: "" });
-      loadData();
-      alert("✅ Đã ghi nhận báo cáo hao hụt!");
-    } catch (err) {
-      alert("Lỗi báo cáo hao hụt!");
-    }
-  };
-
   // HÀM: DUYỆT ĐỀN BÙ VÀ TẠO ĐƠN BÙ (COMP-xxx)
   const handleResolveReplacement = async (shipId) => {
     if (window.confirm(`Xác nhận duyệt đền bù cho chuyến xe ${shipId} và tự động lên mẻ nấu bù?`)) {
       try {
         await api.resolveReplacement(shipId);
         alert("✅ Đã tạo đơn bù (COMP-xxx) thành công. Hãy qua Tab 'Đơn' để tiến hành nấu!");
-        loadData(); // Tải lại toàn bộ dữ liệu để cập nhật mẻ nấu mới và xóa sự cố khỏi danh sách
+        loadData();
       } catch (err) {
         alert("❌ Lỗi duyệt đền bù: " + (err.message || "Vui lòng thử lại"));
       }
@@ -102,7 +84,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       const mappedRuns = rawRuns.map((run, idx) => {
         const rawBom = run.bom || run.ingredients || run.formula || [];
         
-        // BƯỚC QUAN TRỌNG: CHUẨN HÓA TRẠNG THÁI (ÉP KIỂU)
         let currentStatus = String(run.status || "PENDING").toUpperCase();
         if (["PLANNED", "NEW", "CREATED", "WAITING", "TODO"].includes(currentStatus)) {
             currentStatus = "PENDING";
@@ -130,13 +111,10 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         };
       });
       setProductionRuns(mappedRuns);
-
       setCategories(Array.isArray(catsData) ? catsData : []);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
-      // SET STATE CHO DANH SÁCH SỰ CỐ
       setReportedShipments(Array.isArray(reportedData) ? reportedData : []);
 
-      // Map dữ liệu thực tế từ Database cho Nguyên liệu
       const mappedIngredients = (Array.isArray(ingsData) ? ingsData : []).map(
         (ing) => {
           const currentStock = parseFloat(ing.kitchenStock ?? ing.kitchen_stock ?? 0);
@@ -223,135 +201,8 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     loadData();
   }, [loadData]);
 
-  // ==========================================
-  // FORMS CRUD (CATEGORY, PRODUCT & INGREDIENT)
-  // ==========================================
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [newCategoryName, setNewCategoryName] = useState("");
-
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [newProduct, setNewProduct] = useState({
-    id: "", name: "", category: "", price: "", stock: "", min: "", emoji: "🥪", baseUnit: "PHAN"
-  });
-
-  const [showAddIngredient, setShowAddIngredient] = useState(false);
-  const [editingIngredient, setEditingIngredient] = useState(null);
-  const [newIngredient, setNewIngredient] = useState({
-    id: "", name: "", unit: "KG", unitCost: "", minThreshold: ""
-  });
-
-  const handleSaveCategory = async () => {
-    if (!newCategoryName.trim()) return alert("Vui lòng nhập tên danh mục!");
-    try {
-      if (editingCategory) await api.updateCategory(editingCategory.id, { name: newCategoryName });
-      else await api.createCategory({ name: newCategoryName });
-      setShowAddCategory(false);
-      setNewCategoryName("");
-      loadData();
-    } catch (err) {
-      alert("Lỗi lưu danh mục!");
-    }
-  };
-
-  const handleDeleteCategory = async (catId) => {
-    if (window.confirm("Xóa danh mục này?")) {
-      try {
-        await api.deleteCategory(catId);
-        loadData();
-      } catch (e) {
-        alert("Lỗi xóa danh mục!");
-      }
-    }
-  };
-
-  const handleSaveProduct = async () => {
-    if (!newProduct.name || !newProduct.price) return alert("Vui lòng điền Tên và Giá!");
-    try {
-      const selectedCategory = categories.find((c) => c.name === newProduct.category);
-      const catId = selectedCategory ? selectedCategory.id : 1;
-      const apiPayload = {
-        productId: newProduct.id || `PRD_${Date.now().toString().slice(-6)}`,
-        productName: newProduct.name,
-        categoryId: catId,
-        sellingPrice: Number(newProduct.price),
-        baseUnit: newProduct.baseUnit || "PHAN", 
-        isActive: true,
-        emoji: newProduct.emoji,
-        ingredients: [],
-      };
-
-      if (editingProduct) {
-        const editId = editingProduct.productId || editingProduct.id;
-        await api.updateProduct(editId, apiPayload);
-        alert("✅ Sửa sản phẩm thành công!");
-      } else {
-        await api.createProduct(apiPayload);
-        alert("✅ Thêm sản phẩm thành công!");
-      }
-      setShowAddProduct(false);
-      loadData();
-    } catch (err) {
-      alert("Lỗi lưu sản phẩm!");
-    }
-  };
-
-  const handleDeleteProduct = async (prodId) => {
-    if (window.confirm("Xóa sản phẩm này (Xóa mềm)?")) {
-      try {
-        if(api.updateProductStatus) {
-            await api.updateProductStatus(prodId, false);
-        } else {
-            await api.deleteProduct(prodId);
-        }
-        loadData();
-      } catch (e) {
-        alert("Lỗi xóa sản phẩm!");
-      }
-    }
-  };
-
-  const handleSaveIngredient = async () => {
-    if (!newIngredient.name || !newIngredient.unit) return alert("Vui lòng điền Tên và Đơn vị!");
-    try {
-      const payload = {
-        name: newIngredient.name,
-        unit: newIngredient.unit,
-        unitCost: Number(newIngredient.unitCost) || 0,
-        minThreshold: Number(newIngredient.minThreshold) || 0,
-      };
-
-      if (editingIngredient) {
-        await api.updateIngredient(editingIngredient.id, payload);
-        alert("✅ Sửa nguyên liệu thành công!");
-      } else {
-        await api.createIngredient(payload);
-        alert("✅ Thêm nguyên liệu mới thành công!");
-      }
-      setShowAddIngredient(false);
-      loadData();
-    } catch (err) {
-      alert("Lỗi lưu nguyên liệu!");
-    }
-  };
-
-  const handleDeleteIngredient = async (ingId) => {
-    if (window.confirm("Xóa nguyên liệu này khỏi hệ thống?")) {
-      try {
-        await api.deleteIngredient(ingId);
-        loadData();
-      } catch (e) {
-        alert("Lỗi xóa nguyên liệu!");
-      }
-    }
-  };
-
   const handleTabChange = (tab) => {
     setKitchenSubTab(tab);
-    setShowAddCategory(false);
-    setShowAddProduct(false);
-    setShowAddIngredient(false);
   };
 
   const handleViewRecipe = async (run) => {
@@ -528,52 +379,26 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
 
                 <div className="ck-flex ck-gap-6 ck-items-start">
-                  <div className={`ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ${(showAddCategory || showAddProduct || showAddIngredient) ? "ck-w-2/3" : "ck-w-full"}`}>
+                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-w-full">
                     
                     {/* BẢNG DANH MỤC */}
                     {kitchenSubTab === "categories" && (
                       <>
                         <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
                           <h3 className="ck-text-xl ck-font-bold ck-text-white">Danh mục sản phẩm</h3>
-                          <button
-                            type="button"
-                            className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600"
-                            onClick={() => {
-                              setShowAddCategory(true);
-                              setEditingCategory(null);
-                              setNewCategoryName("");
-                            }}
-                          >
-                            + Thêm mới
-                          </button>
                         </div>
-                        <table className="ck-w-full ck-text-left ck-border-collapse">
+                        <table className="ck-w-full ck-text-center ck-border-collapse">
                           <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
                             <tr>
-                              <th className="ck-py-4 ck-px-6">STT</th>
-                              <th className="ck-py-4 ck-px-6">Tên danh mục</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Hành động</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">STT</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Tên danh mục</th>
                             </tr>
                           </thead>
                           <tbody className="ck-text-white ck-text-sm">
                             {categories.map((cat, idx) => (
                               <tr key={cat.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                                <td className="ck-py-4 ck-px-6 ck-text-gray-400">{idx + 1}</td>
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold">{cat.name}</td>
-                                <td className="ck-py-4 ck-px-6 ck-text-center">
-                                  <div className="ck-flex ck-justify-center ck-gap-3">
-                                    <button
-                                      onClick={() => {
-                                        setEditingCategory(cat); setShowAddCategory(true); setNewCategoryName(cat.name);
-                                      }}
-                                      className="ck-text-gray-400 hover:ck-text-white bg-transparent border-none cursor-pointer"
-                                    >✏️</button>
-                                    <button
-                                      onClick={() => handleDeleteCategory(cat.id)}
-                                      className="ck-text-red-500 hover:ck-text-red-400 bg-transparent border-none cursor-pointer"
-                                    >🗑️</button>
-                                  </div>
-                                </td>
+                                <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-text-center">{idx + 1}</td>
+                                <td className="ck-py-4 ck-px-6 ck-font-semibold ck-text-center">{cat.name}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -586,41 +411,27 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                       <>
                         <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
                           <h3 className="ck-text-xl ck-font-bold ck-text-white">Sản phẩm bếp trung tâm</h3>
-                          <button
-                            type="button"
-                            className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600"
-                            onClick={() => {
-                              setShowAddProduct(true);
-                              setEditingProduct(null);
-                              setNewProduct({ id: "", name: "", category: "", price: "", stock: "", min: "", emoji: "🥪", baseUnit: "PHAN" });
-                            }}
-                          >
-                            + Thêm mới
-                          </button>
                         </div>
-                        <table className="ck-w-full ck-text-left ck-border-collapse">
+                        <table className="ck-w-full ck-text-center ck-border-collapse">
                           <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
                             <tr>
-                              <th className="ck-py-4 ck-px-6">Mã</th>
-                              <th className="ck-py-4 ck-px-6">Sản phẩm</th>
-                              <th className="ck-py-4 ck-px-6">Giá</th>
-                              <th className="ck-py-4 ck-px-6">Tồn</th>
-                              <th className="ck-py-4 ck-px-6">Trạng thái</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Hành động</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Mã</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Sản phẩm</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Giá</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Trạng thái</th>
                             </tr>
                           </thead>
                           <tbody className="ck-text-white ck-text-sm">
                             {products.map((p) => (
                               <tr key={p.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                                <td className="ck-py-4 ck-px-6 ck-text-gray-400">{p.id}</td>
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold">
+                                <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-text-center">{p.id}</td>
+                                <td className="ck-py-4 ck-px-6 ck-font-semibold ck-text-center">
                                   {p.emoji} {p.name} <span className="ck-block ck-text-xs ck-text-gray-500">{p.category}</span>
                                 </td>
-                                <td className="ck-py-4 ck-px-6 ck-text-blue-400">{Number(p.price).toLocaleString()}₫</td>
-                                <td className="ck-py-4 ck-px-6">{p.stock}</td>
-                                <td className="ck-py-4 ck-px-6">
+                                <td className="ck-py-4 ck-px-6 ck-text-blue-400 ck-text-center">{Number(p.price).toLocaleString()}₫</td>
+                                <td className="ck-py-4 ck-px-6 ck-text-center">
                                   <span
-                                    className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ck-border ${
+                                    className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ck-border inline-block ${
                                       p.isActive 
                                         ? "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50" 
                                         : "ck-bg-red-500-20 ck-text-red-400 ck-border-red-500-50"
@@ -629,18 +440,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                     {p.isActive ? "Còn hàng" : "Hết hàng"}
                                   </span>
                                 </td>
-                                <td className="ck-py-4 ck-px-6 ck-text-center">
-                                  <div className="ck-flex ck-justify-center ck-gap-3">
-                                    <button
-                                      onClick={() => { setEditingProduct(p); setShowAddProduct(true); setNewProduct({...p, baseUnit: p.baseUnit || "PHAN"}); }}
-                                      className="ck-text-gray-400 hover:ck-text-white bg-transparent border-none cursor-pointer"
-                                    >✏️</button>
-                                    <button
-                                      onClick={() => handleDeleteProduct(p.id)}
-                                      className="ck-text-red-500 hover:ck-text-red-400 bg-transparent border-none cursor-pointer"
-                                    >🗑️</button>
-                                  </div>
-                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -648,51 +447,36 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                       </>
                     )}
 
-                    {/* BẢNG NGUYÊN LIỆU (ĐÃ BỎ NÚT NHẬP KHO) */}
+                    {/* BẢNG NGUYÊN LIỆU */}
                     {kitchenSubTab === "ingredients" && (
                       <>
                         <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
                           <h3 className="ck-text-xl ck-font-bold ck-text-white">Danh sách Nguyên liệu</h3>
-                          <div className="ck-flex ck-gap-3">
-                            <button
-                              type="button"
-                              className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600"
-                              onClick={() => {
-                                setShowAddIngredient(true);
-                                setEditingIngredient(null);
-                                setNewIngredient({ id: "", name: "", unit: "KG", unitCost: "", minThreshold: "" });
-                              }}
-                            >
-                              + Thêm mới
-                            </button>
-                            {/* NÚT NHẬP KHO ĐÃ BỊ XOÁ TẠI ĐÂY */}
-                          </div>
                         </div>
-                        <table className="ck-w-full ck-text-left ck-border-collapse">
+                        <table className="ck-w-full ck-text-center ck-border-collapse">
                           <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
                             <tr>
-                              <th className="ck-py-4 ck-px-6">Tên NL</th>
-                              <th className="ck-py-4 ck-px-6">Giá nhập</th>
-                              <th className="ck-py-4 ck-px-6">Định mức Min</th>
-                              <th className="ck-py-4 ck-px-6">Tồn kho thực tế</th>
-                              <th className="ck-py-4 ck-px-6">Trạng thái</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Hành động</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Tên NL</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Giá nhập</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Định mức Min</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Tồn kho thực tế</th>
+                              <th className="ck-py-4 ck-px-6 ck-text-center">Trạng thái</th>
                             </tr>
                           </thead>
                           <tbody className="ck-text-white ck-text-sm">
                             {ingredients.map((ing) => (
                               <tr key={ing.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold">{ing.name}</td>
-                                <td className="ck-py-4 ck-px-6 ck-text-blue-400">{ing.unitCost.toLocaleString()}₫</td>
-                                <td className="ck-py-4 ck-px-6 ck-text-gray-400">
+                                <td className="ck-py-4 ck-px-6 ck-font-semibold ck-text-center">{ing.name}</td>
+                                <td className="ck-py-4 ck-px-6 ck-text-blue-400 ck-text-center">{ing.unitCost.toLocaleString()}₫</td>
+                                <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-text-center">
                                   {ing.minThreshold} <span className="lowercase">{ing.unit}</span>
                                 </td>
-                                <td className="ck-py-4 ck-px-6 ck-font-bold">
+                                <td className="ck-py-4 ck-px-6 ck-font-bold ck-text-center">
                                   {ing.stock} <span className="lowercase">{ing.unit}</span>
                                 </td>
-                                <td className="ck-py-4 ck-px-6">
+                                <td className="ck-py-4 ck-px-6 ck-text-center">
                                   <span
-                                    className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ck-border ${
+                                    className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ck-border inline-block ${
                                       ing.status === "Đủ hàng"
                                         ? "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50"
                                         : ing.status === "Cần nhập gấp"
@@ -703,18 +487,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                     {ing.status}
                                   </span>
                                 </td>
-                                <td className="ck-py-4 ck-px-6 ck-text-center">
-                                  <div className="ck-flex ck-justify-center ck-gap-3">
-                                    <button
-                                      onClick={() => { setEditingIngredient(ing); setShowAddIngredient(true); setNewIngredient(ing); }}
-                                      className="ck-text-gray-400 hover:ck-text-white bg-transparent border-none cursor-pointer"
-                                    >✏️</button>
-                                    <button
-                                      onClick={() => handleDeleteIngredient(ing.id)}
-                                      className="ck-text-red-500 hover:ck-text-red-400 bg-transparent border-none cursor-pointer"
-                                    >🗑️</button>
-                                  </div>
-                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -722,94 +494,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                       </>
                     )}
                   </div>
-
-                  {/* FORM CRUD BÊN PHẢI CHO CATEGORY, PRODUCT & INGREDIENT */}
-                  {(showAddCategory || showAddProduct || showAddIngredient) && (
-                    <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-6 ck-animate-fade-in ck-w-1/3">
-                      <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-                        <h3 className="ck-text-xl ck-font-bold ck-text-white">
-                          {showAddCategory ? (editingCategory ? "Sửa Danh Mục" : "Thêm Danh Mục")
-                            : showAddProduct ? (editingProduct ? "Sửa Sản Phẩm" : "Thêm Sản Phẩm")
-                            : showAddIngredient ? (editingIngredient ? "Sửa Nguyên Liệu" : "Thêm Nguyên Liệu")
-                            : ""}
-                        </h3>
-                        <button
-                          onClick={() => { setShowAddCategory(false); setShowAddProduct(false); setShowAddIngredient(false); }}
-                          className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-cursor-pointer"
-                        >✕</button>
-                      </div>
-
-                      {/* FORM CATEGORY */}
-                      {showAddCategory && (
-                        <div className="ck-space-y-4">
-                          <div>
-                            <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Tên danh mục</label>
-                            <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" />
-                          </div>
-                          <button onClick={handleSaveCategory} className="ck-w-full ck-bg-gradient-btn-admin ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none">Lưu thay đổi</button>
-                        </div>
-                      )}
-
-                      {/* FORM PRODUCT */}
-                      {showAddProduct && (
-                        <div className="ck-space-y-4">
-                          <div className="ck-flex ck-gap-3">
-                            <div className="ck-w-1/4">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Icon</label>
-                              <input type="text" value={newProduct.emoji} onChange={(e) => setNewProduct({ ...newProduct, emoji: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-text-center ck-outline-none" />
-                            </div>
-                            <div className="ck-w-3/4">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Tên sản phẩm *</label>
-                              <input type="text" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Danh mục</label>
-                            <select value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none">
-                              <option value="">Chọn danh mục...</option>
-                              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                            </select>
-                          </div>
-                          <div className="ck-flex ck-gap-3">
-                            <div className="ck-w-1/2">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Giá bán (VNĐ) *</label>
-                              <input type="number" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-blue-400 ck-font-bold ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" placeholder="0" />
-                            </div>
-                            <div className="ck-w-1/2">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Đơn vị (VD: TÔ, PHAN)</label>
-                              <input type="text" value={newProduct.baseUnit} onChange={(e) => setNewProduct({ ...newProduct, baseUnit: e.target.value.toUpperCase() })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" placeholder="PHAN" />
-                            </div>
-                          </div>
-                          <button onClick={handleSaveProduct} className="ck-w-full ck-mt-2 ck-bg-gradient-btn-admin ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none">Lưu sản phẩm</button>
-                        </div>
-                      )}
-
-                      {/* FORM INGREDIENT */}
-                      {showAddIngredient && (
-                        <div className="ck-space-y-4">
-                          <div>
-                            <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Tên nguyên liệu *</label>
-                            <input type="text" value={newIngredient.name} onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" placeholder="VD: Gà nguyên con" />
-                          </div>
-                          <div className="ck-flex ck-gap-3">
-                            <div className="ck-w-1/2">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Đơn vị *</label>
-                              <input type="text" value={newIngredient.unit} onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value.toUpperCase() })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" placeholder="KG" />
-                            </div>
-                            <div className="ck-w-1/2">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Mức tối thiểu</label>
-                              <input type="number" value={newIngredient.minThreshold} onChange={(e) => setNewIngredient({ ...newIngredient, minThreshold: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" placeholder="0" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Giá vốn dự kiến (VNĐ)</label>
-                            <input type="number" value={newIngredient.unitCost} onChange={(e) => setNewIngredient({ ...newIngredient, unitCost: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-blue-400 ck-font-bold ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none" placeholder="0" />
-                          </div>
-                          <button onClick={handleSaveIngredient} className="ck-w-full ck-mt-2 ck-bg-gradient-btn-admin ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none">Lưu nguyên liệu</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -863,19 +547,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                               <button onClick={() => handleViewRecipe(run)} className="ck-p-1.5 ck-bg-gray-800 ck-text-gray-400 hover:ck-text-blue-400 ck-rounded-lg ck-transition-colors ck-border-none ck-cursor-pointer" title="Xem công thức">
                                 <Eye size={16} />
                               </button>
-
-                              {run.status === "COOKING" && (
-                                <button 
-                                  onClick={() => {
-                                    setWastageData({ runId: run.id, runName: run.name, wasteQty: "", reason: "" });
-                                    setShowWastageModal(true);
-                                  }} 
-                                  className="ck-p-1.5 ck-bg-red-500/20 ck-text-red-400 hover:ck-bg-red-500 hover:ck-text-white ck-rounded-lg ck-transition-colors ck-border-none ck-cursor-pointer ck-ml-2" 
-                                  title="Báo cáo hao hụt (Hỏng/Cháy)"
-                                >
-                                  ⚠️
-                                </button>
-                              )}
                             </div>
                             <span className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-[10px] ck-font-bold ck-border ${run.status === "PENDING" ? "ck-bg-gray-800 ck-text-gray-400 ck-border-gray-600" : run.status === "COOKING" ? "ck-bg-orange-500-20 ck-text-orange-400 ck-border-orange-500-50 ck-animate-pulse" : "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50"}`}>
                               {run.status === "PENDING" ? "CHỜ NẤU" : run.status === "COOKING" ? "ĐANG NẤU" : "XONG"}
@@ -1023,7 +694,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
               >
                 Chốt Gom Đơn & Xuất Kho
               </button>
-  
             </div>
           </div>
         </div>
@@ -1132,39 +802,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         </div>
       )}
 
-      {/* 6. MODAL BÁO CÁO HAO HỤT */}
-      {showWastageModal && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/80 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
-          <div className="ck-bg-gray-900 ck-border ck-border-red-500/50 ck-rounded-2xl ck-p-8 ck-w-full ck-max-w-md ck-shadow-2xl">
-            <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-              <h2 className="ck-text-xl ck-font-black ck-text-red-400">Báo cáo Hao hụt</h2>
-              <button onClick={() => setShowWastageModal(false)} className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-cursor-pointer">✕</button>
-            </div>
-            <div className="ck-bg-red-500/10 ck-p-3 ck-rounded-lg ck-mb-4 ck-text-sm ck-text-red-200">
-              Mẻ nấu: <strong>{wastageData.runName}</strong>
-            </div>
-            <div className="ck-space-y-4">
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Số lượng hỏng/cháy (phần) *</label>
-                <input type="number" value={wastageData.wasteQty} onChange={(e) => setWastageData({ ...wastageData, wasteQty: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-red-900/50 focus:ck-border-red-500 ck-outline-none" placeholder="0" />
-              </div>
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Lý do</label>
-                <select value={wastageData.reason} onChange={(e) => setWastageData({ ...wastageData, reason: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none">
-                  <option value="">-- Chọn lý do --</option>
-                  <option value="Cháy khét">Cháy khét</option>
-                  <option value="Rơi vãi">Rơi vãi</option>
-                  <option value="Nguyên liệu hỏng">Nguyên liệu hỏng</option>
-                  <option value="Khác">Lý do khác...</option>
-                </select>
-              </div>
-              <button onClick={handleReportWastage} className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-black ck-border-none ck-mt-2 shadow-lg shadow-orange-500/30">
-                Ghi nhận Hao hụt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
