@@ -4,49 +4,69 @@ import {
   FileText,
   AlertTriangle,
   Clock,
-} from "../../components/icons/Icons"; 
+  CheckCircle,
+} from "../../components/icons/Icons";
+import "../../styles/store-manager.css";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import api from "../../services/api";
 
+const TABS = {
+  DISPATCH: "Điều phối đơn",
+  ACTIVE: "Chuyến đang chạy",
+  HISTORY: "Lịch sử chuyến",
+};
+
+const PAGE_META = {
+  [TABS.DISPATCH]: {
+    title: "Đơn chờ bốc xếp",
+    crumb: "Điều phối đơn",
+    iconBg: "#fef2f2",
+    iconStroke: "#dc2626",
+  },
+  [TABS.ACTIVE]: {
+    title: "Chuyến đang chạy",
+    crumb: "Đang chạy",
+    iconBg: "#fdf3e0",
+    iconStroke: "#d4860a",
+  },
+  [TABS.HISTORY]: {
+    title: "Lịch sử chuyến",
+    crumb: "Lịch sử",
+    iconBg: "#eef5f1",
+    iconStroke: "#4a7c5f",
+  },
+};
+
 const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
-  
-  // ==========================================
-  // 1. STATE QUẢN LÝ DỮ LIỆU THẬT TỪ API
-  // ==========================================
-  const [activeTab, setActiveTab] = useState("Điều phối đơn");
+
+  const [activeTab, setActiveTab] = useState(TABS.DISPATCH);
   const [loading, setLoading] = useState(false);
 
-  // Data lưu trữ từ API
   const [readyOrders, setReadyOrders] = useState([]);
   const [activeShipments, setActiveShipments] = useState([]);
   const [historyShipments, setHistoryShipments] = useState([]);
   const [drivers, setDrivers] = useState([]);
-  
-  // State tương tác UI
-  const [selectedOrders, setSelectedOrders] = useState([]); 
-  const [selectedDrivers, setSelectedDrivers] = useState({}); 
-  
-  // State Modal Chi tiết
+
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [selectedDrivers, setSelectedDrivers] = useState({});
+
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [shipmentDetails, setShipmentDetails] = useState(null);
 
-  // ==========================================
-  // 2. FETCH DATA TỔNG HỢP
-  // ==========================================
   const fetchAllData = async () => {
     setLoading(true);
     try {
       const [ordersRes, activeRes, historyRes, driversRes] = await Promise.all([
-        api.getReadyOrders(), 
+        api.getReadyOrders(),
         api.getActiveShipments(),
         api.getHistoryShipments(),
-        api.getDriverList()
+        api.getDriverList(),
       ]);
-      
+
       setReadyOrders(ordersRes);
       setActiveShipments(activeRes);
       setHistoryShipments(historyRes);
@@ -62,13 +82,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
     fetchAllData();
   }, []);
 
-  // ==========================================
-  // 3. CÁC HÀM XỬ LÝ
-  // ==========================================
-
   const toggleOrderSelection = (orderId) => {
-    setSelectedOrders(prev => 
-      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    setSelectedOrders((prev) =>
+      prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId],
     );
   };
 
@@ -117,376 +133,512 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  // ==========================================
-  // 4. GIAO DIỆN CHÍNH
-  // ==========================================
+  const sid = (s) => s.shipmentId || s.id || s.shipment_id;
+  const oid = (o) => o.orderId || o.id || o.order_id;
 
-  if (loading && readyOrders.length === 0)
+  const meta = PAGE_META[activeTab] || PAGE_META[TABS.DISPATCH];
+
+  let topbarIcon = <FileText size={16} style={{ color: meta.iconStroke }} />;
+  if (activeTab === TABS.ACTIVE)
+    topbarIcon = <Package size={16} style={{ color: meta.iconStroke }} />;
+  else if (activeTab === TABS.HISTORY)
+    topbarIcon = <CheckCircle size={16} style={{ color: meta.iconStroke }} />;
+
+  if (loading && readyOrders.length === 0 && activeShipments.length === 0) {
     return (
-      <div className="ck-root ck-min-h-screen ck-bg-black ck-flex ck-items-center ck-justify-center">
-        <p className="ck-text-red-500 ck-font-black ck-animate-pulse">
-          ĐANG KẾT NỐI HỆ THỐNG LOGISTICS...
-        </p>
+      <div className="sm-page">
+        <div
+          className="layout"
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <p style={{ color: "var(--ink3)", fontWeight: 600 }}>Đang tải dữ liệu điều phối…</p>
+        </div>
       </div>
     );
+  }
 
   return (
-    <div className="ck-supply-coordinator-root">
-      <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6" style={{ position: "relative" }}>
-        <div className="ck-grain" />
+    <div className="sm-page">
+      <ChangePasswordModal
+        open={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
+      <UpdateProfileModal
+        open={showUpdateProfileModal}
+        onClose={() => setShowUpdateProfileModal(false)}
+        initialFullName={userData?.name ?? ""}
+        initialEmail={userData?.email ?? ""}
+        onSuccess={() => {
+          onProfileUpdated?.();
+          setShowUpdateProfileModal(false);
+        }}
+      />
 
-        {/* HEADER */}
-        <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-z-50 ck-pb-4 ck-border-b ck-border-gray-800">
-          <div className="ck-flex ck-items-center ck-gap-4">
-            <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
-              <Package className="ck-text-white" size={32} />
+      <div className="layout">
+        <aside className="sb">
+          <div className="sb-header">
+            <div className="sb-logo">
+              <div className="sb-logo-icon">🚚</div>
+              <span className="sb-logo-text">Điều phối</span>
             </div>
-            <div>
-              <h1 className="ck-text-2xl ck-font-black ck-text-white ck-leading-tight">Supply Coordinator</h1>
-              <p className="ck-text-xs ck-text-red-400 ck-font-bold ck-uppercase ck-tracking-widest">
-                Hệ thống điều phối 2026
-              </p>
+            <div className="sb-store-card">
+              <div className="sb-store-label">Logistics</div>
+              <div className="sb-store-name">Điều phối vận chuyển</div>
+              <div className="sb-store-role">{userData?.name ?? userData?.fullName ?? "—"}</div>
+            </div>
+          </div>
+          <nav className="sb-nav">
+            <div className="nav-group-label">Vận chuyển</div>
+            <button
+              type="button"
+              className={`ni ${activeTab === TABS.DISPATCH ? "on" : ""}`}
+              onClick={() => setActiveTab(TABS.DISPATCH)}
+            >
+              <FileText size={15} />
+              Điều phối đơn
+              {readyOrders.length > 0 && <span className="ni-badge">{readyOrders.length}</span>}
+            </button>
+            <button
+              type="button"
+              className={`ni ${activeTab === TABS.ACTIVE ? "on" : ""}`}
+              onClick={() => setActiveTab(TABS.ACTIVE)}
+            >
+              <Package size={15} />
+              Chuyến đang chạy
+              {activeShipments.length > 0 && (
+                <span className="ni-badge">{activeShipments.length}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              className={`ni ${activeTab === TABS.HISTORY ? "on" : ""}`}
+              onClick={() => setActiveTab(TABS.HISTORY)}
+            >
+              <AlertTriangle size={15} />
+              Lịch sử chuyến
+            </button>
+          </nav>
+        </aside>
+
+        <main className="main">
+          <div className="topbar">
+            <div className="tb-page">
+              <div className="tb-page-icon" style={{ background: meta.iconBg }}>
+                {topbarIcon}
+              </div>
+              <div className="tb-title">{meta.title}</div>
+            </div>
+            <div className="tb-actions">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={fetchAllData}
+                disabled={loading}
+              >
+                {loading ? "…" : "🔄 Làm mới"}
+              </button>
+              <HeaderSettingsMenu
+                userData={userData}
+                showProfile={true}
+                onOpenProfile={() => setShowUpdateProfileModal(true)}
+                onChangePassword={() => setShowChangePasswordModal(true)}
+                onLogout={onLogout}
+              />
             </div>
           </div>
 
-          <div className="ck-flex ck-items-center ck-gap-5">
-            <div className="ck-text-right ck-hidden sm:ck-block">
-              <p className="ck-text-sm ck-font-bold ck-text-white">{userData?.name || "Điều Phối Viên"}</p>
-              <p className="ck-text-xs ck-text-red-400">Trưởng ca Logistics</p>
-            </div>
-            <HeaderSettingsMenu
-              userData={userData}
-              showProfile={true}
-              onOpenProfile={() => setShowUpdateProfileModal(true)}
-              onChangePassword={() => setShowChangePasswordModal(true)}
-              onLogout={onLogout}
-            />
-          </div>
-        </header>
-
-        <ChangePasswordModal open={showChangePasswordModal} onClose={() => setShowChangePasswordModal(false)} />
-        <UpdateProfileModal
-          open={showUpdateProfileModal}
-          onClose={() => setShowUpdateProfileModal(false)}
-          initialFullName={userData?.name ?? ""}
-          initialEmail={userData?.email ?? ""}
-          onSuccess={() => {
-            onProfileUpdated?.();
-            setShowUpdateProfileModal(false);
-          }}
-        />
-
-        <div className="ck-flex ck-gap-6 ck-relative ck-z-10" style={{ minHeight: "750px" }}>
-          
-          {/* SIDEBAR */}
-          <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5" style={{ width: "20%", flexShrink: 0 }}>
-            <ul className="ck-space-y-2 ck-flex-1" style={{ listStyleType: "none", padding: 0 }}>
-              {[
-                { name: "Điều phối đơn", icon: <FileText size={18} />, count: readyOrders.length },
-                { name: "Chuyến đang chạy", icon: <Package size={18} />, count: activeShipments.length },
-                { name: "Lịch sử chuyến", icon: <AlertTriangle size={18} /> },
-              ].map((item) => (
-                <li key={item.name}>
-                  <button
-                    onClick={() => setActiveTab(item.name)}
-                    className={`ck-w-full ck-text-left ck-px-4 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all ck-flex ck-items-center ck-justify-between ${
-                      activeTab === item.name
-                        ? "ck-bg-gradient-btn-admin ck-text-white ck-shadow-lg"
-                        : "ck-text-gray-400 hover:ck-bg-gray-800 hover:ck-text-white"
-                    }`}
-                    style={{ border: "none", background: activeTab === item.name ? "" : "transparent" }}
-                  >
-                    <div className="ck-flex ck-items-center ck-gap-3">
-                      {item.icon} {item.name}
-                    </div>
-                    {item.count > 0 && (
-                      <span className="ck-text-[10px] ck-bg-black/30 ck-px-2 ck-py-0.5 ck-rounded-full">{item.count}</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* RIGHT CONTENT */}
-          <div className="ck-flex-1 ck-flex ck-flex-col ck-gap-6">
-            
-            {/* STATS CARDS */}
-            <div className="ck-grid ck-grid-cols-4 ck-gap-4">
-              {[
-                { label: "Đơn chờ bốc xếp", value: readyOrders.length, color: "ck-text-red-400" },
-                { label: "Xe đang chạy", value: activeShipments.length, color: "ck-text-orange-400" },
-                { label: "Tài xế sẵn sàng", value: drivers.length, color: "ck-text-green-400" },
-                { label: "Chuyến hoàn thành", value: historyShipments.length, color: "ck-text-blue-400" },
-              ].map((stat, idx) => (
-                <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-text-center">
-                  <h4 className="ck-text-xs ck-font-semibold ck-text-gray-400 ck-mb-2 uppercase tracking-tighter">{stat.label}</h4>
-                  <p className={`ck-text-3xl ck-font-black ${stat.color}`}>{stat.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* TAB 1: ĐIỀU PHỐI ĐƠN */}
-            {activeTab === "Điều phối đơn" && (
-              <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-animate-fade-in">
-                <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
+          <div className="content">
+            <div className="stats">
+              <div className="sc">
+                <div className="sc-stripe" style={{ background: "var(--rust)" }} />
+                <div className="sc-top">
                   <div>
-                    <h3 className="ck-text-xl ck-font-bold ck-text-white">Đơn Chờ Bốc Xếp</h3>
-                    <p className="ck-text-xs ck-text-gray-500 mt-1">Gom đơn hàng lên xe bằng tay để xuất kho</p>
+                    <div className="sc-label">Đơn chờ bốc xếp</div>
                   </div>
-                  <div className="ck-flex ck-gap-3">
+                  <div className="sc-icon" style={{ background: "var(--rust-bg)" }}>
+                    <FileText size={14} style={{ color: "var(--rust)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--rust)" }}>
+                  {readyOrders.length}
+                </div>
+              </div>
+              <div className="sc">
+                <div className="sc-stripe" style={{ background: "var(--amber)" }} />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Xe đang chạy</div>
+                  </div>
+                  <div className="sc-icon" style={{ background: "var(--amber-bg)" }}>
+                    <Package size={14} style={{ color: "var(--amber)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--amber)" }}>
+                  {activeShipments.length}
+                </div>
+              </div>
+              <div className="sc">
+                <div className="sc-stripe" style={{ background: "var(--sage)" }} />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Tài xế</div>
+                  </div>
+                  <div className="sc-icon" style={{ background: "var(--sage-bg)" }}>
+                    <CheckCircle size={14} style={{ color: "var(--sage)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--sage)" }}>
+                  {drivers.length}
+                </div>
+              </div>
+              <div className="sc">
+                <div className="sc-stripe" style={{ background: "var(--slate)" }} />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Chuyến hoàn thành</div>
+                  </div>
+                  <div className="sc-icon" style={{ background: "var(--slate-bg)" }}>
+                    <Clock size={14} style={{ color: "var(--slate)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--slate)" }}>
+                  {historyShipments.length}
+                </div>
+              </div>
+            </div>
+
+            {/* Tab: Điều phối đơn */}
+            {activeTab === TABS.DISPATCH && (
+              <div className="kitchen-tab-body">
+                <div className="card">
+                  <div className="card-hd">
+                    <div>
+                      <div className="card-title">Đơn chờ bốc xếp</div>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--ink3)" }}>
+                        Gom đơn lên xe bằng tay để xuất kho
+                      </p>
+                    </div>
                     <button
+                      type="button"
+                      className="btn btn-amber btn-elevated"
                       onClick={handleManualAllocate}
                       disabled={selectedOrders.length === 0}
-                      className={`ck-btn ck-px-6 ck-py-2.5 ck-rounded-xl ck-font-bold ck-flex ck-items-center ck-gap-2 ck-border-none ck-shadow-lg ${
-                        selectedOrders.length > 0 ? "ck-bg-gradient-btn-admin ck-text-white hover:ck-opacity-90" : "ck-bg-gray-800 ck-text-gray-600"
-                      }`}
+                      style={{ opacity: selectedOrders.length === 0 ? 0.55 : 1 }}
                     >
-                      <FileText size={18} /> Gom tay ({selectedOrders.length})
+                      <FileText size={15} /> Gom tay ({selectedOrders.length})
                     </button>
                   </div>
-                </div>
-                <div className="ck-p-4">
-                  <table className="ck-w-full ck-border-collapse">
-                    <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-xs ck-uppercase">
-                      <tr>
-                        <th className="ck-py-4 ck-px-6 ck-text-center">Chọn</th>
-                        <th className="ck-py-4 ck-px-6 ck-text-center">Mã Đơn</th>
-                        <th className="ck-py-4 ck-px-6 ck-text-center">Giao đến cửa hàng</th>
-                        <th className="ck-py-4 ck-px-6 ck-text-center">Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody className="ck-text-white ck-text-sm">
-                      {readyOrders.length === 0 ? (
-                        <tr><td colSpan="4" className="ck-text-center ck-py-10 ck-text-gray-500">Không có đơn hàng nào đang chờ</td></tr>
-                      ) : (
-                        readyOrders.map((o) => (
-                          <tr key={o.orderId || o.id || o.order_id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800/50 ck-transition-colors">
-                            <td className="ck-py-4 ck-px-6 ck-text-center">
-                              <input 
-                                type="checkbox" 
-                                className="ck-accent-red-500 ck-w-4 ck-h-4"
-                                checked={selectedOrders.includes(o.orderId || o.id || o.order_id)}
-                                onChange={() => toggleOrderSelection(o.orderId || o.id || o.order_id)}
-                              />
-                            </td>
-                            <td className="ck-py-4 ck-px-6 ck-font-mono ck-text-red-400 ck-font-bold ck-text-center">{o.orderId || o.id || o.order_id}</td>
-                            <td className="ck-py-4 ck-px-6 ck-font-bold ck-text-center">
-                                <span className="ck-text-blue-300 ck-bg-blue-900/30 ck-px-3 ck-py-1 ck-rounded-lg ck-inline-flex ck-items-center ck-gap-2">
-                                    🏪 {o.storeName || o.store_name || o.name || o.store || o.storeId || "Chưa xác định"}
-                                </span>
-                            </td>
-                            <td className="ck-py-4 ck-px-6 ck-text-center">
-                              <div className="ck-flex ck-items-center ck-justify-center ck-gap-2">
-                                <Clock size={14} className="ck-text-blue-400" />
-                                <span className="ck-font-medium">{o.status || "READY"}</span>
+                  <div className="tbl-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "center", width: 56 }}>Chọn</th>
+                          <th style={{ textAlign: "center" }}>Mã đơn</th>
+                          <th style={{ textAlign: "center" }}>Giao đến cửa hàng</th>
+                          <th style={{ textAlign: "center" }}>Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {readyOrders.length === 0 ? (
+                          <tr>
+                            <td colSpan={4}>
+                              <div className="empty" style={{ padding: "36px 16px" }}>
+                                <p>Không có đơn hàng nào đang chờ</p>
                               </div>
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        ) : (
+                          readyOrders.map((o) => {
+                            const id = oid(o);
+                            return (
+                              <tr key={id}>
+                                <td style={{ textAlign: "center" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedOrders.includes(id)}
+                                    onChange={() => toggleOrderSelection(id)}
+                                    aria-label={`Chọn đơn ${id}`}
+                                  />
+                                </td>
+                                <td style={{ textAlign: "center" }} className="mono">
+                                  {id}
+                                </td>
+                                <td style={{ textAlign: "center" }}>
+                                  <span className="tag tag-s">
+                                    🏪{" "}
+                                    {o.storeName ||
+                                      o.store_name ||
+                                      o.name ||
+                                      o.store ||
+                                      o.storeId ||
+                                      "Chưa xác định"}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: "center" }}>
+                                  <span
+                                    className="tag"
+                                    style={{ background: "var(--slate-bg)", color: "var(--slate)" }}
+                                  >
+                                    {o.status || "READY"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
-            {/* TAB 2: CHUYẾN ĐANG CHẠY */}
-            {activeTab === "Chuyến đang chạy" && (
-              <div className="ck-space-y-6 ck-animate-fade-in">
-                <div className="ck-flex ck-justify-between ck-items-center">
-                  <h3 className="ck-text-xl ck-font-bold">Quản lý lộ trình Logistics</h3>
-                  <button onClick={fetchAllData} className="ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2 ck-rounded-lg ck-border-none hover:ck-bg-gray-700 ck-cursor-pointer">
-                    ↻ Làm mới
-                  </button>
-                </div>
-                
-                <div className="ck-grid ck-grid-cols-3 ck-gap-6"> 
-                  {activeShipments.length === 0 ? (
-                    <p className="ck-text-gray-500 ck-col-span-3 ck-text-center ck-py-10">Không có chuyến hàng nào đang chạy.</p>
-                  ) : (
-                    activeShipments.map((s) => {
-                      // Logic khóa cứng ô chọn nếu đã có tài xế
-                      const hasDriver = Boolean(s.driverId || s.driver_id || s.driverName || s.driver_name || s.driver || s.accountId);
 
+            {/* Tab: Chuyến đang chạy */}
+            {activeTab === TABS.ACTIVE && (
+              <div className="kitchen-tab-body">
+                {activeShipments.length === 0 ? (
+                  <div className="card">
+                    <div className="empty">
+                      <Package size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+                      <p>Không có chuyến hàng nào đang chạy.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="kitchen-runs-grid">
+                    {activeShipments.map((s) => {
+                      const id = sid(s);
+                      const hasDriver = Boolean(
+                        s.driverId ||
+                          s.driver_id ||
+                          s.driverName ||
+                          s.driver_name ||
+                          s.driver ||
+                          s.accountId,
+                      );
                       return (
-                        <div key={s.shipmentId || s.id || s.shipment_id} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl hover:ck-border-orange-500 ck-transition-all group shadow-xl ck-flex ck-flex-col">
-                          <div className="ck-flex ck-justify-between ck-mb-4">
-                            <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
-                              <Package className="ck-text-orange-400" size={32} />
+                        <div key={id} className="kitchen-run-card" style={{ minHeight: "auto" }}>
+                          <div className="kitchen-run-head" style={{ marginBottom: 12 }}>
+                            <div
+                              className="card-icon"
+                              style={{ background: "var(--amber-bg)", color: "var(--amber)" }}
+                            >
+                              <Package size={18} />
                             </div>
                           </div>
-                          
-                          <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1 ck-line-clamp-1">
-                            {s.storeName || s.store_name || s.name || s.store || s.destinationStore || "Đang tải..."}
+                          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                            {s.storeName ||
+                              s.store_name ||
+                              s.name ||
+                              s.store ||
+                              s.destinationStore ||
+                              "—"}
                           </h3>
-                          
-                          <div className="ck-mt-2 ck-mb-4 ck-flex-1">
+                          <div style={{ flex: 1, marginBottom: 12 }}>
                             {!hasDriver ? (
-                              <div className="ck-flex ck-flex-col ck-gap-2">
-                                <select 
-                                  className="ck-bg-gray-800 ck-border ck-border-gray-700 ck-rounded-lg ck-p-2 ck-text-white ck-outline-none ck-text-sm"
-                                  value={selectedDrivers[s.shipmentId || s.id || s.shipment_id] || ""}
-                                  onChange={(e) => setSelectedDrivers({...selectedDrivers, [s.shipmentId || s.id || s.shipment_id]: e.target.value})}
+                              <div className="fg" style={{ marginBottom: 8 }}>
+                                <label htmlFor={`drv-${id}`}>Chọn tài xế</label>
+                                <select
+                                  id={`drv-${id}`}
+                                  value={selectedDrivers[id] || ""}
+                                  onChange={(e) =>
+                                    setSelectedDrivers({ ...selectedDrivers, [id]: e.target.value })
+                                  }
                                 >
-                                  <option value="">-- Chọn tài xế --</option>
-                                  {drivers.map(d => (
-                                    <option key={d.accountId || d.id || d.user_id} value={d.accountId || d.id || d.user_id}>
+                                  <option value="">— Chọn tài xế —</option>
+                                  {drivers.map((d) => (
+                                    <option
+                                      key={d.accountId || d.id || d.user_id}
+                                      value={d.accountId || d.id || d.user_id}
+                                    >
                                       {d.fullName || d.name || d.full_name || d.username}
                                     </option>
                                   ))}
                                 </select>
-                                <button 
-                                  onClick={() => handleAssignDriver(s.shipmentId || s.id || s.shipment_id)}
-                                  className="ck-w-full ck-py-2 ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-rounded-lg ck-text-xs ck-font-bold ck-border-none ck-cursor-pointer transition-colors"
-                                >
-                                  Gán tài xế
-                                </button>
                               </div>
                             ) : (
-                              // Đã khóa cứng, và ĐÃ XÓA dòng "Biển số" theo yêu cầu
-                              <div className="ck-bg-gray-800/60 ck-border ck-border-gray-700/50 ck-p-3 ck-rounded-xl">
-                                <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
-                                  Tài xế: <span className="ck-text-green-400 ck-font-bold">{s.driverName || s.driver || s.driver_name || s.driverId || s.driver_id || "Đã phân công"}</span>
-                                </p>
-                              </div>
+                              <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: 0 }}>
+                                Tài xế:{" "}
+                                <strong style={{ color: "var(--sage)" }}>
+                                  {s.driverName ||
+                                    s.driver ||
+                                    s.driver_name ||
+                                    s.driverId ||
+                                    s.driver_id ||
+                                    "Đã phân công"}
+                                </strong>
+                              </p>
                             )}
                           </div>
-
-                          <div className="ck-flex ck-flex-col ck-gap-2 ck-pt-4 ck-border-t ck-border-gray-800 mt-auto">
-                            <button 
-                              onClick={() => handleViewDetails(s.shipmentId || s.id || s.shipment_id)}
-                              className="ck-w-full ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-text-sm ck-font-bold ck-border-none transition-colors ck-cursor-pointer"
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
+                            {!hasDriver && (
+                              <button
+                                type="button"
+                                className="btn btn-amber btn-sm"
+                                style={{ width: "100%" }}
+                                onClick={() => handleAssignDriver(id)}
+                              >
+                                Gán tài xế
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              style={{ width: "100%" }}
+                              onClick={() => handleViewDetails(id)}
                             >
                               Chi tiết món
                             </button>
-                            <button 
-                              onClick={() => handleMarkDelivered(s.shipmentId || s.id || s.shipment_id)}
-                              className="ck-w-full ck-py-2 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-rounded-xl ck-text-sm ck-font-bold ck-border-none transition-colors ck-cursor-pointer"
+                            <button
+                              type="button"
+                              className="btn btn-sage btn-sm"
+                              style={{ width: "100%" }}
+                              onClick={() => handleMarkDelivered(id)}
                             >
-                              Xe Tới Nơi
+                              Xe tới nơi
                             </button>
                           </div>
                         </div>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* TAB 3: LỊCH SỬ CHUYẾN HÀNG */}
-            {activeTab === "Lịch sử chuyến" && (
-              <div className="ck-space-y-6 ck-animate-fade-in">
-                <h3 className="ck-text-xl ck-font-bold">Lịch sử điều phối</h3>
-                <div className="ck-grid ck-grid-cols-3 ck-gap-6"> 
-                  {historyShipments.length === 0 ? (
-                    <p className="ck-text-gray-500 ck-col-span-3 ck-text-center ck-py-10">Chưa có chuyến hàng nào hoàn thành.</p>
-                  ) : (
-                    historyShipments.map((s) => {
-                      // SỬA Ở ĐÂY: Xử lý format ngày tháng năm và giờ
-                      const rawTime = s.delivered_at || s.deliveredAt || s.resolved_at || s.resolvedAt;
+            {/* Tab: Lịch sử */}
+            {activeTab === TABS.HISTORY && (
+              <div className="kitchen-tab-body">
+                {historyShipments.length === 0 ? (
+                  <div className="card">
+                    <div className="empty">
+                      <CheckCircle size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+                      <p>Chưa có chuyến hàng nào hoàn thành.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="kitchen-runs-grid">
+                    {historyShipments.map((s) => {
+                      const id = sid(s);
+                      const rawTime =
+                        s.delivered_at || s.deliveredAt || s.resolved_at || s.resolvedAt;
                       let formattedTime = "Hoàn tất";
-                      
                       if (rawTime) {
                         const d = new Date(rawTime);
-                        if (!isNaN(d.getTime())) {
-                          formattedTime = d.toLocaleDateString('vi-VN', { 
-                            day: '2-digit', 
-                            month: '2-digit', 
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
+                        if (!Number.isNaN(d.getTime())) {
+                          formattedTime = d.toLocaleDateString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
                           });
                         }
                       }
-
                       return (
-                        <div key={s.shipmentId || s.id || s.shipment_id} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl ck-opacity-80 hover:ck-opacity-100 hover:ck-border-green-500 ck-transition-all group shadow-xl ck-flex ck-flex-col">
-                          <div className="ck-flex ck-justify-between ck-mb-4">
-                            <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
-                              <AlertTriangle className="ck-text-green-400" size={32} />
+                        <div
+                          key={id}
+                          className="kitchen-run-card"
+                          style={{ minHeight: "auto", opacity: 0.95 }}
+                        >
+                          <div className="kitchen-run-head" style={{ marginBottom: 12 }}>
+                            <div
+                              className="card-icon"
+                              style={{ background: "var(--sage-bg)", color: "var(--sage)" }}
+                            >
+                              <CheckCircle size={18} />
                             </div>
                           </div>
-                          
-                          <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1 ck-line-clamp-1">
-                            {s.storeName || s.store_name || s.name || s.store || s.destinationStore || "Đang tải..."}
+                          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                            {s.storeName ||
+                              s.store_name ||
+                              s.name ||
+                              s.store ||
+                              s.destinationStore ||
+                              "—"}
                           </h3>
-
-                          <div className="ck-mt-2 ck-mb-4 ck-flex-1">
-                            <p className="ck-text-sm ck-text-gray-400 ck-mb-1">
-                              Tài xế: <span className="ck-text-white ck-font-medium">{s.driverName || s.driver || s.driver_name || "N/A"}</span>
-                            </p>
-                            <p className="ck-text-sm ck-text-gray-400">
-                              Hoàn tất lúc: <span className="ck-text-white ck-font-medium">{formattedTime}</span>
-                            </p>
-                          </div>
-
-                          <div className="ck-pt-4 ck-border-t ck-border-gray-800 mt-auto ck-flex ck-justify-end">
-                            <button 
-                              onClick={() => handleViewDetails(s.shipmentId || s.id || s.shipment_id)}
-                              className="ck-text-sm ck-font-bold ck-text-green-400 group-hover:ck-translate-x-1 ck-transition-transform ck-bg-transparent ck-border-none ck-cursor-pointer"
-                            >
-                              Chi tiết →
-                            </button>
-                          </div>
+                          <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: "0 0 4px" }}>
+                            Tài xế:{" "}
+                            <span style={{ fontWeight: 600, color: "var(--ink)" }}>
+                              {s.driverName || s.driver || s.driver_name || "—"}
+                            </span>
+                          </p>
+                          <p style={{ fontSize: 12.5, color: "var(--ink4)", margin: "0 0 12px" }}>
+                            Hoàn tất: {formattedTime}
+                          </p>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ width: "100%", marginTop: "auto" }}
+                            onClick={() => handleViewDetails(id)}
+                          >
+                            Chi tiết →
+                          </button>
                         </div>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </div>
+                )}
               </div>
             )}
-
           </div>
-        </div>
+        </main>
       </div>
 
-      {/* MODAL XEM CHI TIẾT MÓN TRÊN XE */}
+      {/* Chi tiết món trên xe */}
       {showDetailsModal && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/95 ck-flex ck-items-center ck-justify-center ck-z-50 ck-p-4">
-          <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-w-full ck-max-w-2xl ck-shadow-2xl ck-animate-fade-in">
-            <div className="ck-p-6 ck-border-b ck-border-gray-800 ck-flex ck-justify-between ck-items-center">
-             <h3 className="ck-text-xl ck-font-black ck-text-white">
+        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="supply-detail-title">
+          <div className="sm-modal-box sm-modal-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sm-modal-hd">
+              <h2 id="supply-detail-title" className="sm-modal-title">
                 Chi tiết món trên xe
-              </h3>
-              <button onClick={() => setShowDetailsModal(false)} className="ck-text-gray-500 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-2xl">✕</button>
+              </h2>
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs"
+                onClick={() => setShowDetailsModal(false)}
+                aria-label="Đóng"
+              >
+                ✕
+              </button>
             </div>
-            
-            <div className="ck-p-6 ck-max-h-[60vh] ck-overflow-y-auto">
+            <div className="sm-modal-bd" style={{ maxHeight: "min(60vh, 420px)" }}>
               {shipmentDetails ? (
-                <div className="ck-space-y-3">
-                  {Array.isArray(shipmentDetails) && shipmentDetails.length > 0 ? (
-                    shipmentDetails.map((item, idx) => (
-                      <div key={idx} className="ck-flex ck-justify-between ck-items-center ck-p-4 ck-bg-gray-800 hover:ck-bg-gray-750 ck-rounded-xl ck-border ck-border-gray-700 ck-transition-all">
-                        <div className="ck-flex ck-items-center ck-gap-4">
-                          <div className="ck-w-12 ck-h-12 ck-bg-gray-900 ck-rounded-lg ck-flex ck-items-center ck-justify-center ck-text-2xl ck-border ck-border-gray-600">
-                            📦
+                Array.isArray(shipmentDetails) && shipmentDetails.length > 0 ? (
+                  shipmentDetails.map((item, idx) => (
+                    <div key={idx} className="sm-bom-row">
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 22 }}>📦</span>
+                        <div>
+                          <div style={{ fontWeight: 700, color: "var(--ink)" }}>
+                            {item.product_name || item.productName || "Sản phẩm"}
                           </div>
-                          <div>
-                            <p className="ck-font-bold ck-text-white ck-text-base">
-                              {item.product_name || item.productName || "Sản phẩm không tên"}
-                            </p>
-                            <p className="ck-text-xs ck-text-gray-400 ck-mt-1">Số lượng dự kiến giao</p>
-                          </div>
-                        </div>
-                        <div className="ck-text-2xl ck-font-black ck-text-orange-400">
-                          x{item.expected_quantity || item.expectedQuantity || item.quantity || 0}
+                          <div style={{ fontSize: 11, color: "var(--ink4)" }}>Số lượng dự kiến giao</div>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p className="ck-text-center ck-text-gray-500 ck-py-8">Không có dữ liệu món ăn</p>
-                  )}
-                </div>
+                      <span className="mono" style={{ fontWeight: 800, color: "var(--amber)", fontSize: 16 }}>
+                        ×{item.expected_quantity || item.expectedQuantity || item.quantity || 0}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ textAlign: "center", color: "var(--ink4)", margin: 0 }}>Không có dữ liệu món ăn</p>
+                )
               ) : (
-                <div className="ck-flex ck-justify-center ck-py-10">
-                  <p className="ck-text-gray-500 ck-animate-pulse">Đang tải dữ liệu...</p>
-                </div>
+                <p style={{ textAlign: "center", color: "var(--ink3)", margin: 0 }}>Đang tải…</p>
               )}
             </div>
-
-            <div className="ck-p-6 ck-bg-gray-800/30 ck-rounded-b-3xl">
-              <button onClick={() => setShowDetailsModal(false)} className="ck-w-full ck-py-3 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors">
+            <div className="sm-modal-ft">
+              <button
+                type="button"
+                className="btn btn-amber"
+                style={{ flex: 1 }}
+                onClick={() => setShowDetailsModal(false)}
+              >
                 Đóng
               </button>
             </div>
