@@ -1034,7 +1034,15 @@ const api = {
   async getStoreOrders() {
     try {
       const res = await request("/api/store/orders");
-      return Array.isArray(res) ? res : (res?.data ?? []);
+      if (Array.isArray(res)) return res;
+      if (Array.isArray(res?.data)) return res.data;
+      if (Array.isArray(res?.data?.content)) return res.data.content;
+      if (Array.isArray(res?.data?.items)) return res.data.items;
+      if (Array.isArray(res?.data?.orders)) return res.data.orders;
+      if (Array.isArray(res?.content)) return res.content;
+      if (Array.isArray(res?.items)) return res.items;
+      if (Array.isArray(res?.orders)) return res.orders;
+      return [];
     } catch {
       return [];
     }
@@ -1641,6 +1649,33 @@ const api = {
   saveRecipe: (b) => request("/api/formulas", { method: "POST", body: JSON.stringify(b) }),
   deleteRecipe: (productId) => request(`/api/formulas/${productId}`, { method: "DELETE" }),
   getReportedShipments: async () => toArray(await request("/api/shipments/reported")),
+
+  /**
+   * Cửa hàng: lô đã đến nơi, chờ xác nhận nhận hàng / báo sự cố.
+   * GET /api/shipments/pending-report
+   */
+  async getShipmentsPendingReport() {
+    try {
+      const res = await request("/api/shipments/pending-report");
+      if (Array.isArray(res)) return res;
+      if (Array.isArray(res?.data)) return res.data;
+      if (Array.isArray(res?.data?.content)) return res.data.content;
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Xác nhận đã nhận đủ hàng cho lô (gỡ khỏi danh sách chờ).
+   * Nếu BE dùng path khác, sửa tại đây.
+   */
+  confirmShipmentReport(shipmentId) {
+    return request(`/api/shipments/${shipmentId}/confirm-report`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
 
   exportAnalyticsCSV: async (startDate, endDate) => {
     try {

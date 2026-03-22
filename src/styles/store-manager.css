@@ -1,6 +1,5 @@
 /* Store Manager — giao diện y như StoreManager.html, scope .sm-page */
 .sm-page {
-  --serif: "Fraunces", "Georgia", serif;
   --sans: "DM Sans", "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", "Consolas", monospace;
   --cream: #faf8f3;
@@ -103,7 +102,7 @@
   box-shadow: 0 4px 12px rgba(212, 134, 10, 0.35);
 }
 .sm-page .sb-logo-text {
-  /* Sans để hiển thị đúng tiếng Việt (Bếp, Cửa hàng, …); Fraunces serif thường thiếu dấu */
+  /* Sans — hiển thị ổn tiếng Việt trên toàn trang cửa hàng / bếp */
   font-family: var(--sans);
   font-size: 18px;
   font-weight: 600;
@@ -782,10 +781,10 @@
   margin-bottom: 20px;
 }
 .sm-page .prod-section-label {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
-  font-style: italic;
+  font-style: normal;
   color: var(--walnut);
   margin-bottom: 10px;
   padding-bottom: 8px;
@@ -876,7 +875,7 @@
   justify-content: space-between;
 }
 .sm-page .cp-title {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
   color: #fff;
@@ -1029,7 +1028,7 @@
   font-weight: 600;
 }
 .sm-page .cp-total-val {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 20px;
   font-weight: 700;
   color: var(--amber);
@@ -1246,7 +1245,7 @@
   color: rgba(255, 255, 255, 0.6);
 }
 .sm-page .ck-total-val {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 20px;
   font-weight: 700;
   color: var(--amber-light);
@@ -1456,11 +1455,11 @@
   flex-shrink: 0;
 }
 .sm-page .sp-title {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 17px;
   font-weight: 600;
   color: var(--ink);
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 .sm-page .sp-method {
   display: inline-block;
