@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   LayoutDashboard,
   Search,
@@ -7,11 +7,29 @@ import {
   ShoppingCart,
   Trash2,
   X,
+  BarChart3,
+  Package,
+  CheckCircle,
+  ChefHat,
+  Settings,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
+import "../../styles/admin-theme.css";
+import "../../styles/manager-ui.css";
+
+/** Tab ngang — cùng pattern `.tabs` / `.tab` với trang Admin */
+const MANAGER_TAB_ITEMS = [
+  { label: "Bảng KPI", icon: BarChart3 },
+  { label: "Quản lý sản phẩm", icon: Package },
+  { label: "Tổng quan tồn kho", icon: LayoutDashboard },
+  { label: "Kiểm kê kho", icon: CheckCircle },
+  { label: "Quản lý công thức", icon: ChefHat },
+  { label: "Cửa hàng Franchise", icon: Store },
+  { label: "Cài đặt hệ thống", icon: Settings },
+];
 
 const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -301,6 +319,26 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     return matchText && matchStat; 
   });
 
+  const inventorySummary = useMemo(() => {
+    let safe = 0;
+    let low = 0;
+    let out = 0;
+    for (const item of filteredInventory) {
+      const stock = Number(item.stock) || 0;
+      const min = Number(item.minThreshold ?? item.min ?? 10);
+      if (stock <= 0) out += 1;
+      else if (stock <= min) low += 1;
+      else safe += 1;
+    }
+    return {
+      shown: filteredInventory.length,
+      safe,
+      low,
+      out,
+      totalInSystem: inventory.length,
+    };
+  }, [filteredInventory, inventory]);
+
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [recipeSearchText, setRecipeSearchText] = useState("");
   const [recipeAppliedSearch, setRecipeAppliedSearch] = useState("");
@@ -453,38 +491,34 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   // RENDER GIAO DIỆN
   // ==========================================
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6">
+    <div className="ck-root ck-min-h-screen ck-bg-black">
       <div className="ck-grain" />
 
-      {/* HEADER QUẢN LÝ */}
-      <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-pb-4 ck-border-b ck-border-gray-800" style={{ zIndex: 50 }}>
+      <header className="ck-header ck-px-6 ck-py-4 ck-flex ck-items-center ck-justify-between">
         <div className="ck-flex ck-items-center ck-gap-4">
-          <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
-            <LayoutDashboard className="ck-text-white" size={28} />
+          <div className="ck-w-12-h-12 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg">
+            <LayoutDashboard className="ck-text-white" size={24} />
           </div>
           <div>
-            <h1 className="ck-text-2xl ck-font-black ck-text-white ck-leading-tight ck-mb-1">
-              Phân hệ Quản Lý
+            <h1 className="ck-text-lg ck-font-bold ck-text-white">
+              Phân hệ quản lý
             </h1>
-            <p className="ck-text-xs ck-text-gray-400 ck-font-medium ck-tracking-wider ck-uppercase">
-              Vận hành & Kế toán Bếp
-            </p>
+            <span className="admin-page-badge">Quản lý vận hành</span>
           </div>
         </div>
-
-        <div className="ck-flex ck-items-center ck-gap-5">
-          <div className="ck-text-right ck-hidden sm:ck-block">
-            <p className="ck-text-sm ck-font-bold ck-text-white">
-              {userData?.name || "Quản Lý Cấp Cao"}
-            </p>
-            <p className="ck-text-xs ck-text-red-400">Ban Giám Đốc</p>
-          </div>
+        <div className="ck-flex ck-items-center ck-gap-2">
           <HeaderSettingsMenu
             userData={userData}
             showProfile={true}
             onOpenProfile={() => setShowUpdateProfileModal(true)}
             onChangePassword={() => setShowChangePasswordModal(true)}
-            onLogout={onLogout ?? (() => { api.logout(); window.location.reload(); })}
+            onLogout={
+              onLogout ??
+              (() => {
+                api.logout();
+                window.location.reload();
+              })
+            }
           />
         </div>
       </header>
@@ -504,257 +538,252 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
         }}
       />
 
-      {/* MAIN CONTENT */}
-      <div
-        className="ck-flex ck-gap-6 ck-w-full ck-relative ck-z-10 ck-animate-fade-in"
-        style={{ minHeight: "800px" }}
-      >
-        {/* LEFT SIDEBAR */}
+      <main className="ck-p-8">
         <div
-          className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col"
-          style={{ width: "20%", flexShrink: 0 }}
+          className="ck-max-w-7xl ingredient-polished manager-shell"
+          style={{ marginLeft: "auto", marginRight: "auto" }}
         >
-          <ul
-            className="ck-space-y-2 ck-flex-1 ck-mt-2"
-            style={{ listStyleType: "none", padding: 0, margin: 0 }}
-          >
-            {[
-              "Bảng KPI",
-              "Quản lý sản phẩm",
-              "Tổng quan tồn kho",
-              "Kiểm kê kho",
-              "Quản lý công thức",
-              "Cửa hàng Franchise",
-              "Cài đặt hệ thống"
-            ].map((item, idx) => (
-              <li key={idx}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveManagementTab(item);
-                    setEditingMasterProduct(null);
-                    setShowAddMasterProduct(false);
-                    setShowCreateReport(false);
-                  }}
-                  className={`ck-w-full ck-text-left ck-px-4 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all ${
-                    activeManagementTab === item
-                      ? "ck-bg-gradient-btn-admin ck-text-white ck-shadow-lg"
-                      : "ck-text-gray-400 hover:ck-bg-gray-800 hover:ck-text-white"
-                  }`}
-                  style={
-                    activeManagementTab !== item
-                      ? { border: "none", background: "transparent" }
-                      : { border: "none" }
-                  }
-                >
-                  {item}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+          <div className="ing-app manager-ui">
+            <div className="tabs" style={{ marginBottom: 24 }}>
+              {MANAGER_TAB_ITEMS.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.label}
+                    type="button"
+                    className={`tab ${activeManagementTab === tab.label ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveManagementTab(tab.label);
+                      setEditingMasterProduct(null);
+                      setShowAddMasterProduct(false);
+                      setShowCreateReport(false);
+                    }}
+                  >
+                    <Icon size={16} style={{ flexShrink: 0 }} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
 
-        {/* RIGHT CONTENT */}
-        <div className="ck-flex ck-flex-col ck-gap-6" style={{ width: "80%" }}>
-          
           {/* ================== 1. TAB BẢNG KPI ================== */}
           {activeManagementTab === "Bảng KPI" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in relative">
-              
-              <div className="ck-flex ck-justify-between ck-items-center">
-                 <h2 className="ck-text-2xl ck-font-black ck-text-white">Thống kê hoạt động</h2>
-                 
-                {/* BỘ LỌC DATE PICKER & NÚT BÁO CÁO */}
-                 <div className="ck-flex ck-gap-3 ck-items-center">
-                    <div className="ck-flex ck-gap-2 ck-items-center ck-bg-gray-900 ck-p-1.5 ck-rounded-xl ck-border ck-border-gray-700">
-                      <input 
-                        type="date" 
-                        value={filterStart} 
-                        onChange={e => setFilterStart(e.target.value)} 
-                        className="ck-bg-gray-800 ck-text-xs ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer" 
-                        style={{ colorScheme: "dark" }}
-                      />
-                      <span className="ck-text-gray-500 ck-font-bold">-</span>
-                      <input 
-                        type="date" 
-                        value={filterEnd} 
-                        onChange={e => setFilterEnd(e.target.value)} 
-                        className="ck-bg-gray-800 ck-text-xs ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer" 
-                        style={{ colorScheme: "dark" }}
-                      />
-                     <button 
-  onClick={async () => {
-    setIsLoading(true);
-    try {
-      const kpis = await api.getKPIStats(filterStart, filterEnd);
-      const dash = await api.getManagerAnalytics(filterStart, filterEnd);
-      setKpiStats(kpis);
-      setDashboardData(dash);
-    } catch(e) { 
-      console.error(e); 
-    }
-    setIsLoading(false);
-  }}
-  disabled={isLoading}
-  className="ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-text-xs ck-px-5 ck-py-2 ck-rounded-lg ck-font-bold ck-transition-colors ck-border-none ck-cursor-pointer"
->
-  {isLoading ? "⏳..." : "Lọc dữ liệu"}
-</button>
-                    </div>
-                    
+            <div className="ck-animate-fade-in relative mgr-section">
+              <div className="mgr-section-head">
+                <div>
+                  <div className="mgr-section-head__eyebrow">Tổng quan vận hành</div>
+                  <h2 className="mgr-section-head__title">Thống kê &amp; xu hướng xuất kho</h2>
+                  <p className="mgr-section-head__sub">
+                    Theo dõi chỉ số KPI theo khoảng thời gian, giá trị xuất kho và các món cần lưu ý. Chọn kỳ
+                    rồi bấm <strong>Lọc dữ liệu</strong> để đồng bộ biểu đồ và danh sách bên dưới.
+                  </p>
+                </div>
+                <div className="mgr-toolbar">
+                  <div className="mgr-toolbar__grow">
+                    <input
+                      type="date"
+                      value={filterStart}
+                      onChange={(e) => setFilterStart(e.target.value)}
+                      className="mgr-input-date"
+                      aria-label="Từ ngày"
+                    />
+                    <span className="mgr-toolbar-sep">đến</span>
+                    <input
+                      type="date"
+                      value={filterEnd}
+                      onChange={(e) => setFilterEnd(e.target.value)}
+                      className="mgr-input-date"
+                      aria-label="Đến ngày"
+                    />
                     <button
-                      className="ck-btn ck-px-5 ck-py-2 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-shadow-lg ck-flex ck-items-center ck-gap-2 hover:ck-scale-105 ck-transition-transform ck-cursor-pointer"
-                      onClick={() => setShowCreateReport(true)}
+                      type="button"
+                      className="mgr-btn mgr-btn--green"
+                      onClick={async () => {
+                        setIsLoading(true);
+                        try {
+                          const kpis = await api.getKPIStats(filterStart, filterEnd);
+                          const dash = await api.getManagerAnalytics(filterStart, filterEnd);
+                          setKpiStats(kpis);
+                          setDashboardData(dash);
+                        } catch (e) {
+                          console.error(e);
+                        }
+                        setIsLoading(false);
+                      }}
+                      disabled={isLoading}
                     >
-                      <Plus size={18} /> Tạo báo cáo tùy chỉnh
+                      {isLoading ? "Đang tải…" : "Lọc dữ liệu"}
                     </button>
-                 </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mgr-btn mgr-btn--primary"
+                    onClick={() => setShowCreateReport(true)}
+                  >
+                    <Plus size={16} /> Xuất báo cáo
+                  </button>
+                </div>
               </div>
 
-              {/* 4 THẺ SUMMARY */}
-              <div className="ck-grid ck-grid-cols-4 ck-gap-6">
+              <div className="mgr-stat-grid">
                 {kpiStats.length > 0 ? (
                   kpiStats.map((stat, idx) => (
                     <div
                       key={idx}
-                      className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl ck-flex ck-flex-col ck-justify-center hover:ck-border-red-500/50 ck-transition-colors shadow-lg"
+                      className={`mgr-stat-card mgr-stat-card--${idx % 4}`}
                     >
-                      <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-3">
-                        {stat.label}
-                      </h4>
-                      <p className={`ck-text-4xl ck-font-black ck-text-white ck-mb-3`}>
-                        {stat.value}
-                      </p>
-                      <div className="ck-flex ck-items-center ck-gap-2">
-                        <span 
-                          className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ${
-                            stat.isUp 
-                              ? 'ck-bg-green-500/20 ck-text-green-400' 
-                              : 'ck-bg-red-500/20 ck-text-red-400'
-                          }`}
+                      <div className="mgr-stat-card__label">{stat.label}</div>
+                      <div className="mgr-stat-card__value">{stat.value}</div>
+                      <div className="mgr-stat-card__foot">
+                        <span
+                          className={`mgr-delta ${stat.isUp ? "mgr-delta--up" : "mgr-delta--down"}`}
                         >
                           {stat.isUp ? "↗ Tăng" : "↘ Giảm"} {stat.change}
                         </span>
-                        <span className="ck-text-xs ck-text-gray-500">so với kỳ trước</span>
+                        <span className="mgr-delta-hint">so với kỳ trước</span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="ck-col-span-4 ck-text-center ck-py-10 ck-text-gray-500">
-                    Đang tải dữ liệu KPI...
+                  <div className="mgr-empty" style={{ gridColumn: "1 / -1" }}>
+                    <div className="mgr-empty__icon">📊</div>
+                    <p className="mgr-empty__title">Đang tải dữ liệu KPI</p>
+                    <p className="mgr-empty__sub">
+                      Nếu lâu không hiện, hãy kiểm tra khoảng ngày đã chọn và thử lọc lại.
+                    </p>
                   </div>
                 )}
               </div>
-              
-              {/* KHU VỰC BIỂU ĐỒ VÀ TOP SẢN PHẨM */}
-              <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                <div
-                  className="ck-col-span-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col"
-                  style={{ minHeight: "350px" }}
-                >
-                  <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
-                    <h3 className="ck-text-xl ck-font-bold ck-text-white">
-                      Biểu đồ Giá trị xuất kho
-                    </h3>
-                    <span className="ck-text-xs ck-text-gray-500 ck-font-mono">Xu hướng các ngày gần đây</span>
-                  </div>
-<div className="ck-flex-1 ck-border-2 ck-border-dashed ck-border-gray-700 ck-rounded-xl ck-flex ck-items-end ck-justify-between ck-p-3 ck-gap-2 ck-h-[280px] ck-mt-4 ck-overflow-hidden">
-  {chartData.length > 0 ? (
-    chartData.map((item, i) => {
-      // Tính toán phần trăm chiều cao của cột
-      const maxVal = Math.max(...chartData.map(d => d.val)) || 1;
-      const heightPercent = item.val > 0 ? Math.max((item.val / maxVal) * 100, 5) : 0;
-      
-      return (
-        // Thêm ck-pt-14 (padding top) để tạo trần nhà vĩnh viễn cho hộp đen
-        <div key={i} className="ck-flex ck-flex-col ck-items-center ck-flex-1 ck-h-full ck-justify-end ck-relative ck-pt-14">
-          
-          {/* 1. HỘP NHÃN CỐ ĐỊNH Ở TRÊN CÙNG (Nằm trọn trong vùng ck-pt-14) */}
-          <div 
-            className="ck-absolute ck-top-0 ck-left-1/2 ck--translate-x-1/2 ck-w-[95%] ck-max-w-[65px] ck-bg-gray-800 ck-border ck-border-gray-600 ck-rounded-lg ck-py-1.5 ck-px-1 ck-flex ck-flex-col ck-items-center ck-justify-center ck-z-10 shadow-md"
-            style={{ minHeight: '48px' }}
-          >
-            <span className="ck-text-blue-400 ck-font-bold ck-text-[10px] xl:ck-text-[11px] ck-truncate ck-w-full ck-text-center">
-              {item.val > 0 ? `${(item.val / 1000).toLocaleString()}k` : '0đ'}
-            </span>
-            <span className="ck-text-gray-400 ck-text-[9px] ck-mt-0.5">
-              {item.count} đơn
-            </span>
-          </div>
-          
-          {/* 2. CỘT BIỂU ĐỒ (Chỉ mọc trong phần không gian còn lại) */}
-          <div className="ck-w-full ck-flex-1 ck-flex ck-flex-col ck-justify-end ck-items-center">
-            <div 
-              className="ck-w-full ck-max-w-[40px] ck-rounded-t-sm ck-transition-all"
-              style={{ 
-                height: `${heightPercent}%`, 
-                minHeight: item.val > 0 ? '4px' : '0px',
-                background: item.val > 0 ? '#3b82f6' : 'transparent' 
-              }}
-            ></div>
-          </div>
-          
-          {/* 3. TRỤC NGÀY THÁNG Ở DƯỚI CÙNG */}
-          <div className="ck-h-8 ck-w-full ck-flex ck-items-center ck-justify-center ck-border-t ck-border-gray-700 ck-mt-2 ck-pt-2">
-            <span 
-              className="ck-text-gray-400 ck-font-medium ck-truncate" 
-              title={item.label}
-              style={{ fontSize: item.label.length > 5 ? '9px' : '11px' }} 
-            >
-              {item.label}
-            </span>
-          </div>
 
-        </div>
-      )
-    })
-  ) : (
-    <span className="ck-text-gray-500 ck-m-auto">Chưa có dữ liệu biểu đồ...</span>
-  )}
-</div>
+              <div className="mgr-kpi-layout">
+                <div className="mgr-panel" style={{ minHeight: 360 }}>
+                  <div className="mgr-panel__head">
+                    <div>
+                      <h3 className="mgr-panel__title">Giá trị xuất kho theo thời gian</h3>
+                      <span className="mgr-panel__hint">
+                        Cột cao = giá trị lớn hơn trong kỳ · số đơn hiển thị trên mỗi cột
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mgr-panel__body">
+                    <div className="mgr-chart" style={{ minHeight: 280 }}>
+                      {chartData.length > 0 ? (
+                        chartData.map((item, i) => {
+                          const maxVal =
+                            Math.max(...chartData.map((d) => d.val)) || 1;
+                          const heightPercent =
+                            item.val > 0
+                              ? Math.max((item.val / maxVal) * 100, 5)
+                              : 0;
+                          return (
+                            <div key={i} className="mgr-chart__col">
+                              <div className="mgr-chart__bubble">
+                                <span className="mgr-chart__bubble-val">
+                                  {item.val > 0
+                                    ? `${(item.val / 1000).toLocaleString()}k`
+                                    : "0đ"}
+                                </span>
+                                <span className="mgr-chart__bubble-sub">
+                                  {item.count} đơn
+                                </span>
+                              </div>
+                              <div className="mgr-chart__bar-wrap">
+                                <div
+                                  className="mgr-chart__bar"
+                                  style={{
+                                    height: `${heightPercent}%`,
+                                    minHeight: item.val > 0 ? 4 : 0,
+                                    opacity: item.val > 0 ? 1 : 0,
+                                  }}
+                                />
+                              </div>
+                              <div className="mgr-chart__axis">
+                                <span
+                                  className="mgr-chart__axis-label"
+                                  title={item.tooltipTitle || item.label}
+                                  style={{
+                                    fontSize:
+                                      item.label.length > 5 ? 9 : 11,
+                                  }}
+                                >
+                                  {item.label}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="mgr-empty" style={{ margin: "auto", border: "none", background: "transparent" }}>
+                          <div className="mgr-empty__icon">📉</div>
+                          <p className="mgr-empty__title">Chưa có dữ liệu biểu đồ</p>
+                          <p className="mgr-empty__sub">Chọn kỳ khác hoặc lọc lại sau khi có phát sinh xuất kho.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="ck-col-span-1 ck-flex ck-flex-col ck-gap-6">
-                  {/* TẦNG 1: TOP XUẤT KHO */}
-                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex-1 ck-flex ck-flex-col">
-                    <h3 className="ck-text-lg ck-font-bold ck-text-white ck-mb-4 ck-flex ck-items-center ck-gap-2">
-                      Top Sản Phẩm Xuất Kho
+                <div className="ck-flex ck-flex-col ck-gap-5">
+                  <div className="mgr-mini-panel">
+                    <h3 className="mgr-mini-panel__title">
+                      Top xuất kho
+                      <span className="mgr-mini-panel__title-badge">Theo giá trị</span>
                     </h3>
-                    <div className="ck-flex-1 ck-space-y-3 ck-overflow-y-auto ck-scrollbar ck-pr-2" style={{ maxHeight: "180px" }}>
+                    <div className="mgr-mini-panel__scroll ck-scrollbar">
                       {dashboardData?.topExportedProducts?.length > 0 ? (
                         dashboardData.topExportedProducts.map((p, i) => (
-                          <div key={i} className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800/50 ck-p-3 ck-rounded-xl ck-border ck-border-gray-800">
+                          <div key={i} className="mgr-row">
                             <div>
-                              <p className="ck-text-white ck-font-bold ck-text-sm ck-line-clamp-1">{p.productName}</p>
-                              <p className="ck-text-xs ck-text-blue-400 ck-font-mono mt-1">Đã xuất: {p.totalQuantity}</p>
+                              <p className="mgr-row__name">{p.productName}</p>
+                              <p className="mgr-row__meta">
+                                Đã xuất: {p.totalQuantity} · #{i + 1}
+                              </p>
                             </div>
-                            <span className="ck-text-white ck-font-black ck-text-sm">{Number(p.totalValue || 0).toLocaleString()}đ</span>
+                            <span className="mgr-row__val">
+                              {Number(p.totalValue || 0).toLocaleString("vi-VN")}đ
+                            </span>
                           </div>
                         ))
                       ) : (
-                        <p className="ck-text-xs ck-text-gray-500">Chưa có dữ liệu.</p>
+                        <p className="mgr-empty__sub" style={{ textAlign: "center", padding: "1rem 0" }}>
+                          Chưa có dữ liệu xếp hạng.
+                        </p>
                       )}
                     </div>
                   </div>
 
-                  {/* TẦNG 2: TOP SỰ CỐ / GIAO THIẾU */}
-                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex-1 ck-flex ck-flex-col">
-                    <h3 className="ck-text-lg ck-font-bold ck-text-white ck-mb-4 ck-flex ck-items-center ck-gap-2">
-                      Top 5 Món Hay Giao Thiếu/Sự Cố
+                  <div className="mgr-mini-panel">
+                    <h3 className="mgr-mini-panel__title">
+                      Cảnh báo giao thiếu
+                      <span
+                        className="mgr-mini-panel__title-badge"
+                        style={{
+                          background: "rgba(239, 68, 68, 0.15)",
+                          color: "#fca5a5",
+                        }}
+                      >
+                        Top sự cố
+                      </span>
                     </h3>
-                    <div className="ck-flex-1 ck-space-y-3 ck-overflow-y-auto ck-scrollbar ck-pr-2" style={{ maxHeight: "180px" }}>
+                    <div className="mgr-mini-panel__scroll ck-scrollbar">
                       {dashboardData?.topIssueProducts?.length > 0 ? (
                         dashboardData.topIssueProducts.map((w, i) => (
-                          <div key={i} className="ck-flex ck-justify-between ck-items-center ck-bg-red-500/5 ck-p-3 ck-rounded-xl ck-border ck-border-red-500/10">
+                          <div key={i} className="mgr-row mgr-row--alert">
                             <div>
-                              <p className="ck-text-white ck-font-bold ck-text-sm ck-line-clamp-1">{w.productName}</p>
-                              <p className="ck-text-xs ck-text-red-400 ck-font-mono mt-1">Sự cố/Rớt: {w.totalQuantity}</p>
+                              <p className="mgr-row__name">{w.productName}</p>
+                              <p className="mgr-row__meta">
+                                Số ca ghi nhận: {w.totalQuantity}
+                              </p>
                             </div>
-                            <span className="ck-text-red-400 ck-font-black ck-text-sm">{Number(w.totalValue || 0).toLocaleString()}đ</span>
+                            <span className="mgr-row__val">
+                              {Number(w.totalValue || 0).toLocaleString("vi-VN")}đ
+                            </span>
                           </div>
                         ))
                       ) : (
-                        <p className="ck-text-xs ck-text-gray-500">Tuyệt vời! Không có sự cố nào.</p>
+                        <p className="mgr-empty__sub" style={{ textAlign: "center", padding: "1rem 0", color: "#86efac" }}>
+                          Không có sự cố trong dữ liệu hiện tại.
+                        </p>
                       )}
                     </div>
                   </div>
@@ -765,32 +794,40 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
           {/* ================== 2. TAB QUẢN LÝ SẢN PHẨM ================== */}
           {activeManagementTab === "Quản lý sản phẩm" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full">
-              <div className="ck-flex ck-gap-4 ck-items-center">
-                <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-red-400 ck-transition-colors">
+            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full mgr-section">
+              <div className="mgr-section-head">
+                <div>
+                  <div className="mgr-section-head__eyebrow">Danh mục master</div>
+                  <h2 className="mgr-section-head__title">Sản phẩm &amp; giá franchise</h2>
+                  <p className="mgr-section-head__sub">
+                    Tra cứu theo mã hoặc tên, lọc theo danh mục. Bấm chỉnh sửa để mở bảng chi tiết bên phải — kiểm tra giá
+                    vốn, giá bán và trạng thái niêm yết trước khi lưu.
+                  </p>
+                </div>
+              </div>
+              <div className="mgr-search-row">
+                <div className="mgr-search-bar mgr-search-bar--rose">
                   <input
                     type="text"
-                    placeholder="🔍 Tìm kiếm mã ID, Tên sản phẩm..."
-                    className="ck-w-full ck-px-4 ck-py-2 ck-outline-none"
-                    style={{ backgroundColor: "#111827", color: "white" }}
+                    placeholder="Tìm theo mã SKU hoặc tên sản phẩm…"
                     defaultValue={productSearchText}
                     onChange={(e) => setProductSearchText(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter")
-                        setProductAppliedSearch(e.target.value);
+                        setProductAppliedSearch(productSearchText);
                     }}
                   />
                   <button
+                    type="button"
                     onClick={() => setProductAppliedSearch(productSearchText)}
-                    className="ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-red-400 ck-px-6 ck-font-bold ck-border-l ck-border-gray-700 ck-transition-colors ck-flex-shrink-0"
                   >
-                    Tìm kiếm
+                    Tìm
                   </button>
                 </div>
                 <select
                   value={filterProductCategory}
                   onChange={(e) => setFilterProductCategory(e.target.value)}
-                  className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer"
+                  className="mgr-select"
                 >
                   <option value="Tất cả danh mục">Tất cả danh mục</option>
                   <option value="Gà rán">Gà rán</option>
@@ -800,25 +837,28 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </select>
               </div>
 
-              <div className="ck-flex ck-gap-6 ck-flex-1 ck-items-start ck-transition-all">
+              <div className="mgr-split">
                 <div
-                  className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-duration-300"
-                  style={{ width: showAddMasterProduct ? "66.66%" : "100%" }}
+                  className="mgr-split__main mgr-table-wrap ck-transition-all ck-duration-300"
+                  style={{
+                    flexBasis: showAddMasterProduct ? "64%" : "100%",
+                    maxWidth: showAddMasterProduct ? "64%" : "100%",
+                  }}
                 >
-                  <table className="ck-w-full ck-text-left ck-border-collapse">
-                    <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
+                  <table>
+                    <thead>
                       <tr>
-                        <th className="ck-py-4 ck-px-4">Mã Món</th>
-                        <th className="ck-py-4 ck-px-4">Sản phẩm</th>
-                        <th className="ck-py-4 ck-px-4">Danh mục</th>
-                        <th className="ck-py-4 ck-px-4">Giá Franchise</th>
-                        <th className="ck-py-4 ck-px-4 ck-text-center">Trạng thái</th>
-                        <th className="ck-py-4 ck-px-4 ck-text-center">Hành động</th>
+                        <th>Mã món</th>
+                        <th>Sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Giá franchise</th>
+                        <th style={{ textAlign: "center" }}>Trạng thái</th>
+                        <th style={{ textAlign: "center" }}>Thao tác</th>
                       </tr>
                     </thead>
-                    <tbody className="ck-text-white ck-text-sm">
-                      {masterProducts
-                        .filter((prod) => {
+                    <tbody>
+                      {(() => {
+                        const rows = masterProducts.filter((prod) => {
                           let matchText = true;
                           if (productAppliedSearch)
                             matchText =
@@ -828,46 +868,59 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                               (prod.product_name || prod.name || "")
                                 .toLowerCase()
                                 .includes(productAppliedSearch.toLowerCase());
-                          let matchCat =
+                          const matchCat =
                             filterProductCategory === "Tất cả danh mục" ||
                             prod.category === filterProductCategory;
                           return matchText && matchCat;
-                        })
-                        .map((prod, idx) => {
-                          const isSelling = 
-                            prod.isActive === true || 
-                            prod.active === true || 
-                            prod.is_active === true || 
-                            prod.is_active === 1 || 
+                        });
+                        if (rows.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={6} style={{ padding: 0, border: "none" }}>
+                                <div className="mgr-empty" style={{ margin: 16 }}>
+                                  <div className="mgr-empty__icon">🍽️</div>
+                                  <p className="mgr-empty__title">Không có sản phẩm phù hợp</p>
+                                  <p className="mgr-empty__sub">
+                                    Đổi danh mục hoặc xóa từ khóa tìm kiếm. Tổng trong hệ thống:{" "}
+                                    {masterProducts.length} SKU.
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return rows.map((prod, idx) => {
+                          const isSelling =
+                            prod.isActive === true ||
+                            prod.active === true ||
+                            prod.is_active === true ||
+                            prod.is_active === 1 ||
                             String(prod.is_active) === "true";
 
                           return (
-                            <tr key={idx} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                              <td className="ck-py-4 ck-px-4 ck-font-mono ck-text-gray-400">
+                            <tr key={idx}>
+                              <td className="mgr-mono-muted">
                                 {prod.product_id || prod.productId}
                               </td>
-                              <td className="ck-py-4 ck-px-4 ck-font-bold">
-                                {prod.emoji || "🍴"} {prod.product_name || prod.name}
+                              <td className="mgr-cell-strong">
+                                <span style={{ marginRight: 6 }}>{prod.emoji || "🍴"}</span>
+                                {prod.product_name || prod.name}
                               </td>
-                              <td className="ck-py-4 ck-px-4">{prod.category}</td>
-                              <td className="ck-py-4 ck-px-4 ck-text-green-400 ck-font-mono">
-                                {Number(prod.selling_price || prod.sellingPrice || prod.price || 0).toLocaleString()} ₫
+                              <td style={{ color: "var(--text2, #d1d5db)" }}>{prod.category}</td>
+                              <td className="mgr-mono-muted" style={{ color: "#86efac" }}>
+                                {Number(prod.selling_price || prod.sellingPrice || prod.price || 0).toLocaleString("vi-VN")} ₫
                               </td>
-                              
-                              <td className="ck-py-4 ck-px-4 ck-text-center">
+                              <td style={{ textAlign: "center" }}>
                                 <span
-                                  className={`ck-px-3 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold ck-border ${
-                                    isSelling 
-                                      ? "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50" 
-                                      : "ck-bg-red-500-20 ck-text-red-400 ck-border-red-500-50"
-                                  }`}
+                                  className={`mgr-pill ${isSelling ? "mgr-pill--ok" : "mgr-pill--danger"}`}
                                 >
                                   {isSelling ? "Đang bán" : "Ngừng bán"}
                                 </span>
                               </td>
-                              
-                              <td className="ck-py-4 ck-px-4 ck-text-center">
+                              <td style={{ textAlign: "center" }}>
                                 <button
+                                  type="button"
+                                  title="Chỉnh sửa"
                                   onClick={() => {
                                     setEditingMasterProduct(prod);
                                     setNewMasterProduct({
@@ -880,36 +933,50 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                     });
                                     setShowAddMasterProduct(true);
                                   }}
-                                  className="ck-mr-3 ck-text-gray-400 hover:ck-text-white bg-transparent border-none cursor-pointer"
+                                  className="mgr-icon-btn"
+                                  style={{ marginRight: 8 }}
                                 >
                                   ✏️
                                 </button>
                                 <button
+                                  type="button"
+                                  title="Ngừng bán"
                                   onClick={() => handleDeleteMasterProduct(prod.product_id || prod.productId)}
-                                  className="ck-text-red-500 hover:ck-text-red-400 bg-transparent border-none cursor-pointer"
+                                  className="mgr-icon-btn"
+                                  style={{ color: "#f87171" }}
                                 >
                                   🗑️
                                 </button>
                               </td>
                             </tr>
                           );
-                        })}
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
 
                 {showAddMasterProduct && (
                   <div
-                    className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-animate-fade-in"
-                    style={{ width: "33.33%" }}
+                    className="mgr-aside ck-animate-fade-in"
+                    style={{ flex: "0 0 32%", minWidth: 280 }}
                   >
-                    <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-                      <h3 className="ck-text-xl ck-font-bold ck-text-white">
-                        {editingMasterProduct ? "Chi tiết Sản Phẩm" : "Thêm Sản Phẩm Mới"}
-                      </h3>
+                    <div className="mgr-aside__head">
+                      <div>
+                        <h3 className="mgr-aside__title">
+                          {editingMasterProduct ? "Chi tiết sản phẩm" : "Thêm sản phẩm mới"}
+                        </h3>
+                        <span className="mgr-panel__hint" style={{ marginTop: 6 }}>
+                          {editingMasterProduct
+                            ? "Cập nhật giá và trạng thái niêm yết cho chuỗi franchise."
+                            : "Nhập mã duy nhất (SKU) và thông tin niêm yết."}
+                        </span>
+                      </div>
                       <button
+                        type="button"
                         onClick={() => setShowAddMasterProduct(false)}
-                        className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-xl ck-cursor-pointer ck-p-1"
+                        className="mgr-icon-btn"
+                        aria-label="Đóng"
                       >
                         ✕
                       </button>
@@ -977,12 +1044,14 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   </div>
                       </div>
                     </div>
-                    <div className="ck-mt-6 ck-flex ck-gap-3">
+                    <div className="ck-mt-6">
                       <button
+                        type="button"
                         onClick={handleSaveMasterProduct}
-                        className="ck-w-full ck-bg-gradient-btn-admin ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer"
+                        className="mgr-btn mgr-btn--primary ck-w-full"
+                        style={{ width: "100%", justifyContent: "center" }}
                       >
-                        {editingMasterProduct ? "Cập nhật dữ liệu" : "Tạo mới"}
+                        {editingMasterProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
                       </button>
                     </div>
                   </div>
@@ -993,31 +1062,63 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
           {/* ================== 3. TAB TỔNG QUAN TỒN KHO ================== */}
           {activeManagementTab === "Tổng quan tồn kho" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full">
-              <div className="ck-flex ck-gap-4 ck-items-center">
-                <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-yellow-400 ck-transition-colors">
+            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full mgr-section">
+              <div className="mgr-section-head">
+                <div>
+                  <div className="mgr-section-head__eyebrow">Kho trung tâm</div>
+                  <h2 className="mgr-section-head__title">Tồn kho nguyên liệu</h2>
+                  <p className="mgr-section-head__sub">
+                    Bảng dưới lọc theo ô tìm kiếm. Bấm một dòng để xem chi tiết, quy đổi đơn vị và kiểm thử công thức.
+                    Dùng <strong>Nhập kho</strong> để tạo phiếu nhập nhiều dòng.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mgr-strip">
+                <div className="mgr-strip-item">
+                  <div className="mgr-strip-item__label">Đang hiển thị</div>
+                  <div className="mgr-strip-item__val">{inventorySummary.shown}</div>
+                </div>
+                <div className="mgr-strip-item mgr-strip-item--teal">
+                  <div className="mgr-strip-item__label">Mức an toàn</div>
+                  <div className="mgr-strip-item__val">{inventorySummary.safe}</div>
+                </div>
+                <div className="mgr-strip-item mgr-strip-item--amber">
+                  <div className="mgr-strip-item__label">Sắp hết (≤ ngưỡng)</div>
+                  <div className="mgr-strip-item__val">{inventorySummary.low}</div>
+                </div>
+                <div className="mgr-strip-item mgr-strip-item--red">
+                  <div className="mgr-strip-item__label">Hết hàng</div>
+                  <div className="mgr-strip-item__val">{inventorySummary.out}</div>
+                </div>
+              </div>
+              <p className="mgr-panel__hint" style={{ marginTop: -8, marginBottom: 4 }}>
+                Tổng SKU trong hệ thống: {inventorySummary.totalInSystem} · Ngưỡng mặc định khi thiếu: min / minThreshold hoặc 10.
+              </p>
+
+              <div className="mgr-search-row">
+                <div className="mgr-search-bar mgr-search-bar--amber">
                   <input
                     type="text"
-                    placeholder="🔍 Tìm mã hàng, tên nguyên liệu..."
-                    className="ck-w-full ck-px-4 ck-py-2 ck-outline-none"
-                    style={{ backgroundColor: "#111827", color: "white" }}
+                    placeholder="Tìm theo mã nguyên liệu hoặc tên…"
                     defaultValue={inventorySearchText}
                     onChange={(e) => setInventorySearchText(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter")
-                        setInventoryAppliedSearch(e.target.value);
+                        setInventoryAppliedSearch(inventorySearchText);
                     }}
                   />
                   <button
+                    type="button"
                     onClick={() =>
                       setInventoryAppliedSearch(inventorySearchText)
                     }
-                    className="ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-yellow-400 ck-px-6 ck-font-bold ck-border-l ck-border-gray-700 ck-transition-colors ck-flex-shrink-0"
                   >
-                    Tìm kiếm
+                    Tìm
                   </button>
                 </div>
-                <button 
+                <button
+                  type="button"
                   onClick={() => {
                     setImportForm({
                       note: "",
@@ -1025,71 +1126,83 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                     });
                     setShowImportModal(true);
                   }}
-                  className="ck-btn ck-px-4 ck-py-2 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none ck-flex-shrink-0 ck-transition-colors"
+                  className="mgr-btn mgr-btn--green"
                 >
-                  📦 Nhập Kho
+                  📦 Nhập kho
                 </button>
               </div>
 
-              <div className="ck-flex ck-gap-6 ck-flex-1 ck-items-start ck-transition-all">
+              <div className="mgr-split">
                 <div
-                  className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-duration-300"
-                  style={{ width: selectedInventoryItem ? "66.66%" : "100%" }}
+                  className="mgr-split__main mgr-table-wrap ck-transition-all ck-duration-300"
+                  style={{
+                    flexBasis: selectedInventoryItem ? "64%" : "100%",
+                    maxWidth: selectedInventoryItem ? "64%" : "100%",
+                  }}
                 >
-                  <table className="ck-w-full ck-text-left ck-border-collapse">
-                    <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
+                  <table>
+                    <thead>
                       <tr>
-                        <th className="ck-py-4 ck-px-4">Mã Hàng</th>
-                        <th className="ck-py-4 ck-px-4">
-                          Nguyên liệu / Vật tư
-                        </th>
-                        <th className="ck-py-4 ck-px-4 ck-text-right">
-                          Tồn hiện tại
-                        </th>
-                        <th className="ck-py-4 ck-px-4 ck-text-center">
-                          Tình trạng
-                        </th>
+                        <th>Mã hàng</th>
+                        <th>Nguyên liệu / vật tư</th>
+                        <th style={{ textAlign: "right" }}>Tồn hiện tại</th>
+                        <th style={{ textAlign: "center" }}>Tình trạng</th>
                       </tr>
                     </thead>
-                    <tbody className="ck-text-white ck-text-sm">
+                    <tbody>
                       {filteredInventory.length > 0 ? (
                         filteredInventory.map((item, idx) => {
                           const isOutOfStock = item.stock <= 0;
-                          const isLowStock = item.stock <= (item.min || 10);
+                          const minTh = Number(item.minThreshold ?? item.min ?? 10);
+                          const isLowStock =
+                            !isOutOfStock && item.stock <= minTh;
+                          const selId =
+                            selectedInventoryItem?.ingredientId ||
+                            selectedInventoryItem?.sku;
+                          const rowId = item.ingredientId || item.sku;
+                          const isActive = selId && rowId && String(selId) === String(rowId);
                           return (
                             <tr
                               key={idx}
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setSelectedInventoryItem(item)}
-                              className={`ck-border-t ck-border-gray-700 ck-cursor-pointer ck-transition-colors hover:ck-bg-gray-800 ${selectedInventoryItem?.ingredientId === item.ingredientId ? "ck-bg-gray-800 ck-border-l-4 ck-border-l-yellow-400" : ""}`}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ")
+                                  setSelectedInventoryItem(item);
+                              }}
+                              className={`ck-cursor-pointer ${isActive ? "mgr-tr--active" : ""}`}
                             >
-                              <td className="ck-py-4 ck-px-4 ck-font-mono ck-text-gray-400">
+                              <td className="mgr-mono-muted">
                                 {item.ingredientId || item.sku}
                               </td>
-                              <td className="ck-py-4 ck-px-4 ck-font-bold">
+                              <td className="mgr-cell-strong">
                                 {item.ingredientName || item.name}
                               </td>
-                              {/* ĐÃ XÓA 2 THẺ <td> CỦA KHO VÀ DANH MỤC Ở ĐÂY */}
                               <td
-                                className={`ck-py-4 ck-px-4 ck-font-mono ck-font-bold ck-text-right ${isOutOfStock ? "ck-text-red-500" : isLowStock ? "ck-text-yellow-400" : "ck-text-white"}`}
+                                className="mgr-mono-muted"
+                                style={{
+                                  textAlign: "right",
+                                  fontWeight: 700,
+                                  color: isOutOfStock
+                                    ? "#f87171"
+                                    : isLowStock
+                                      ? "#fcd34d"
+                                      : "var(--text, #fff)",
+                                }}
                               >
-                                {Number(item.stock || 0).toLocaleString()}{" "}
-                                <span className="ck-text-xs ck-text-gray-500">
+                                {Number(item.stock || 0).toLocaleString("vi-VN")}{" "}
+                                <span style={{ fontWeight: 500, opacity: 0.75 }}>
                                   {item.unit}
                                 </span>
                               </td>
-                              <td className="ck-py-4 ck-px-4 ck-text-center">
+                              <td style={{ textAlign: "center" }}>
                                 {isOutOfStock ? (
-                                  <span className="ck-bg-red-500-20 ck-text-red-400 ck-px-3 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold">
-                                    Hết hàng
-                                  </span>
+                                  <span className="mgr-pill mgr-pill--danger">Hết hàng</span>
                                 ) : isLowStock ? (
-                                  <span className="ck-bg-yellow-500-20 ck-text-yellow-400 ck-px-3 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold">
-                                    Sắp hết
-                                  </span>
+                                  <span className="mgr-pill mgr-pill--warn">Sắp hết</span>
                                 ) : (
-                                  <span className="ck-bg-green-500-20 ck-text-green-400 ck-px-3 ck-py-1 ck-rounded-full ck-text-xs ck-font-bold">
-                                    An toàn
-                                  </span>
+                                  <span className="mgr-pill mgr-pill--ok">An toàn</span>
                                 )}
                               </td>
                             </tr>
@@ -1097,11 +1210,14 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                         })
                       ) : (
                         <tr>
-                          <td
-                            colSpan="6"
-                            className="ck-py-8 ck-text-center ck-text-gray-500"
-                          >
-                            Không tìm thấy nguyên liệu nào phù hợp.
+                          <td colSpan={4} style={{ padding: 0, border: "none" }}>
+                            <div className="mgr-empty" style={{ margin: 16 }}>
+                              <div className="mgr-empty__icon">📭</div>
+                              <p className="mgr-empty__title">Không có dòng phù hợp</p>
+                              <p className="mgr-empty__sub">
+                                Thử bỏ bớt từ khóa tìm kiếm hoặc kiểm tra dữ liệu đồng bộ từ bếp.
+                              </p>
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -1111,38 +1227,49 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
                 {selectedInventoryItem && (
                   <div
-                    className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-animate-fade-in"
-                    style={{ width: "33.33%" }}
+                    className="mgr-aside ck-animate-fade-in"
+                    style={{ flex: "0 0 32%", minWidth: 280 }}
                   >
-                    <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-                      <h3 className="ck-text-xl ck-font-bold ck-text-white">
-                        Chi tiết Tồn kho
-                      </h3>
+                    <div className="mgr-aside__head">
+                      <div>
+                        <h3 className="mgr-aside__title">Chi tiết tồn kho</h3>
+                        <span className="mgr-panel__hint" style={{ marginTop: 6 }}>
+                          Quy đổi đơn vị và kiểm tra tính toán theo SKU đã chọn.
+                        </span>
+                      </div>
                       <button
+                        type="button"
                         onClick={() => setSelectedInventoryItem(null)}
-                        className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-xl ck-cursor-pointer ck-p-1"
+                        className="mgr-icon-btn"
+                        aria-label="Đóng"
                       >
                         ✕
                       </button>
                     </div>
                     <div className="ck-space-y-5 ck-text-sm">
-                      <div className="ck-bg-gray-800 ck-p-4 ck-rounded-xl ck-border ck-border-gray-700">
-                        <p className="ck-text-xs ck-text-gray-400 ck-font-mono ck-mb-1">
+                      <div
+                        className="ck-p-4 ck-rounded-xl"
+                        style={{
+                          background: "rgba(20, 184, 166, 0.08)",
+                          border: "1px solid rgba(45, 212, 191, 0.25)",
+                        }}
+                      >
+                        <p className="mgr-mono-muted ck-mb-1">
                           {selectedInventoryItem.ingredientId || selectedInventoryItem.sku}
                         </p>
                         <p className="ck-text-lg ck-text-white ck-font-bold ck-mb-1">
                           {selectedInventoryItem.ingredientName || selectedInventoryItem.name}
                         </p>
-                        <p className="ck-text-xs ck-text-purple-400 ck-font-bold ck-mb-3">
-                          Kho: Kho Tổng
+                        <p className="ck-text-xs ck-font-bold ck-mb-3" style={{ color: "#c4b5fd" }}>
+                          Kho tổng · Đơn vị gốc: {selectedInventoryItem.unit || "—"}
                         </p>
                         <div className="ck-flex ck-justify-between ck-items-end mt-4">
                           <div>
                             <p className="ck-text-xs ck-text-gray-400 ck-mb-1">
-                              Tồn kho thực tế
+                              Số lượng tồn
                             </p>
                             <p className="ck-text-2xl ck-font-black ck-text-white">
-                              {selectedInventoryItem.stock || 0}{" "}
+                              {Number(selectedInventoryItem.stock || 0).toLocaleString("vi-VN")}{" "}
                               <span className="ck-text-sm ck-text-gray-500 ck-font-normal">
                                 {selectedInventoryItem.unit}
                               </span>
@@ -1483,39 +1610,46 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
             });
 
             return (
-              <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
-                <div className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900 ck-p-5 ck-rounded-2xl ck-border ck-border-gray-700">
+              <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in mgr-section">
+                <div className="mgr-hero">
                   <div>
-                    <h2 className="ck-text-2xl ck-font-black ck-text-white">Kiểm Kê Định Kỳ</h2>
-                    <p className="ck-text-sm ck-text-gray-400">Nhập số lượng thực tế đếm được tại kho. Bỏ trống nếu không kiểm kê món đó.</p>
+                    <h2 className="mgr-hero__title">Kiểm kê định kỳ</h2>
+                    <p className="mgr-hero__sub">
+                      Nhập <strong>đếm thực tế</strong> cho từng dòng cần đối soát; để trống nếu bỏ qua. Hệ thống cảnh báo
+                      đỏ khi lệch quá <strong>50%</strong> so với tồn sổ — cần sửa trước khi gửi.
+                    </p>
                   </div>
                   <button
+                    type="button"
                     onClick={handleSubmitStocktake}
-                    // KHÓA NÚT NẾU ĐANG CALL API HOẶC CÓ DÒNG BỊ LỖI > 50%
-                    disabled={isSubmittingStocktake || hasValidationError} 
-                    className={`ck-btn ck-px-6 ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-shadow-lg ck-flex ck-items-center ck-gap-2 ck-transition-all ${
-                      hasValidationError 
-                        ? "ck-bg-gray-600 ck-text-gray-400 ck-cursor-not-allowed" 
-                        : "ck-bg-gradient-btn-admin ck-text-white hover:ck-scale-105"
+                    disabled={isSubmittingStocktake || hasValidationError}
+                    className={`mgr-btn ${
+                      hasValidationError && !isSubmittingStocktake
+                        ? "mgr-btn--ghost"
+                        : "mgr-btn--primary"
                     }`}
                   >
-                    {isSubmittingStocktake ? "Đang xử lý..." : hasValidationError ? "🛑 Vui lòng sửa lỗi đỏ" : "✅ Xác nhận kiểm kê"}
+                    {isSubmittingStocktake
+                      ? "Đang xử lý…"
+                      : hasValidationError
+                        ? "Sửa dòng lệch > 50%"
+                        : "Xác nhận kiểm kê"}
                   </button>
                 </div>
 
-                <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden">
+                <div className="mgr-table-wrap">
                   <div className="ck-max-h-[600px] ck-overflow-y-auto ck-scrollbar">
-                    <table className="ck-w-full ck-text-left ck-border-collapse">
-                      <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase sticky top-0 z-10">
+                    <table>
+                      <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
                         <tr>
-                          <th className="ck-py-4 ck-px-4">Mã Hàng</th>
-                          <th className="ck-py-4 ck-px-4">Tên Nguyên Liệu</th>
-                          <th className="ck-py-4 ck-px-4 ck-text-center">Tồn hệ thống</th>
-                          <th className="ck-py-4 ck-px-4">Đếm thực tế (Actual Qty)</th>
-                          <th className="ck-py-4 ck-px-4">Ghi chú (Tùy chọn)</th>
+                          <th>Mã hàng</th>
+                          <th>Tên nguyên liệu</th>
+                          <th style={{ textAlign: "center" }}>Tồn sổ</th>
+                          <th>Đếm thực tế</th>
+                          <th>Ghi chú hiện trường</th>
                         </tr>
                       </thead>
-                      <tbody className="ck-text-white ck-text-sm">
+                      <tbody>
                         {inventory.map((item, idx) => {
                           const ingId = item.ingredientId || item.id || item.sku;
                           const sysStock = Number(item.stock || 0);
@@ -1589,45 +1723,57 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           })()}
           {/* ================== 6. TAB QUẢN LÝ CÔNG THỨC ================== */}
           {activeManagementTab === "Quản lý công thức" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
-              <div className="ck-flex ck-gap-4 ck-items-center">
-                <div className="ck-flex ck-flex-1 ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-overflow-hidden focus-within:ck-border-orange-400 ck-transition-colors">
+            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in mgr-section">
+              <div className="mgr-section-head">
+                <div>
+                  <div className="mgr-section-head__eyebrow">Định mức BOM</div>
+                  <h2 className="mgr-section-head__title">Công thức theo sản phẩm</h2>
+                  <p className="mgr-section-head__sub">
+                    Chọn một món trong danh sách để xem và chỉnh nguyên liệu / định lượng. Lưu công thức sẽ đồng bộ xuống
+                    bếp cho phần sản xuất và kế hoạch cấp hàng.
+                  </p>
+                </div>
+              </div>
+              <div className="mgr-search-row">
+                <div className="mgr-search-bar mgr-search-bar--orange">
                   <input
                     type="text"
-                    placeholder="🔍 Tìm mã SKU, Tên sản phẩm..."
-                    className="ck-w-full ck-px-4 ck-py-2 ck-outline-none"
-                    style={{ backgroundColor: "#111827", color: "white" }}
+                    placeholder="Tìm theo mã SKU hoặc tên món…"
                     defaultValue={recipeSearchText}
                     onChange={(e) => setRecipeSearchText(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter")
-                        setRecipeAppliedSearch(e.target.value);
+                        setRecipeAppliedSearch(recipeSearchText);
                     }}
                   />
                   <button
+                    type="button"
                     onClick={() => setRecipeAppliedSearch(recipeSearchText)}
-                    className="ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-orange-400 ck-px-6 ck-font-bold ck-border-l ck-border-gray-700 ck-transition-colors ck-flex-shrink-0"
                   >
-                    Tìm kiếm
+                    Tìm
                   </button>
                 </div>
               </div>
-              <div className="ck-flex ck-gap-6 ck-flex-1 ck-items-start ck-transition-all">
-                
+              <div className="mgr-split">
                 <div
-                  className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-duration-300"
-                  style={{ width: selectedRecipe ? "55%" : "100%", maxHeight: "600px", overflowY: "auto" }}
+                  className="mgr-split__main mgr-table-wrap ck-transition-all ck-duration-300"
+                  style={{
+                    flexBasis: selectedRecipe ? "56%" : "100%",
+                    maxWidth: selectedRecipe ? "56%" : "100%",
+                    maxHeight: 600,
+                    overflowY: "auto",
+                  }}
                 >
-                  <table className="ck-w-full ck-text-left ck-border-collapse relative">
-                    <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase sticky top-0 z-10">
+                  <table>
+                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
                       <tr>
-                        <th className="ck-py-4 ck-px-4">Mã Món</th>
-                        <th className="ck-py-4 ck-px-4">Sản phẩm</th>
-                        <th className="ck-py-4 ck-px-4 ck-text-center">Đơn vị bán</th>
-                        <th className="ck-py-4 ck-px-4 ck-text-center">Hành động</th>
+                        <th>Mã món</th>
+                        <th>Sản phẩm</th>
+                        <th style={{ textAlign: "center" }}>Đơn vị bán</th>
+                        <th style={{ textAlign: "center" }}>Công thức</th>
                       </tr>
                     </thead>
-                    <tbody className="ck-text-white ck-text-sm">
+                    <tbody>
                       {masterProducts.length > 0 ? (
                         masterProducts
                           .filter((prod) => {
@@ -1669,20 +1815,19 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                     setEditingRecipeIngredients([]);
                                   }
                                 }}
-                                className={`ck-border-t ck-border-gray-700 ck-cursor-pointer ck-transition-colors hover:ck-bg-gray-800 ${isSelected ? "ck-bg-gray-800 ck-border-l-4 ck-border-l-orange-500" : ""}`}
+                                className={`ck-cursor-pointer ${isSelected ? "mgr-tr--active-orange" : ""}`}
                               >
-                                <td className="ck-py-4 ck-px-4 ck-font-mono ck-text-gray-400">
-                                  {pId}
+                                <td className="mgr-mono-muted">{pId}</td>
+                                <td className="mgr-cell-strong">
+                                  <span style={{ marginRight: 6 }}>{prod.emoji || "🍴"}</span>
+                                  {prod.product_name || prod.name}
                                 </td>
-                                <td className="ck-py-4 ck-px-4 ck-font-bold">
-                                  {prod.emoji || "🍴"} {prod.product_name || prod.name}
-                                </td>
-                                <td className="ck-py-4 ck-px-4 ck-text-center ck-font-mono ck-text-gray-300">
+                                <td className="mgr-mono-muted" style={{ textAlign: "center" }}>
                                   {prod.baseUnit || prod.base_unit || "PHẦN"}
                                 </td>
-                                <td className="ck-py-4 ck-px-4 ck-text-center">
-                                  <span className="ck-text-orange-400 ck-text-xs ck-font-bold group-hover:ck-underline">
-                                    Thiết lập →
+                                <td style={{ textAlign: "center" }}>
+                                  <span className="mgr-pill mgr-pill--warn" style={{ cursor: "inherit" }}>
+                                    Mở BOM →
                                   </span>
                                 </td>
                               </tr>
@@ -1690,8 +1835,12 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                           })
                       ) : (
                         <tr>
-                          <td colSpan="4" className="ck-py-8 ck-text-center ck-text-gray-500">
-                            Không tìm thấy sản phẩm nào.
+                          <td colSpan={4} style={{ padding: 0, border: "none" }}>
+                            <div className="mgr-empty" style={{ margin: 16 }}>
+                              <div className="mgr-empty__icon">📝</div>
+                              <p className="mgr-empty__title">Không có sản phẩm</p>
+                              <p className="mgr-empty__sub">Thử tìm kiếm với từ khóa khác.</p>
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -1701,34 +1850,34 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
                 {selectedRecipe && (
                   <div
-                    className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-flex ck-flex-col ck-animate-fade-in"
-                    style={{ width: "45%", maxHeight: "600px" }}
+                    className="mgr-aside ck-flex ck-flex-col ck-animate-fade-in"
+                    style={{ flex: "0 0 40%", minWidth: 280, maxHeight: 600 }}
                   >
-                    <div className="ck-p-5 ck-border-b ck-border-gray-700 ck-flex ck-justify-between ck-items-center">
+                    <div className="mgr-aside__head" style={{ borderBottom: "1px solid var(--border, #4b5563)" }}>
                       <div>
-                        <h3 className="ck-text-xl ck-font-bold ck-text-white ck-mb-1">
-                          Định mức nguyên liệu (BOM)
-                        </h3>
-                        <p className="ck-text-sm ck-text-orange-400 ck-font-semibold">
+                        <h3 className="mgr-aside__title">Định mức nguyên liệu</h3>
+                        <p className="mgr-panel__hint" style={{ marginTop: 6, color: "#fb923c" }}>
                           {selectedRecipe.emoji || "🍴"} {selectedRecipe.product_name || selectedRecipe.name}
                         </p>
                       </div>
-                      <div className="ck-flex ck-gap-2">
-                        <button
-                          onClick={() => setSelectedRecipe(null)}
-                          className="ck-text-gray-500 hover:ck-text-red-400 ck-bg-gray-800 ck-w-8 ck-h-8 ck-rounded-full ck-flex ck-items-center ck-justify-center ck-border-none ck-cursor-pointer ck-transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRecipe(null)}
+                        className="mgr-icon-btn"
+                        aria-label="Đóng"
+                      >
+                        ✕
+                      </button>
                     </div>
                     
                     <div className="ck-p-5 ck-flex-1 ck-overflow-y-auto ck-scrollbar">
                       {editingRecipeIngredients.length === 0 ? (
-                        <div className="ck-text-center ck-py-10 ck-text-gray-500">
-                          <p className="ck-mb-2 ck-text-3xl">🫙</p>
-                          <p>Sản phẩm này chưa có công thức.</p>
-                          <p className="ck-text-xs mt-1">Hãy thêm nguyên liệu bên dưới.</p>
+                        <div className="mgr-empty" style={{ padding: "2rem 1rem" }}>
+                          <div className="mgr-empty__icon">🫙</div>
+                          <p className="mgr-empty__title">Chưa có dòng BOM</p>
+                          <p className="mgr-empty__sub">
+                            Thêm nguyên liệu từ kho bằng ô chọn phía dưới, rồi nhập định lượng cho từng dòng.
+                          </p>
                         </div>
                       ) : (
                         <div className="ck-space-y-3">
@@ -1818,6 +1967,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                     
                     <div className="ck-p-5 ck-border-t ck-border-gray-700 ck-bg-gray-800/50">
                        <button 
+                          type="button"
                           onClick={async () => {
                             if(editingRecipeIngredients.length === 0) return alert("Vui lòng thêm ít nhất 1 nguyên liệu!");
                             
@@ -1838,9 +1988,10 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                               alert("❌ Lỗi lưu công thức: " + e.message);
                             }
                           }}
-                          className="ck-w-full ck-py-3 ck-bg-orange-500 hover:ck-bg-orange-600 ck-text-white ck-rounded-xl ck-font-black ck-border-none ck-cursor-pointer ck-shadow-lg shadow-orange-500/20 ck-transition-all"
+                          className="mgr-btn mgr-btn--amber ck-w-full"
+                          style={{ width: "100%", justifyContent: "center" }}
                         >
-                          💾 LƯU CÔNG THỨC
+                          💾 Lưu công thức
                         </button>
                     </div>
 
@@ -1852,10 +2003,28 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
           {/* ================== 8. TAB CỬA HÀNG FRANCHISE ================== */}
           {activeManagementTab === "Cửa hàng Franchise" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
+            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in mgr-section">
               {!selectedStore ? (
-                <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                  {stores.map((store) => {
+                <>
+                  <div className="mgr-section-head">
+                    <div>
+                      <div className="mgr-section-head__eyebrow">Mạng lưới</div>
+                      <h2 className="mgr-section-head__title">Cửa hàng franchise</h2>
+                      <p className="mgr-section-head__sub">
+                        Chọn chi nhánh để xem lịch sử đơn và tạo đơn <strong>đặt hộ</strong> khi cửa hàng cần hỗ trợ. Trạng
+                        thái hiển thị theo dữ liệu cửa hàng trên hệ thống.
+                      </p>
+                    </div>
+                  </div>
+                <div className="mgr-store-grid">
+                  {stores.length === 0 ? (
+                    <div className="mgr-empty" style={{ gridColumn: "1 / -1" }}>
+                      <div className="mgr-empty__icon">🏪</div>
+                      <p className="mgr-empty__title">Chưa có cửa hàng</p>
+                      <p className="mgr-empty__sub">Dữ liệu chi nhánh sẽ hiện khi Admin tạo cửa hàng và đồng bộ quyền xem.</p>
+                    </div>
+                  ) : (
+                    stores.map((store) => {
                     const isStoreActive = store.isActive === true || store.active === true || store.is_active === true || store.status === 'ACTIVE';
                     return (
                     <div
@@ -1869,50 +2038,62 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                           setAllOrders([]); 
                         }
                       }}
-                      className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-6 ck-rounded-2xl hover:ck-border-red-500 ck-transition-all ck-cursor-pointer group shadow-xl"
+                      className="mgr-store-card"
                     >
-                      <div className="ck-flex ck-justify-between ck-mb-4">
-                        <div className="ck-p-3 ck-bg-gray-800 ck-rounded-xl">
-                          <Store className="ck-text-red-400" size={32} />
+                      <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
+                        <div className="mgr-store-card__icon">
+                          <Store className="ck-text-red-400" size={28} />
                         </div>
-                        <span className={`ck-badge ${isStoreActive ? "ck-badge-green" : "ck-badge-red"} ck-h-fit`}>
+                        <span className={`mgr-pill ${isStoreActive ? "mgr-pill--ok" : "mgr-pill--danger"}`}>
                           {isStoreActive ? "Đang chạy" : "Tạm dừng"}
                         </span>
                       </div>
-                      <h3 className="ck-text-xl ck-font-black ck-text-white ck-mb-1">{store.name}</h3>
-                      <p className="ck-text-sm ck-text-gray-500 ck-mb-4 ck-line-clamp-1">{store.address}</p>
-                      <div className="ck-flex ck-justify-between ck-items-center ck-pt-4 ck-border-t ck-border-gray-800">
-                        <span className="ck-text-xs ck-font-mono ck-text-gray-600">{store.id || store.storeId}</span>
-                        <span className="ck-text-red-400 ck-font-bold group-hover:ck-translate-x-1 ck-transition-transform">Chi tiết →</span>
+                      <h3 className="mgr-store-card__name">{store.name}</h3>
+                      <p className="mgr-store-card__addr">{store.address || "—"}</p>
+                      <div className="mgr-store-card__foot">
+                        <span className="mgr-mono-muted" style={{ fontSize: 10 }}>{store.id || store.storeId}</span>
+                        <span className="mgr-store-card__cta">Chi tiết →</span>
                       </div>
                     </div>
-                  )})}
+                  );
+                    })
+                  )}
                 </div>
+                </>
               ) : (
                 <div className="ck-flex ck-flex-col ck-gap-6 relative">
-                  <div className="ck-flex ck-justify-between ck-items-center ck-bg-gray-900 ck-p-4 ck-rounded-2xl ck-border ck-border-gray-700">
-                    <div className="ck-flex ck-items-center ck-gap-4">
+                  <div className="mgr-hero" style={{ marginBottom: 0 }}>
+                    <div className="ck-flex ck-items-center ck-gap-4 ck-flex-wrap">
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedStore(null);
                           setIsOrderingForStore(false);
                           setIsUrgentOrder(false); 
                         }}
-                        className="ck-w-10 ck-h-10 ck-flex ck-items-center ck-justify-center ck-bg-gray-800 ck-rounded-full ck-text-gray-400 hover:ck-text-white border-none ck-cursor-pointer"
+                        className="mgr-icon-btn"
+                        style={{ width: 42, height: 42, borderRadius: "50%" }}
+                        aria-label="Quay lại danh sách"
                       >
                         ←
                       </button>
                       <div>
-                        <h2 className="ck-text-2xl ck-font-black ck-text-white">Cửa hàng: {selectedStore.name}</h2>
-                        <p className="ck-text-xs ck-text-gray-500 ck-mono">{selectedStore.id || selectedStore.storeId} | {selectedStore.address}</p>
+                        <h2 className="mgr-hero__title" style={{ marginBottom: 4 }}>
+                          {selectedStore.name}
+                        </h2>
+                        <p className="mgr-panel__hint" style={{ margin: 0 }}>
+                          Mã: {selectedStore.id || selectedStore.storeId}
+                          {selectedStore.address ? ` · ${selectedStore.address}` : ""}
+                        </p>
                       </div>
                     </div>
                     {!isOrderingForStore && (
                       <button
+                        type="button"
                         onClick={() => setIsOrderingForStore(true)}
-                        className="ck-btn ck-px-6 ck-py-3 ck-bg-gradient-btn-admin ck-text-white ck-rounded-xl ck-font-bold border-none shadow-lg shadow-red-500/20 ck-flex ck-items-center ck-gap-2"
+                        className="mgr-btn mgr-btn--primary"
                       >
-                        <Plus size={20} /> Tạo đơn đặt hộ
+                        <Plus size={18} /> Đặt hộ cửa hàng
                       </button>
                     )}
                   </div>
@@ -2166,47 +2347,36 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
           {/* ================== 9. TAB CÀI ĐẶT HỆ THỐNG ================== */}
           {activeManagementTab === "Cài đặt hệ thống" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
-              <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-8 ck-rounded-3xl shadow-2xl">
-                <div className="ck-flex ck-justify-between ck-items-center ck-mb-8">
-                  <div>
-                    <h3 className="ck-text-2xl ck-font-black ck-text-white ck-mb-2">
-                      ⚙️ Cấu hình vận hành trung tâm
-                    </h3>
-                    <p className="ck-text-sm ck-text-gray-400">
-                      Thiết lập các tham số hệ thống cho toàn bộ mạng lưới Bếp & Cửa hàng
-                    </p>
-                  </div>
-                  {/* ĐÃ XÓA NÚT LÀM MỚI DỮ LIỆU Ở ĐÂY */}
-                </div>
+            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in mgr-section">
+              <div className="mgr-settings-hero">
+                <h3>⚙️ Cấu hình vận hành trung tâm</h3>
+                <p>
+                  Tham số toàn hệ thống (bếp, cửa hàng, quy tắc nghiệp vụ). Mỗi khóa có nhãn mô tả; sau khi <strong>Lưu</strong>,
+                  giá trị áp dụng ngay — nên ghi chú rõ trong quy trình nội bộ.
+                </p>
+              </div>
 
                 <div className="ck-grid ck-grid-cols-1 md:ck-grid-cols-2 ck-gap-6">
                   {Object.keys(systemConfigs).length > 0 ? (
                     Object.entries(systemConfigs).map(([key, val]) => (
-                      <div 
-                        key={key} 
-                        className="ck-bg-gray-800/50 ck-p-6 ck-rounded-2xl ck-border ck-border-gray-700 hover:ck-border-blue-500/50 ck-transition-all ck-group"
-                      >
-                        <div className="ck-flex ck-justify-between ck-items-start ck-mb-4">
-                          <span className="ck-px-3 ck-py-1 ck-bg-blue-500/10 ck-text-blue-400 ck-rounded-lg ck-text-[10px] ck-font-black ck-uppercase ck-tracking-widest">
-                            System Param
-                          </span>
-                          <span className="ck-text-[10px] ck-text-gray-500 ck-font-mono">{key}</span>
-                        </div>
-                        
-                        <h4 className="ck-text-sm ck-font-bold ck-text-gray-300 ck-mb-4 ck-min-h-[20px]">
-                          {key.replace(/_/g, ' ')}
+                      <div key={key} className="mgr-config-card">
+                        <span className="mgr-config-card__tag">Tham số hệ thống</span>
+                        <div className="mgr-config-card__key">{key}</div>
+                        <h4 className="mgr-config-card__title">
+                          {key.replace(/_/g, " ")}
                         </h4>
 
-                        <div className="ck-flex ck-gap-3 ck-items-center">
+                        <div className="ck-flex ck-gap-3 ck-items-stretch ck-flex-wrap">
                           <input
                             type="text"
                             defaultValue={val}
                             id={`input-cfg-${key}`}
-                            placeholder="Nhập giá trị..."
-                            className="ck-flex-1 ck-bg-gray-900 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-blue-500 ck-outline-none ck-font-bold ck-text-lg"
+                            placeholder="Nhập giá trị mới…"
+                            className="ck-flex-1 ck-min-w-[160px] ck-bg-gray-900 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-blue-500 ck-outline-none ck-font-semibold"
+                            style={{ minHeight: 48 }}
                           />
                           <button
+                            type="button"
                             onClick={async () => {
                               const inputDom = document.getElementById(`input-cfg-${key}`);
                               const newValue = inputDom.value;
@@ -2226,29 +2396,30 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 alert("❌ Lỗi: " + error.message);
                               }
                             }}
-                            className="ck-px-6 ck-py-3 ck-bg-orange-500 hover:ck-bg-orange-600 ck-text-white ck-rounded-xl ck-font-bold ck-transition-all shadow-lg shadow-orange-500/20 ck-border-none ck-cursor-pointer"
+                            className="mgr-btn mgr-btn--amber"
                           >
                             Lưu
                           </button>
                         </div>
-                        <p className="ck-text-[10px] ck-text-gray-500 ck-mt-3 ck-italic">
-                          * Thay đổi sẽ có hiệu lực ngay lập tức với toàn hệ thống.
+                        <p className="mgr-panel__hint" style={{ marginTop: 12, fontStyle: "italic" }}>
+                          Áp dụng toàn hệ thống ngay sau khi API xác nhận thành công.
                         </p>
                       </div>
                     ))
                   ) : (
-                    <div className="ck-col-span-2 ck-bg-gray-800/30 ck-border ck-border-dashed ck-border-gray-700 ck-rounded-3xl ck-py-20 ck-text-center">
-                      <p className="ck-text-4xl ck-mb-4">📋</p>
-                      <p className="ck-text-gray-500 ck-font-medium">Chưa có dữ liệu cấu hình hệ thống</p>
+                    <div className="mgr-empty" style={{ gridColumn: "1 / -1" }}>
+                      <div className="mgr-empty__icon">📋</div>
+                      <p className="mgr-empty__title">Chưa có cấu hình</p>
+                      <p className="mgr-empty__sub">Backend chưa trả tham số hoặc tài khoản chưa có quyền xem.</p>
                     </div>
                   )}
                 </div>
-              </div>
             </div>
           )}
 
+          </div>
         </div>
-      </div>
+      </main>
 
       {/* MODAL TẠO BÁO CÁO Ở ĐÂY ĐỂ ĐẢM BẢO KHÔNG BỊ COMPONENT NÀO ĐÈ LÊN */}
       {showCreateReport && (

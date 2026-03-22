@@ -34,12 +34,44 @@ const PAGE_META = {
     iconStroke: "#8b5cf6",
   },
   settings: {
-    title: "Cài đặt tiệm",
-    crumb: "Cài đặt",
+    title: "Cài đặt cửa hàng",
+    crumb: "Cài đặt cửa hàng",
     iconBg: "#eef5f1",
     iconStroke: "#4a7c5f",
   },
 };
+
+/** Chuẩn hóa GET /api/store/settings/profile (nhiều kiểu tên trường / bọc data). */
+function normalizeStoreProfilePayload(raw) {
+  const p =
+    raw && typeof raw === "object"
+      ? raw.data != null && typeof raw.data === "object" && !Array.isArray(raw.data)
+        ? raw.data
+        : raw
+      : {};
+  const name = (
+    p.name ??
+    p.storeName ??
+    p.store_name ??
+    p.store?.name ??
+    ""
+  )
+    .toString()
+    .trim();
+  const address = (p.address ?? p.storeAddress ?? p.store_address ?? "")
+    .toString()
+    .trim();
+  const phone = (
+    p.phone ??
+    p.phoneNumber ??
+    p.phone_number ??
+    p.hotline ??
+    ""
+  )
+    .toString()
+    .trim();
+  return { name, address, phone };
+}
 
 const STATUS_MAP = {
   PENDING: { l: "Chờ xác nhận", c: "#d97706", b: "rgba(217,119,6,.1)" },
@@ -88,6 +120,8 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     color: "#4a7c5f",
   });
   const [profileEditing, setProfileEditing] = useState(false);
+  /** productId -> chuỗi đang gõ trong ô số lượng giỏ hàng (cho phép nhập bàn phím) */
+  const [cartQtyDraft, setCartQtyDraft] = useState({});
 
   const loadCart = useCallback(async (productsList = []) => {
     try {
@@ -117,13 +151,15 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
 
   const loadData = useCallback(async () => {
     try {
-      const [productsList, ordersList] = await Promise.all([
+      const [productsList, ordersList, profileRaw] = await Promise.all([
         api.getProducts(),
         api.getStoreOrders(),
+        api.getStoreProfile().catch(() => ({})),
       ]);
       const prods = Array.isArray(productsList) ? productsList : [];
       setProducts(prods);
       setOrders(Array.isArray(ordersList) ? ordersList : []);
+      setStoreProfile(normalizeStoreProfilePayload(profileRaw));
       await loadCart(prods);
       setShipments([]);
     } catch (err) {
@@ -141,11 +177,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   useEffect(() => {
     if (activePage === "settings") {
       api.getStoreProfile().then((p) => {
-        setStoreProfile({
-          name: p.name ?? "",
-          address: p.address ?? "",
-          phone: p.phone ?? "",
-        });
+        setStoreProfile(normalizeStoreProfilePayload(p));
       });
     }
   }, [activePage]);
@@ -164,7 +196,47 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       await loadCart(products);
       showToast("Đã thêm: " + (product.name || productId), "#4a7c5f");
     } catch (err) {
-      showToast("Thêm món thất bại", "#c0392b");
+      showToast("Thêm sản phẩm thất bại", "#c0392b");
+    }
+  };
+
+  const clearCartQtyDraft = (productId) => {
+    const pid = String(productId);
+    setCartQtyDraft((prev) => {
+      if (!(pid in prev)) return prev;
+      const next = { ...prev };
+      delete next[pid];
+      return next;
+    });
+  };
+
+  const commitCartQtyInput = async (item, rawInput) => {
+    const productId = item.id ?? item.productId;
+    const s = String(rawInput ?? "").trim();
+    const n = parseInt(s, 10);
+    if (s === "" || !Number.isFinite(n) || n < 0) {
+      showToast("Nhập số nguyên từ 0 trở lên", "#c0392b");
+      await loadCart(products);
+      return;
+    }
+    if (n === item.quantity) return;
+    if (n === 0) {
+      try {
+        await api.removeFromStoreCart(productId);
+        await loadCart(products);
+        showToast("Đã xóa khỏi giỏ", "#c0392b");
+      } catch (err) {
+        showToast("Cập nhật thất bại", "#c0392b");
+        await loadCart(products);
+      }
+      return;
+    }
+    try {
+      await api.updateStoreCartItem({ productId, quantity: n });
+      await loadCart(products);
+    } catch (err) {
+      showToast("Cập nhật thất bại", "#c0392b");
+      await loadCart(products);
     }
   };
 
@@ -172,6 +244,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     const item = cart.find((c) => (c.id ?? c.productId) === productId);
     if (!item) return;
     const newQty = item.quantity + delta;
+    clearCartQtyDraft(productId);
     if (newQty <= 0) {
       try {
         await api.removeFromStoreCart(productId);
@@ -291,7 +364,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     try {
       await api.updateStoreProfile(storeProfile);
       setProfileEditing(false);
-      showToast("Đã lưu thông tin tiệm", "#4a7c5f");
+      showToast("Đã lưu thông tin cửa hàng", "#4a7c5f");
     } catch (err) {
       showToast("Lưu thất bại", "#c0392b");
     } finally {
@@ -314,6 +387,12 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     ...new Set(products.map((p) => p.category).filter(Boolean)),
   ];
   const meta = PAGE_META[activePage] || PAGE_META.cart;
+  const sidebarStoreTitle =
+    storeProfile.name ||
+    userData?.storeName ||
+    (typeof userData?.managedStores === "string" && userData.managedStores.trim()
+      ? userData.managedStores.trim()
+      : "");
 
   return (
     <div className="sm-page">
@@ -340,8 +419,9 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               <span className="sb-logo-text">Cửa hàng</span>
             </div>
             <div className="sb-store-card">
+              <div className="sb-store-label">Cửa hàng phụ trách</div>
               <div className="sb-store-name">
-                {storeProfile.name || "Chưa Có Cửa Hàng"}
+                {sidebarStoreTitle || "Chưa có tên cửa hàng"}
               </div>
               <div className="sb-store-role">
                 {userData?.name ?? userData?.fullName ?? "—"}
@@ -349,7 +429,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
             </div>
           </div>
           <nav className="sb-nav">
-            <div className="nav-group-label">Đặt hàng</div>
+            <div className="nav-group-label">Giỏ hàng & đơn hàng</div>
             <button
               type="button"
               className={`ni ${activePage === "cart" ? "on" : ""}`}
@@ -382,7 +462,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               onClick={() => setActivePage("settings")}
             >
               <Store size={15} />
-              Cài đặt tiệm
+              Cài đặt cửa hàng
             </button>
           </nav>
         </aside>
@@ -555,18 +635,20 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                 <div className="cart-panel">
                   <div className="cp-header">
                     <div className="cp-title">
-                      <ShoppingCart size={15} style={{ opacity: 0.7 }} /> Giỏ
-                      hàng
+                      <ShoppingCart size={15} style={{ opacity: 0.7 }} />{" "}
+                      Giỏ hàng
                     </div>
                     <span className="cp-count">
-                      {cartCount ? cartCount + " món" : "trống"}
+                      {cartCount
+                        ? cartCount + " sản phẩm"
+                        : "trống"}
                     </span>
                   </div>
                   {cart.length === 0 ? (
                     <div className="cp-empty">
                       <div className="cp-empty-icon">🛒</div>
                       <p>Giỏ hàng đang trống</p>
-                      <p>Chọn món từ thực đơn bên trái</p>
+                      <p>Chọn sản phẩm từ danh sách bên trái</p>
                     </div>
                   ) : (
                     <>
@@ -589,7 +671,56 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                               >
                                 −
                               </button>
-                              <span className="qv">{item.quantity}</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                className="qv qv-input"
+                                aria-label="Số lượng"
+                                value={
+                                  cartQtyDraft[
+                                    String(item.id ?? item.productId)
+                                  ] !== undefined
+                                    ? cartQtyDraft[
+                                        String(item.id ?? item.productId)
+                                      ]
+                                    : String(item.quantity ?? 0)
+                                }
+                                onChange={(e) => {
+                                  const pid = String(
+                                    item.id ?? item.productId,
+                                  );
+                                  const v = e.target.value.replace(
+                                    /\D/g,
+                                    "",
+                                  );
+                                  setCartQtyDraft((prev) => ({
+                                    ...prev,
+                                    [pid]: v,
+                                  }));
+                                }}
+                                onBlur={(e) => {
+                                  const pid = String(
+                                    item.id ?? item.productId,
+                                  );
+                                  const val =
+                                    cartQtyDraft[pid] !== undefined
+                                      ? cartQtyDraft[pid]
+                                      : e.target.value;
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[pid];
+                                    return next;
+                                  });
+                                  commitCartQtyInput(item, val);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                              />
                               <button
                                 type="button"
                                 className="qb"
@@ -682,7 +813,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                     >
                       <FileText size={13} style={{ color: "var(--slate)" }} />
                     </div>
-                    Đơn hàng của tiệm
+                    Đơn hàng cửa hàng
                   </div>
                 </div>
                 <div className="tbl-wrap">
@@ -692,7 +823,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                         <th>Mã đơn</th>
                         <th>Loại</th>
                         <th>Trạng thái</th>
-                        <th>Số món</th>
+                        <th>Số sản phẩm</th>
                         <th>Tổng tiền</th>
                         <th>Thời gian</th>
                         <th></th>
@@ -1003,7 +1134,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
               ))}
               <div className="ck-total">
-                <span className="ck-total-lbl">Tổng tiền</span>
+                <span className="ck-total-lbl">Tổng cộng</span>
                 <span className="ck-total-val">
                   {fmt(
                     cart.reduce(
@@ -1209,7 +1340,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
           <div className="sp-body">
             <div className="ibox danger">
               Ghi lại hàng <strong>thiếu hoặc hỏng</strong> — thông tin sẽ được
-              gửi về kho
+              gửi về quản lý kho
             </div>
             <div className="sec-label">Kiểm tra từng sản phẩm</div>
             {reportItems.map((r, idx) => (

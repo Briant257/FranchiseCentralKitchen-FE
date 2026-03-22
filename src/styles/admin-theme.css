@@ -1209,3 +1209,16 @@
   color: #9ca3af;
   text-transform: uppercase;
 }
+
+/* Trang Quản lý — nhiều tab, xuống dòng */
+.ingredient-polished.manager-shell .tabs {
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+.ingredient-polished.manager-shell .tab {
+  flex: 1 1 auto;
+  min-width: min(100%, 140px);
+  justify-content: center;
+}

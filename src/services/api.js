@@ -97,6 +97,52 @@ function messageByPath(path, status) {
   return null;
 }
 
+/** Từ payload login/verify-otp: tên & mã cửa hàng (backend có nhiều kiểu trường). */
+function extractStoreFromAuthPayload(info) {
+  if (!info || typeof info !== "object")
+    return { storeName: null, storeId: null };
+  const stores = info.stores;
+  if (Array.isArray(stores) && stores.length > 0) {
+    const first = stores[0];
+    if (typeof first === "string") {
+      const n = first.trim();
+      return {
+        storeName: n || null,
+        storeId: info.storeId ?? info.store_id ?? null,
+      };
+    }
+    if (first && typeof first === "object") {
+      const n = first.name ?? first.storeName ?? first.store_name;
+      const id = first.storeId ?? first.id ?? first.store_id;
+      return {
+        storeName: n && String(n).trim() ? String(n).trim() : null,
+        storeId: id ?? info.storeId ?? info.store_id ?? null,
+      };
+    }
+  }
+  const storeNames = info.storeNames;
+  if (Array.isArray(storeNames) && storeNames.length > 0) {
+    const n = storeNames.find((s) => s && String(s).trim());
+    if (n)
+      return {
+        storeName: String(n).trim(),
+        storeId: info.storeId ?? info.store_id ?? null,
+      };
+  }
+  const sn =
+    info.storeName ??
+    info.store_name ??
+    info.assignedStoreName ??
+    info.managedStoreName;
+  if (sn && String(sn).trim()) {
+    return {
+      storeName: String(sn).trim(),
+      storeId: info.storeId ?? info.store_id ?? null,
+    };
+  }
+  return { storeName: null, storeId: info.storeId ?? info.store_id ?? null };
+}
+
 function toUserFriendlyError(res, data, path) {
   const status = res.status;
   const raw =
@@ -217,6 +263,7 @@ const auth = {
     }
     setToken(token);
     const info = raw ?? res;
+    const { storeName, storeId } = extractStoreFromAuthPayload(info);
     const user = {
       id: info.userId ?? info.id ?? info.username,
       username: info.username ?? res.username,
@@ -224,9 +271,14 @@ const auth = {
       fullName: info.fullName ?? info.name ?? null,
       role: normalizeRole(info.role ?? res.role),
       roleRaw: info.role ?? res.role,
+      email: info.email ?? res.email ?? undefined,
+      ...(storeName ? { storeName } : {}),
+      ...(storeId != null && String(storeId).trim() !== ""
+        ? { storeId: String(storeId).trim() }
+        : {}),
     };
 
-    storage.setToken(res.token);
+    storage.setToken(token);
     storage.setUser(user);
     return user;
   },
@@ -245,13 +297,20 @@ const auth = {
     const token = res.token ?? res.accessToken ?? res.access_token;
     if (token && typeof token === "string") {
       setToken(token);
+      const info = res?.data ?? res;
+      const { storeName, storeId } = extractStoreFromAuthPayload(info);
       const user = {
-        id: res.userId ?? res.username,
+        id: res.userId ?? info.userId ?? res.username,
         username: res.username ?? emailOrUsername,
-        name: res.fullName ?? res.username ?? emailOrUsername,
-        fullName: res.fullName ?? res.name ?? null,
-        role: normalizeRole(res.role),
-        roleRaw: res.role,
+        name: res.fullName ?? info.fullName ?? res.username ?? emailOrUsername,
+        fullName: res.fullName ?? info.fullName ?? res.name ?? null,
+        role: normalizeRole(res.role ?? info.role),
+        roleRaw: res.role ?? info.role,
+        email: info.email ?? res.email ?? undefined,
+        ...(storeName ? { storeName } : {}),
+        ...(storeId != null && String(storeId).trim() !== ""
+          ? { storeId: String(storeId).trim() }
+          : {}),
       };
       setStoredUser(user);
       return user;
@@ -305,13 +364,19 @@ const auth = {
     });
     const current = getStoredUser();
     if (res && current) {
+      const raw = res?.data ?? res;
       const fullName =
-        res.fullName ?? res.name ?? current.fullName ?? current.name;
+        raw.fullName ?? raw.name ?? res.fullName ?? res.name ?? current.fullName ?? current.name;
+      const { storeName, storeId } = extractStoreFromAuthPayload(raw);
       setStoredUser({
         ...current,
         name: fullName ?? current.name,
         fullName: fullName ?? null,
-        email: res.email ?? current.email,
+        email: raw.email ?? res.email ?? current.email,
+        ...(storeName ? { storeName } : {}),
+        ...(storeId != null && String(storeId).trim() !== ""
+          ? { storeId: String(storeId).trim() }
+          : {}),
       });
     }
     return res;
@@ -928,7 +993,11 @@ const api = {
   async getStoreProfile() {
     try {
       const res = await request("/api/store/settings/profile");
-      return res ?? {};
+      const body =
+        res?.data != null && typeof res.data === "object" && !Array.isArray(res.data)
+          ? res.data
+          : res;
+      return body && typeof body === "object" ? body : {};
     } catch {
       return {};
     }
