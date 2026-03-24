@@ -46,7 +46,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showAggModal, setShowAggModal] = useState(false);
   const [kitchenSubTab, setKitchenSubTab] = useState("categories");
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState({ show: false, message: "" });
   const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
 
@@ -61,7 +61,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
   // STATE: SỰ CỐ & KHIẾU NẠI (GIAI ĐOẠN 4)
   const [reportedShipments, setReportedShipments] = useState([]);
-
+  
   // STATE: BÁO CÁO HAO HỤT
   const [showWastageModal, setShowWastageModal] = useState(false);
   const [wastageData, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
@@ -543,7 +543,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                               <tr>
                                 <th>STT</th>
                                 <th>Tên danh mục</th>
-                                <th style={{ textAlign: "center" }}>Hành động</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -572,7 +571,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 <th>Mã</th>
                                 <th>Sản phẩm</th>
                                 <th>Giá</th>
-                                <th>Tồn</th>
                                 <th>Trạng thái</th>
                               </tr>
                             </thead>
@@ -581,11 +579,10 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 <tr key={p.id}>
                                   <td className="mono" style={{ color: "var(--ink3)" }}>{p.id}</td>
                                   <td style={{ fontWeight: 600 }}>
-                                    {p.emoji} {p.name}{" "}
+                                    {p.name}{" "}
                                     <span style={{ display: "block", fontSize: 11, color: "var(--ink4)", fontWeight: 500 }}>{p.category}</span>
                                   </td>
                                   <td style={{ fontWeight: 700, color: "var(--slate)" }}>{Number(p.price).toLocaleString()}₫</td>
-                                  <td>{p.stock}</td>
                                   <td>
                                     <span
                                       className="tag"
@@ -679,9 +676,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                   </button>
                   <button type="button" onClick={handleBulkComplete} className="btn btn-sage btn-sm">
                     ✅ Chốt tất cả mẻ đang nấu
-                  </button>
-                  <button type="button" onClick={loadData} disabled={isRefreshing} className="btn btn-ghost btn-sm">
-                    {isRefreshing ? "⏳ Đang tải..." : "🔄"}
                   </button>
                 </div>
               </div>
@@ -794,9 +788,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                     Duyệt thiếu hàng từ cửa hàng báo về để lên đơn bù (COMP)
                   </p>
                 </div>
-                <button type="button" onClick={loadData} disabled={isRefreshing} className="btn btn-ghost btn-sm">
-                  {isRefreshing ? "⏳ Đang tải..." : "🔄 Làm mới"}
-                </button>
               </div>
 
               {reportedShipments.length === 0 ? (
