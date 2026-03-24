@@ -136,6 +136,26 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
   const sid = (s) => s.shipmentId || s.id || s.shipment_id;
   const oid = (o) => o.orderId || o.id || o.order_id;
 
+  // THÊM HÀM NÀY VÀO ĐÂY: Dò tìm tên thật của tài xế dựa trên ID/Username
+  const getDriverDisplayName = (shipment) => {
+    const rawValue = shipment.driverName || shipment.driver || shipment.driver_name || shipment.driverId || shipment.driver_id;
+    if (!rawValue) return "Đã phân công";
+
+    // Tìm trong mảng drivers đã tải xem có ai khớp không
+    const matchedDriver = drivers.find(d => 
+      d.accountId === rawValue || 
+      d.id === rawValue || 
+      d.user_id === rawValue ||
+      d.username === rawValue
+    );
+
+    // Nếu tìm thấy, ưu tiên trả về tên đầy đủ. Nếu không, in ra rawValue (coord)
+    if (matchedDriver) {
+      return matchedDriver.fullName || matchedDriver.name || matchedDriver.full_name || matchedDriver.username;
+    }
+    return rawValue;
+  };
+
   const meta = PAGE_META[activeTab] || PAGE_META[TABS.DISPATCH];
 
   let topbarIcon = <FileText size={16} style={{ color: meta.iconStroke }} />;
@@ -234,14 +254,6 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
               <div className="tb-title">{meta.title}</div>
             </div>
             <div className="tb-actions">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={fetchAllData}
-                disabled={loading}
-              >
-                {loading ? "…" : "🔄 Làm mới"}
-              </button>
               <HeaderSettingsMenu
                 userData={userData}
                 showProfile={true}
@@ -464,13 +476,8 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                               <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: 0 }}>
                                 Tài xế:{" "}
                                 <strong style={{ color: "var(--sage)" }}>
-                                  {s.driverName ||
-                                    s.driver ||
-                                    s.driver_name ||
-                                    s.driverId ||
-                                    s.driver_id ||
-                                    "Đã phân công"}
-                                </strong>
+  {getDriverDisplayName(s)}
+</strong>
                               </p>
                             )}
                           </div>
@@ -564,8 +571,8 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                           <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: "0 0 4px" }}>
                             Tài xế:{" "}
                             <span style={{ fontWeight: 600, color: "var(--ink)" }}>
-                              {s.driverName || s.driver || s.driver_name || "—"}
-                            </span>
+  {getDriverDisplayName(s)}
+</span>
                           </p>
                           <p style={{ fontSize: 12.5, color: "var(--ink4)", margin: "0 0 12px" }}>
                             Hoàn tất: {formattedTime}
