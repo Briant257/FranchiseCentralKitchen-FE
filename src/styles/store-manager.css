@@ -1,6 +1,5 @@
 /* Store Manager — giao diện y như StoreManager.html, scope .sm-page */
 .sm-page {
-  --serif: "Fraunces", "Georgia", serif;
   --sans: "DM Sans", "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", "Consolas", monospace;
   --cream: #faf8f3;
@@ -103,17 +102,26 @@
   box-shadow: 0 4px 12px rgba(212, 134, 10, 0.35);
 }
 .sm-page .sb-logo-text {
-  font-family: var(--serif);
+  /* Sans — hiển thị ổn tiếng Việt trên toàn trang cửa hàng / bếp */
+  font-family: var(--sans);
   font-size: 18px;
   font-weight: 600;
   color: #fff;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
 .sm-page .sb-store-card {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   padding: 10px 12px;
+}
+.sm-page .sb-store-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 4px;
 }
 .sm-page .sb-store-name {
   font-size: 12.5px;
@@ -262,7 +270,7 @@
   height: 16px;
 }
 .sm-page .tb-title {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 19px;
   font-weight: 600;
   color: var(--ink);
@@ -301,6 +309,166 @@
 }
 .sm-page .page.on {
   display: block;
+}
+
+/* Central Kitchen — nội dung tab trên nền parchment (cùng Store) */
+.sm-page .kitchen-inner.page.on {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  min-height: 0;
+}
+.sm-page .kitchen-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sm-page .kitchen-page-h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+.sm-page .kitchen-inline-h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.sm-page .kitchen-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sm-page .kitchen-subtab {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--white);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink3);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.sm-page .kitchen-subtab:hover {
+  border-color: var(--amber-border);
+  color: var(--ink);
+}
+.sm-page .kitchen-subtab.on {
+  background: var(--amber);
+  color: #fff;
+  border-color: var(--amber);
+}
+.sm-page .kitchen-crud-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.sm-page .kitchen-table-card {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 960px) {
+  .sm-page .kitchen-crud-layout {
+    flex-direction: column;
+  }
+}
+.sm-page .kitchen-runs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 14px;
+}
+.sm-page .kitchen-run-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s;
+}
+.sm-page .kitchen-run-card:hover {
+  border-color: var(--amber-border);
+  box-shadow: var(--shadow-md);
+}
+.sm-page .kitchen-run-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sm-page .kitchen-run-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sm-page .kitchen-run-title-row h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.sm-page .kitchen-run-qty {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--slate);
+  line-height: 1;
+}
+.sm-page .kitchen-run-qty span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+  margin-left: 4px;
+}
+.sm-page .kitchen-run-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--sand);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.sm-page .kitchen-run-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.35s ease;
+}
+.sm-page .kitchen-issue-card {
+  background: var(--white);
+  border: 1.5px solid var(--rust-border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.sm-page .kitchen-issue-list {
+  background: var(--parchment);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+.sm-page .kitchen-status-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .sm-page .stats {
@@ -421,6 +589,32 @@
   border-color: var(--amber-light);
   color: #fff;
   box-shadow: 0 4px 16px rgba(212, 134, 10, 0.4);
+}
+/* CTA cam nổi bật — cùng vibe nút Gom đơn / Chốt gom (đổ bóng, tương phản cao) */
+.sm-page .btn-amber.btn-elevated {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 9px 18px;
+  border-radius: 10px;
+  border-width: 1.5px;
+  box-shadow:
+    0 4px 16px rgba(212, 134, 10, 0.45),
+    0 2px 6px rgba(44, 24, 16, 0.1);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.sm-page .btn-amber.btn-elevated:hover {
+  box-shadow:
+    0 7px 24px rgba(212, 134, 10, 0.52),
+    0 3px 10px rgba(44, 24, 16, 0.12);
+  transform: translateY(-1px);
+}
+.sm-page .btn-amber.btn-elevated:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 10px rgba(212, 134, 10, 0.38);
 }
 .sm-page .btn-sage {
   background: var(--sage-bg);
@@ -587,10 +781,10 @@
   margin-bottom: 20px;
 }
 .sm-page .prod-section-label {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
-  font-style: italic;
+  font-style: normal;
   color: var(--walnut);
   margin-bottom: 10px;
   padding-bottom: 8px;
@@ -681,7 +875,7 @@
   justify-content: space-between;
 }
 .sm-page .cp-title {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
   color: #fff;
@@ -775,6 +969,28 @@
   text-align: center;
   color: var(--ink);
 }
+.sm-page .qv-input {
+  width: 40px;
+  min-width: 32px;
+  height: 22px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--border2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.sm-page .qv-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px rgba(212, 134, 10, 0.2);
+}
+.sm-page .qv-input::placeholder {
+  color: var(--ink4);
+}
 .sm-page .ci-del {
   width: 20px;
   height: 20px;
@@ -812,7 +1028,7 @@
   font-weight: 600;
 }
 .sm-page .cp-total-val {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 20px;
   font-weight: 700;
   color: var(--amber);
@@ -1029,7 +1245,7 @@
   color: rgba(255, 255, 255, 0.6);
 }
 .sm-page .ck-total-val {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 20px;
   font-weight: 700;
   color: var(--amber-light);
@@ -1061,6 +1277,144 @@
 }
 .sm-page .ibox.danger svg {
   color: var(--rust);
+}
+
+/* Modal trung tâm — cùng phong cách layout Store (nền sáng) */
+.sm-page .sm-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(26, 20, 16, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: sm-fade-in 0.2s ease;
+}
+@keyframes sm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.sm-page .sm-modal-box {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 440px;
+  max-height: min(90vh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--sans);
+}
+.sm-page .sm-modal-box.sm-modal-lg {
+  max-width: 480px;
+}
+.sm-page .sm-modal-box.sm-modal-crud {
+  max-width: 520px;
+}
+.sm-page .sm-modal-box.sm-modal-xl {
+  max-width: 640px;
+}
+.sm-page .sm-modal-hd {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--parchment);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.sm-page .sm-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.3;
+}
+.sm-page .sm-modal-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 2px 0 0;
+}
+.sm-page .sm-modal-bd {
+  padding: 18px;
+  overflow-y: auto;
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.45;
+  flex: 1;
+  min-height: 0;
+}
+.sm-page .sm-modal-ft {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--parchment);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.sm-page .sm-modal-ft .btn {
+  flex: 1;
+  min-width: 120px;
+}
+.sm-page .sm-agg-stat {
+  background: var(--parchment);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--ink3);
+  margin-top: 12px;
+}
+.sm-page .sm-agg-stat strong {
+  color: var(--slate);
+  font-size: 1.05em;
+}
+.sm-page .sm-bom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--parchment);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.sm-page .sm-bom-row:last-child {
+  margin-bottom: 0;
+}
+.sm-page .sm-highlight-box {
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.sm-page .sm-highlight-box .sm-hl-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  margin-bottom: 4px;
+}
+.sm-page .sm-highlight-box .sm-hl-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
 }
 
 .sm-page .overlay {
@@ -1101,11 +1455,11 @@
   flex-shrink: 0;
 }
 .sm-page .sp-title {
-  font-family: var(--serif);
+  font-family: var(--sans);
   font-size: 17px;
   font-weight: 600;
   color: var(--ink);
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 .sm-page .sp-method {
   display: inline-block;

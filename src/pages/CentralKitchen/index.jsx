@@ -1,9 +1,40 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { Eye, ChefHat } from "../../components/icons/Icons";
+import {
+  Eye,
+  ChefHat,
+  LayoutDashboard,
+  AlertTriangle,
+  TrendingUp,
+  Activity,
+  CheckCircle,
+} from "../../components/icons/Icons";
+import "../../styles/store-manager.css";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
+
+/** Tiêu đề topbar theo tab — cùng kiểu meta như trang Cửa hàng */
+const KITCHEN_PAGE_META = {
+  "Tổng Quan": {
+    title: "Tổng quan",
+    crumb: "Tổng quan",
+    iconBg: "#eef5f1",
+    iconStroke: "#4a7c5f",
+  },
+  Đơn: {
+    title: "Phiếu yêu cầu nấu",
+    crumb: "Mẻ nấu",
+    iconBg: "#fdf3e0",
+    iconStroke: "#d4860a",
+  },
+  "Sự Cố": {
+    title: "Sự cố & khiếu nại",
+    crumb: "Sự cố",
+    iconBg: "#fef2f2",
+    iconStroke: "#dc2626",
+  },
+};
 
 const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -15,7 +46,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showAggModal, setShowAggModal] = useState(false);
   const [kitchenSubTab, setKitchenSubTab] = useState("categories");
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState({ show: false, message: "" });
   const [selectedRecipeRun, setSelectedRecipeRun] = useState(null);
 
@@ -30,6 +61,10 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
   // STATE: SỰ CỐ & KHIẾU NẠI (GIAI ĐOẠN 4)
   const [reportedShipments, setReportedShipments] = useState([]);
+  
+  // STATE: BÁO CÁO HAO HỤT
+  const [showWastageModal, setShowWastageModal] = useState(false);
+  const [wastageData, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
 
   // HÀM: TẠO MẺ CHỦ ĐỘNG
   const handleManualCook = async () => {
@@ -41,7 +76,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         productId: manualCookData.productId,
         quantity: Number(manualCookData.quantity),
         note: manualCookData.note || "",
-        status: "PENDING"
+        status: "PENDING" // Ép trạng thái ban đầu
       };
       await api.cook(payload);
       setShowManualCookModal(false);
@@ -54,13 +89,27 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
+  // HÀM: BÁO CÁO HAO HỤT
+  const handleReportWastage = async () => {
+    if (!wastageData.wasteQty) return alert("Vui lòng nhập số lượng hao hụt!");
+    try {
+      await api.reportWastage(wastageData);
+      setShowWastageModal(false);
+      setWastageData({ runId: "", runName: "", wasteQty: "", reason: "" });
+      loadData();
+      alert("✅ Đã ghi nhận báo cáo hao hụt!");
+    } catch (err) {
+      alert("Lỗi báo cáo hao hụt!");
+    }
+  };
+
   // HÀM: DUYỆT ĐỀN BÙ VÀ TẠO ĐƠN BÙ (COMP-xxx)
   const handleResolveReplacement = async (shipId) => {
     if (window.confirm(`Xác nhận duyệt đền bù cho chuyến xe ${shipId} và tự động lên mẻ nấu bù?`)) {
       try {
         await api.resolveReplacement(shipId);
         alert("✅ Đã tạo đơn bù (COMP-xxx) thành công. Hãy qua Tab 'Đơn' để tiến hành nấu!");
-        loadData();
+        loadData(); // Tải lại toàn bộ dữ liệu để cập nhật mẻ nấu mới và xóa sự cố khỏi danh sách
       } catch (err) {
         alert("❌ Lỗi duyệt đền bù: " + (err.message || "Vui lòng thử lại"));
       }
@@ -84,6 +133,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       const mappedRuns = rawRuns.map((run, idx) => {
         const rawBom = run.bom || run.ingredients || run.formula || [];
         
+        // BƯỚC QUAN TRỌNG: CHUẨN HÓA TRẠNG THÁI (ÉP KIỂU)
         let currentStatus = String(run.status || "PENDING").toUpperCase();
         if (["PLANNED", "NEW", "CREATED", "WAITING", "TODO"].includes(currentStatus)) {
             currentStatus = "PENDING";
@@ -111,10 +161,13 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         };
       });
       setProductionRuns(mappedRuns);
+
       setCategories(Array.isArray(catsData) ? catsData : []);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
+      // SET STATE CHO DANH SÁCH SỰ CỐ
       setReportedShipments(Array.isArray(reportedData) ? reportedData : []);
 
+      // Map dữ liệu thực tế từ Database cho Nguyên liệu
       const mappedIngredients = (Array.isArray(ingsData) ? ingsData : []).map(
         (ing) => {
           const currentStock = parseFloat(ing.kitchenStock ?? ing.kitchen_stock ?? 0);
@@ -150,6 +203,9 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     cooking: productionRuns.filter((r) => r.status === "COOKING").length,
     completed: productionRuns.filter((r) => r.status === "COMPLETED").length,
   };
+
+  const meta =
+    KITCHEN_PAGE_META[activeKitchenTab] || KITCHEN_PAGE_META["Tổng Quan"];
 
   const handleUpdateRunStatus = async (id, newStatus) => {
     try {
@@ -187,7 +243,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
   const handleConfirmAggregation = async () => {
     try {
-      await api.confirmAggregation({}); 
+      await api.confirmAggregation({});
       setShowAggModal(false);
       loadData();
       alert("✅ Đã chốt gom đơn, xuất kho và chuyển trạng thái sẵn sàng giao thành công!");
@@ -256,43 +312,11 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   };
 
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black ck-text-white ck-p-6">
-      <div className="ck-grain" />
-
-      {/* HEADER */}
-      <header className="ck-flex ck-justify-between ck-items-center ck-mb-8 ck-relative ck-pb-4 ck-border-b ck-border-gray-800" style={{ zIndex: 50 }}>
-        <div className="ck-flex ck-items-center ck-gap-4">
-          <div className="ck-w-14 ck-h-14 ck-bg-gradient-btn-admin ck-rounded-xl ck-flex ck-items-center ck-justify-center ck-shadow-lg ck-shadow-red-500/20">
-            <ChefHat className="ck-text-white" size={32} />
-          </div>
-          <div>
-            <h1 className="ck-text-2xl ck-font-black ck-text-white ck-leading-tight ck-mb-1">
-              Hệ thống Bếp Trung Tâm
-            </h1>
-            <p className="ck-text-xs ck-text-gray-400 ck-font-medium ck-tracking-wider ck-uppercase">
-              Điều phối & Sản xuất
-            </p>
-          </div>
-        </div>
-
-        <div className="ck-flex ck-items-center ck-gap-5">
-          <div className="ck-text-right ck-hidden sm:ck-block">
-            <p className="ck-text-sm ck-font-bold ck-text-white">
-              {userData?.name || "Bếp Trưởng"}
-            </p>
-            <p className="ck-text-xs ck-text-red-400">Trưởng ca điều phối</p>
-          </div>
-          <HeaderSettingsMenu
-            userData={userData}
-            showProfile={true}
-            onOpenProfile={() => setShowUpdateProfileModal(true)}
-            onChangePassword={() => setShowChangePasswordModal(true)}
-            onLogout={onLogout}
-          />
-        </div>
-      </header>
-
-      <ChangePasswordModal open={showChangePasswordModal} onClose={() => setShowChangePasswordModal(false)} />
+    <div className="sm-page">
+      <ChangePasswordModal
+        open={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
       <UpdateProfileModal
         open={showUpdateProfileModal}
         onClose={() => setShowUpdateProfileModal(false)}
@@ -304,346 +328,518 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         }}
       />
 
-      <div className="ck-flex ck-gap-6 ck-w-full ck-relative ck-z-10" style={{ minHeight: "800px" }}>
-        {/* LEFT SIDEBAR */}
-        <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col ck-justify-between" style={{ width: "20%", flexShrink: 0 }}>
-          <ul className="ck-space-y-2 ck-flex-1 ck-mt-2" style={{ listStyleType: "none", padding: 0, margin: 0 }}>
-            {["Tổng Quan", "Đơn", "Sự Cố"].map((item, idx) => (
-              <li key={idx}>
+      <div className="layout">
+        <aside className="sb">
+          <div className="sb-header">
+            <div className="sb-logo">
+              <div className="sb-logo-icon">🍳</div>
+              <span className="sb-logo-text">Bếp trung tâm</span>
+            </div>
+            <div className="sb-store-card">
+              <div className="sb-store-name">Điều phối &amp; sản xuất</div>
+              <div className="sb-store-role">
+                {userData?.name ?? userData?.fullName ?? "—"}
+              </div>
+            </div>
+          </div>
+          <nav className="sb-nav">
+            <div className="nav-group-label">Vận hành bếp</div>
+            <button
+              type="button"
+              className={`ni ${activeKitchenTab === "Tổng Quan" ? "on" : ""}`}
+              onClick={() => setActiveKitchenTab("Tổng Quan")}
+            >
+              <LayoutDashboard size={15} />
+              Tổng quan
+            </button>
+            <button
+              type="button"
+              className={`ni ${activeKitchenTab === "Đơn" ? "on" : ""}`}
+              onClick={() => setActiveKitchenTab("Đơn")}
+            >
+              <ChefHat size={15} />
+              Đơn &amp; mẻ nấu
+              {productionRuns.length > 0 && (
+                <span className="ni-badge">{productionRuns.length}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              className={`ni ${activeKitchenTab === "Sự Cố" ? "on" : ""}`}
+              onClick={() => setActiveKitchenTab("Sự Cố")}
+            >
+              <AlertTriangle size={15} />
+              Sự cố
+              {reportedShipments.length > 0 && (
+                <span className="ni-badge">{reportedShipments.length}</span>
+              )}
+            </button>
+          </nav>
+        </aside>
+
+        <main className="main">
+          <div className="topbar">
+            <div className="tb-page">
+              <div
+                className="tb-page-icon"
+                style={{ background: meta.iconBg }}
+              >
+                {activeKitchenTab === "Tổng Quan" && (
+                  <LayoutDashboard
+                    size={16}
+                    style={{ color: meta.iconStroke }}
+                  />
+                )}
+                {activeKitchenTab === "Đơn" && (
+                  <ChefHat size={16} style={{ color: meta.iconStroke }} />
+                )}
+                {activeKitchenTab === "Sự Cố" && (
+                  <AlertTriangle
+                    size={16}
+                    style={{ color: meta.iconStroke }}
+                  />
+                )}
+              </div>
+              <div className="tb-title">{meta.title}</div>
+            </div>
+            <div className="tb-actions">
+              <HeaderSettingsMenu
+                userData={userData}
+                showProfile={true}
+                onOpenProfile={() => setShowUpdateProfileModal(true)}
+                onChangePassword={() => setShowChangePasswordModal(true)}
+                onLogout={onLogout}
+              />
+            </div>
+          </div>
+
+          <div className="content">
+            <div className="stats">
+              <div className="sc">
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--slate)" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Tổng suất yêu cầu</div>
+                  </div>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--slate-bg)" }}
+                  >
+                    <TrendingUp size={14} style={{ color: "var(--slate)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--slate)" }}>
+                  {stats.totalRequested}
+                </div>
+              </div>
+              <div className="sc">
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--amber)" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Mẻ đang nấu</div>
+                  </div>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--amber-bg)" }}
+                  >
+                    <Activity size={14} style={{ color: "var(--amber)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--amber)" }}>
+                  {stats.cooking}
+                </div>
+              </div>
+              <div className="sc">
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--sage)" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Mẻ hoàn thành</div>
+                  </div>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--sage-bg)" }}
+                  >
+                    <CheckCircle size={14} style={{ color: "var(--sage)" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "var(--sage)" }}>
+                  {stats.completed}
+                </div>
+              </div>
+              <div className="sc">
+                <div
+                  className="sc-stripe"
+                  style={{ background: "#8b5cf6" }}
+                />
+                <div className="sc-top">
+                  <div>
+                    <div className="sc-label">Sự cố mở</div>
+                  </div>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "#f5f3ff" }}
+                  >
+                    <AlertTriangle size={14} style={{ color: "#8b5cf6" }} />
+                  </div>
+                </div>
+                <div className="sc-val" style={{ color: "#8b5cf6" }}>
+                  {reportedShipments.length}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={`kitchen-inner page ${activeKitchenTab === "Tổng Quan" ? "on" : ""}`}
+              id="page-kitchen-overview"
+            >
+          {activeKitchenTab === "Tổng Quan" && (
+            <div className="kitchen-tab-body">
+              <h2 className="kitchen-page-h2">Cài đặt &amp; quản lý kho</h2>
+              <div className="kitchen-subtabs" role="tablist">
                 <button
                   type="button"
-                  onClick={() => setActiveKitchenTab(item)}
-                  className={`ck-w-full ck-text-left ck-px-4 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all ${
-                    activeKitchenTab === item
-                      ? "ck-bg-gradient-btn-admin ck-text-white ck-shadow-lg"
-                      : "ck-text-gray-400 hover:ck-bg-gray-800 hover:ck-text-white"
-                  }`}
-                  style={activeKitchenTab !== item ? { border: "none", background: "transparent" } : { border: "none" }}
+                  onClick={() => handleTabChange("categories")}
+                  className={`kitchen-subtab ${kitchenSubTab === "categories" ? "on" : ""}`}
                 >
-                  {item}
+                  Danh mục sản phẩm
                 </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* RIGHT CONTENT */}
-        <div className="ck-flex-1 ck-flex ck-flex-col ck-gap-6 ck-min-w-0" style={{ width: "80%" }}>
-          
-          {/* ======================= TAB TỔNG QUAN ======================= */}
-          {activeKitchenTab === "Tổng Quan" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in">
-              <div className="ck-grid ck-grid-cols-3 ck-gap-4">
-                {[
-                  { label: "Tổng suất ăn yêu cầu", value: stats.totalRequested, color: "ck-text-blue-400" },
-                  { label: "Mẻ đang nấu", value: stats.cooking, color: "ck-text-orange-400" },
-                  { label: "Mẻ đã hoàn thành", value: stats.completed, color: "ck-text-green-400" }
-                ].map((stat, idx) => (
-                  <div key={idx} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-p-5 ck-rounded-2xl ck-text-center ck-flex ck-flex-col ck-items-center ck-justify-center">
-                    <h4 className="ck-text-sm ck-font-semibold ck-text-gray-400 ck-mb-2">{stat.label}</h4>
-                    <p className={`ck-text-3xl ck-font-black ${stat.color}`}>{stat.value}</p>
-                  </div>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("products")}
+                  className={`kitchen-subtab ${kitchenSubTab === "products" ? "on" : ""}`}
+                >
+                  Sản phẩm bếp TT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("ingredients")}
+                  className={`kitchen-subtab ${kitchenSubTab === "ingredients" ? "on" : ""}`}
+                >
+                  Nguyên liệu &amp; Tồn kho
+                </button>
               </div>
 
-              {/* QUẢN LÝ KHO CHI TIẾT */}
-              <div className="ck-mt-4 ck-pt-6 ck-border-t ck-border-gray-700">
-                <h2 className="ck-text-2xl ck-font-black ck-text-white ck-mb-2 ck-text-left">
-                  Cài đặt & Quản lý Kho
-                </h2>
-                <div className="ck-flex ck-justify-start ck-gap-2 ck-mb-6 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange("categories")}
-                    className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${kitchenSubTab === "categories" ? "ck-bg-gradient-btn-admin ck-text-white" : "ck-bg-gray-800 ck-text-gray-400 hover:ck-text-white"}`}
-                    style={kitchenSubTab !== "categories" ? { border: "1px solid var(--ck-border)" } : { border: "none" }}
-                  >
-                    Danh mục sản phẩm
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange("products")}
-                    className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${kitchenSubTab === "products" ? "ck-bg-gradient-btn-admin ck-text-white" : "ck-bg-gray-800 ck-text-gray-400 hover:ck-text-white"}`}
-                    style={kitchenSubTab !== "products" ? { border: "1px solid var(--ck-border)" } : { border: "none" }}
-                  >
-                    Sản phẩm bếp TT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange("ingredients")}
-                    className={`ck-btn ck-px-4 ck-py-2 ck-rounded-xl ck-font-semibold ${kitchenSubTab === "ingredients" ? "ck-bg-gradient-btn-admin ck-text-white" : "ck-bg-gray-800 ck-text-gray-400 hover:ck-text-white"}`}
-                    style={kitchenSubTab !== "ingredients" ? { border: "1px solid var(--ck-border)" } : { border: "none" }}
-                  >
-                    Nguyên liệu & Tồn Kho
-                  </button>
-                </div>
-
-                <div className="ck-flex ck-gap-6 ck-items-start">
-                  <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-overflow-hidden ck-transition-all ck-w-full">
+              <div className="kitchen-crud-layout">
+                <div className="card kitchen-table-card">
                     
                     {/* BẢNG DANH MỤC */}
                     {kitchenSubTab === "categories" && (
                       <>
-                        <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                          <h3 className="ck-text-xl ck-font-bold ck-text-white">Danh mục sản phẩm</h3>
+                        <div className="card-hd">
+                          <div className="card-title">Danh mục sản phẩm</div>
                         </div>
-                        <table className="ck-w-full ck-text-center ck-border-collapse">
-                          <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
-                            <tr>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">STT</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Tên danh mục</th>
-                            </tr>
-                          </thead>
-                          <tbody className="ck-text-white ck-text-sm">
-                            {categories.map((cat, idx) => (
-                              <tr key={cat.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                                <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-text-center">{idx + 1}</td>
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold ck-text-center">{cat.name}</td>
+                        <div className="tbl-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>STT</th>
+                                <th>Tên danh mục</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {categories.map((cat, idx) => (
+                                <tr key={cat.id}>
+                                  <td style={{ color: "var(--ink3)" }}>{idx + 1}</td>
+                                  <td style={{ fontWeight: 600 }}>{cat.name}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </>
                     )}
 
                     {/* BẢNG SẢN PHẨM */}
                     {kitchenSubTab === "products" && (
                       <>
-                        <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                          <h3 className="ck-text-xl ck-font-bold ck-text-white">Sản phẩm bếp trung tâm</h3>
+                        <div className="card-hd">
+                          <div className="card-title">Sản phẩm bếp trung tâm</div>
                         </div>
-                        <table className="ck-w-full ck-text-center ck-border-collapse">
-                          <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
-                            <tr>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Mã</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Sản phẩm</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Giá</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Trạng thái</th>
-                            </tr>
-                          </thead>
-                          <tbody className="ck-text-white ck-text-sm">
-                            {products.map((p) => (
-                              <tr key={p.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                                <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-text-center">{p.id}</td>
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold ck-text-center">
-                                  {p.emoji} {p.name} <span className="ck-block ck-text-xs ck-text-gray-500">{p.category}</span>
-                                </td>
-                                <td className="ck-py-4 ck-px-6 ck-text-blue-400 ck-text-center">{Number(p.price).toLocaleString()}₫</td>
-                                <td className="ck-py-4 ck-px-6 ck-text-center">
-                                  <span
-                                    className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ck-border inline-block ${
-                                      p.isActive 
-                                        ? "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50" 
-                                        : "ck-bg-red-500-20 ck-text-red-400 ck-border-red-500-50"
-                                    }`}
-                                  >
-                                    {p.isActive ? "Còn hàng" : "Hết hàng"}
-                                  </span>
-                                </td>
+                        <div className="tbl-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Mã</th>
+                                <th>Sản phẩm</th>
+                                <th>Giá</th>
+                                <th>Trạng thái</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {products.map((p) => (
+                                <tr key={p.id}>
+                                  <td className="mono" style={{ color: "var(--ink3)" }}>{p.id}</td>
+                                  <td style={{ fontWeight: 600 }}>
+                                    {p.name}{" "}
+                                    <span style={{ display: "block", fontSize: 11, color: "var(--ink4)", fontWeight: 500 }}>{p.category}</span>
+                                  </td>
+                                  <td style={{ fontWeight: 700, color: "var(--slate)" }}>{Number(p.price).toLocaleString()}₫</td>
+                                  <td>
+                                    <span
+                                      className="tag"
+                                      style={
+                                        p.isActive
+                                          ? { background: "var(--sage-bg)", color: "var(--sage)" }
+                                          : { background: "var(--rust-bg)", color: "var(--rust)" }
+                                      }
+                                    >
+                                      {p.isActive ? "Còn hàng" : "Hết hàng"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </>
                     )}
 
-                    {/* BẢNG NGUYÊN LIỆU */}
+                    {/* BẢNG NGUYÊN LIỆU (ĐÃ BỎ NÚT NHẬP KHO) */}
                     {kitchenSubTab === "ingredients" && (
                       <>
-                        <div className="ck-p-6 ck-border-b ck-border-gray-700 ck-flex ck-items-center ck-justify-between">
-                          <h3 className="ck-text-xl ck-font-bold ck-text-white">Danh sách Nguyên liệu</h3>
+                        <div className="card-hd">
+                          <div className="card-title">Danh sách nguyên liệu</div>
                         </div>
-                        <table className="ck-w-full ck-text-center ck-border-collapse">
-                          <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-sm ck-uppercase">
-                            <tr>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Tên NL</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Giá nhập</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Định mức Min</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Tồn kho thực tế</th>
-                              <th className="ck-py-4 ck-px-6 ck-text-center">Trạng thái</th>
-                            </tr>
-                          </thead>
-                          <tbody className="ck-text-white ck-text-sm">
-                            {ingredients.map((ing) => (
-                              <tr key={ing.id} className="ck-border-t ck-border-gray-700 hover:ck-bg-gray-800">
-                                <td className="ck-py-4 ck-px-6 ck-font-semibold ck-text-center">{ing.name}</td>
-                                <td className="ck-py-4 ck-px-6 ck-text-blue-400 ck-text-center">{ing.unitCost.toLocaleString()}₫</td>
-                                <td className="ck-py-4 ck-px-6 ck-text-gray-400 ck-text-center">
-                                  {ing.minThreshold} <span className="lowercase">{ing.unit}</span>
-                                </td>
-                                <td className="ck-py-4 ck-px-6 ck-font-bold ck-text-center">
-                                  {ing.stock} <span className="lowercase">{ing.unit}</span>
-                                </td>
-                                <td className="ck-py-4 ck-px-6 ck-text-center">
-                                  <span
-                                    className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-xs ck-font-bold ck-border inline-block ${
-                                      ing.status === "Đủ hàng"
-                                        ? "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50"
-                                        : ing.status === "Cần nhập gấp"
-                                        ? "ck-bg-orange-500-20 ck-text-orange-400 ck-border-orange-500-50"
-                                        : "ck-bg-red-500-20 ck-text-red-400 ck-border-red-500-50"
-                                    }`}
-                                  >
-                                    {ing.status}
-                                  </span>
-                                </td>
+                        <div className="tbl-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Tên NL</th>
+                                <th>Giá nhập</th>
+                                <th>Định mức min</th>
+                                <th>Tồn kho thực tế</th>
+                                <th>Trạng thái</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {ingredients.map((ing) => (
+                                <tr key={ing.id}>
+                                  <td style={{ fontWeight: 600 }}>{ing.name}</td>
+                                  <td style={{ fontWeight: 700, color: "var(--slate)" }}>{ing.unitCost.toLocaleString()}₫</td>
+                                  <td style={{ color: "var(--ink3)" }}>
+                                    {ing.minThreshold} <span className="lowercase">{ing.unit}</span>
+                                  </td>
+                                  <td style={{ fontWeight: 700 }}>
+                                    {ing.stock} <span className="lowercase">{ing.unit}</span>
+                                  </td>
+                                  <td>
+                                    <span
+                                      className="tag"
+                                      style={
+                                        ing.status === "Đủ hàng"
+                                          ? { background: "var(--sage-bg)", color: "var(--sage)" }
+                                          : ing.status === "Cần nhập gấp"
+                                          ? { background: "var(--amber-bg)", color: "var(--amber)" }
+                                          : { background: "var(--rust-bg)", color: "var(--rust)" }
+                                      }
+                                    >
+                                      {ing.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </>
                     )}
-                  </div>
                 </div>
               </div>
             </div>
           )}
+            </div>
 
+            <div
+              className={`kitchen-inner page ${activeKitchenTab === "Đơn" ? "on" : ""}`}
+              id="page-kitchen-runs"
+            >
           {/* ======================= TAB ĐƠN - XEM CÔNG THỨC & NẤU ======================= */}
           {activeKitchenTab === "Đơn" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
-              <div className="ck-flex ck-justify-between ck-items-center">
-                <div className="ck-flex ck-gap-4 ck-items-center">
-                  <h2 className="ck-text-2xl ck-font-black ck-text-white">Phiếu yêu cầu nấu</h2>
-                  <span className="ck-text-xs ck-text-gray-500 ck-bg-gray-800 ck-px-3 ck-py-1 ck-rounded-full">
-                    Cập nhật: {lastUpdated.toLocaleTimeString()}
-                  </span>
+            <div className="kitchen-tab-body">
+              <div className="toolbar" style={{ justifyContent: "space-between", width: "100%", marginBottom: 0, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span className="kitchen-inline-h2">Phiếu yêu cầu nấu</span>
+                  <span className="tag tag-s">Cập nhật: {lastUpdated.toLocaleTimeString()}</span>
                 </div>
-                
-                <div className="ck-flex ck-gap-3">
-                  <button
-                    onClick={handleOpenAggregation}
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none shadow-lg shadow-orange-500/30 ck-flex ck-items-center ck-gap-2"
-                  >
-                    📦 Gom Đơn
+                <div className="toolbar" style={{ marginBottom: 0 }}>
+                  <button type="button" onClick={handleOpenAggregation} className="btn btn-amber btn-sm">
+                    📦 Gom đơn
                   </button>
-                  <button
-                    onClick={handleBulkComplete}
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-rounded-xl ck-font-bold ck-border-none shadow-lg shadow-green-500/30 ck-flex ck-items-center ck-gap-2"
-                  >
-                    ✅ Chốt Tất Cả Mẻ Đang Nấu
-                  </button>
-                  <button
-                    onClick={loadData} disabled={isRefreshing}
-                    className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-flex ck-items-center ck-gap-2"
-                  >
-                    {isRefreshing ? "⏳ Đang tải..." : "🔄"}
+                  <button type="button" onClick={handleBulkComplete} className="btn btn-sage btn-sm">
+                    ✅ Chốt tất cả mẻ đang nấu
                   </button>
                 </div>
               </div>
 
-              <div className="ck-grid ck-grid-cols-3 ck-gap-6">
-                {productionRuns.length === 0 ? (
-                  <p className="ck-text-gray-400">Không có đơn cần nấu.</p>
-                ) : (
-                  productionRuns.map((run) => {
+              {productionRuns.length === 0 ? (
+                <div className="card">
+                  <div className="empty">
+                    <ChefHat size={40} style={{ opacity: 0.25, margin: "0 auto 12px", display: "block" }} />
+                    <p>Không có đơn cần nấu.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="kitchen-runs-grid">
+                  {productionRuns.map((run) => {
                     const progressPercent = Math.round((run.cookedQty / run.totalQty) * 100) || 0;
+                    const statusStyle =
+                      run.status === "PENDING"
+                        ? { background: "var(--slate-bg)", color: "var(--slate)", border: "1px solid var(--border)" }
+                        : run.status === "COOKING"
+                        ? { background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)" }
+                        : { background: "var(--sage-bg)", color: "var(--sage)", border: "1px solid var(--sage)" };
                     return (
-                      <div key={run.id} className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col ck-justify-between ck-card-hover">
+                      <div key={run.id} className="kitchen-run-card">
                         <div>
-                          <div className="ck-flex ck-justify-between ck-items-start ck-mb-4">
-                            <div className="ck-flex ck-items-center ck-gap-2">
-                              <h3 className="ck-text-lg ck-font-bold ck-text-white">{run.name}</h3>
-                              <button onClick={() => handleViewRecipe(run)} className="ck-p-1.5 ck-bg-gray-800 ck-text-gray-400 hover:ck-text-blue-400 ck-rounded-lg ck-transition-colors ck-border-none ck-cursor-pointer" title="Xem công thức">
+                          <div className="kitchen-run-head">
+                            <div className="kitchen-run-title-row">
+                              <h3>{run.name}</h3>
+                              <button type="button" onClick={() => handleViewRecipe(run)} className="btn btn-ghost btn-xs" title="Xem công thức">
                                 <Eye size={16} />
                               </button>
+                              {run.status === "COOKING" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setWastageData({ runId: run.id, runName: run.name, wasteQty: "", reason: "" });
+                                    setShowWastageModal(true);
+                                  }}
+                                  className="btn btn-ghost btn-xs"
+                                  style={{ color: "var(--rust)" }}
+                                  title="Báo cáo hao hụt (Hỏng/Cháy)"
+                                >
+                                  ⚠️
+                                </button>
+                              )}
                             </div>
-                            <span className={`ck-px-2 ck-py-1 ck-rounded-md ck-text-[10px] ck-font-bold ck-border ${run.status === "PENDING" ? "ck-bg-gray-800 ck-text-gray-400 ck-border-gray-600" : run.status === "COOKING" ? "ck-bg-orange-500-20 ck-text-orange-400 ck-border-orange-500-50 ck-animate-pulse" : "ck-bg-green-500-20 ck-text-green-400 ck-border-green-500-50"}`}>
-                              {run.status === "PENDING" ? "CHỜ NẤU" : run.status === "COOKING" ? "ĐANG NẤU" : "XONG"}
+                            <span className="kitchen-status-pill" style={statusStyle}>
+                              {run.status === "PENDING" ? "Chờ nấu" : run.status === "COOKING" ? "Đang nấu" : "Xong"}
                             </span>
                           </div>
 
-                          <div className="ck-flex ck-items-end ck-gap-2 ck-mb-4">
-                            <span className="ck-text-4xl ck-font-black ck-text-blue-400">{run.totalQty}</span>
-                            <span className="ck-text-sm ck-text-gray-400 ck-pb-1">phần ăn</span>
+                          <div className="kitchen-run-qty">
+                            {run.totalQty}
+                            <span>phần ăn</span>
                           </div>
 
-                          <div className="ck-mb-5">
-                            <div className="ck-flex ck-justify-between ck-text-[11px] ck-mb-1.5">
-                              <span className="ck-text-gray-400 uppercase tracking-wider">Tiến độ nấu</span>
-                              <span className="ck-text-white ck-font-bold">{run.cookedQty}/{run.totalQty}</span>
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                              <span>Tiến độ nấu</span>
+                              <span style={{ fontWeight: 700, color: "var(--ink)" }}>{run.cookedQty}/{run.totalQty}</span>
                             </div>
-                            <div className="ck-w-full ck-bg-gray-800 ck-rounded-full ck-h-2">
-                              <div className={`ck-h-2 ck-rounded-full ck-transition-all ck-duration-700 ${progressPercent === 100 ? "ck-bg-green-500" : "ck-bg-orange-500"}`} style={{ width: `${progressPercent}%` }}></div>
+                            <div className="kitchen-run-progress-track">
+                              <div
+                                className="kitchen-run-progress-fill"
+                                style={{
+                                  width: `${progressPercent}%`,
+                                  background: progressPercent === 100 ? "var(--sage)" : "var(--amber)",
+                                }}
+                              />
                             </div>
                           </div>
                         </div>
 
-                        <div className="ck-mt-2">
+                        <div style={{ marginTop: 14 }}>
                           {run.status === "PENDING" && (
-                            <button onClick={() => handleUpdateRunStatus(run.id, "COOKING")} className="ck-w-full ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors">
+                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COOKING")} className="btn btn-ghost" style={{ width: "100%" }}>
                               🔥 Bắt đầu nấu
                             </button>
                           )}
                           {run.status === "COOKING" && (
-                            <button onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")} className="ck-w-full ck-bg-gradient-btn-admin ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors">
+                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")} className="btn btn-amber" style={{ width: "100%" }}>
                               ✅ Hoàn thành mẻ
                             </button>
                           )}
                           {run.status === "COMPLETED" && (
-                            <button disabled className="ck-w-full ck-bg-gray-800 ck-text-gray-600 ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-opacity-50">
+                            <button type="button" disabled className="btn btn-ghost" style={{ width: "100%", opacity: 0.55 }}>
                               Đã xong
                             </button>
                           )}
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           )}
+            </div>
 
+            <div
+              className={`kitchen-inner page ${activeKitchenTab === "Sự Cố" ? "on" : ""}`}
+              id="page-kitchen-incidents"
+            >
           {/* ======================= TAB SỰ CỐ - XỬ LÝ KHIẾU NẠI ======================= */}
           {activeKitchenTab === "Sự Cố" && (
-            <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in">
-              <div className="ck-flex ck-justify-between ck-items-center">
+            <div className="kitchen-tab-body">
+              <div className="toolbar" style={{ justifyContent: "space-between", width: "100%", marginBottom: 0, flexWrap: "wrap" }}>
                 <div>
-                  <h2 className="ck-text-2xl ck-font-black ck-text-white">Xử lý Sự cố & Khiếu nại</h2>
-                  <p className="ck-text-sm ck-text-gray-400 mt-1">Duyệt thiếu hàng từ Cửa hàng báo về để lên đơn bù (COMP)</p>
+                  <h2 className="kitchen-page-h2">Xử lý sự cố &amp; khiếu nại</h2>
+                  <p style={{ fontSize: 12.5, color: "var(--ink3)", marginTop: 4, maxWidth: 520 }}>
+                    Duyệt thiếu hàng từ cửa hàng báo về để lên đơn bù (COMP)
+                  </p>
                 </div>
-                <button
-                  onClick={loadData} disabled={isRefreshing}
-                  className="ck-btn ck-px-4 ck-py-2 ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-flex ck-items-center ck-gap-2"
-                >
-                  {isRefreshing ? "⏳ Đang tải..." : "🔄 Làm mới"}
-                </button>
               </div>
 
-              <div className="ck-grid ck-grid-cols-2 ck-gap-6">
-                {reportedShipments.length === 0 ? (
-                  <div className="ck-col-span-2 ck-bg-green-500/10 ck-border ck-border-green-500/30 ck-rounded-2xl ck-p-8 ck-text-center">
-                    <span className="ck-text-4xl">🎉</span>
-                    <h3 className="ck-text-lg ck-font-bold ck-text-green-400 ck-mt-2">Mọi thứ đang hoàn hảo!</h3>
-                    <p className="ck-text-gray-400">Không có cửa hàng nào báo thiếu hàng hay sự cố giao nhận.</p>
+              {reportedShipments.length === 0 ? (
+                <div className="card">
+                  <div className="empty" style={{ padding: "40px 24px" }}>
+                    <span style={{ fontSize: 36, display: "block", marginBottom: 8 }}>🎉</span>
+                    <p style={{ color: "var(--sage)", fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Mọi thứ đang hoàn hảo!</p>
+                    <p style={{ fontSize: 13, color: "var(--ink4)" }}>Không có cửa hàng nào báo thiếu hàng hay sự cố giao nhận.</p>
                   </div>
-                ) : (
-                  reportedShipments.map((issue, idx) => (
-                    <div key={issue.shipmentId || idx} className="ck-bg-red-900/10 ck-border ck-border-red-500/30 ck-rounded-2xl ck-p-5 ck-flex ck-flex-col ck-card-hover">
-                      <div className="ck-flex ck-justify-between ck-items-start ck-mb-4">
+                </div>
+              ) : (
+                <div className="kitchen-runs-grid">
+                  {reportedShipments.map((issue, idx) => (
+                    <div key={issue.shipmentId || idx} className="kitchen-issue-card">
+                      <div className="kitchen-run-head">
                         <div>
-                          <h3 className="ck-text-lg ck-font-bold ck-text-white">{issue.storeName}</h3>
-                          <p className="ck-text-sm ck-text-gray-400">
-                            Mã chuyến: <span className="ck-text-blue-400 ck-font-mono ck-font-bold">{issue.shipmentId}</span>
+                          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{issue.storeName}</h3>
+                          <p style={{ fontSize: 12.5, color: "var(--ink3)", marginTop: 4 }}>
+                            Mã chuyến:{" "}
+                            <span className="mono" style={{ color: "var(--slate)", fontWeight: 700 }}>{issue.shipmentId}</span>
                           </p>
                         </div>
-                        <span className="ck-bg-red-500/20 ck-text-red-400 ck-px-3 ck-py-1 ck-rounded-lg ck-text-xs ck-font-bold ck-animate-pulse">
-                          {issue.status === "ISSUE_REPORTED" ? "⚠️ THIẾU HÀNG" : issue.status}
+                        <span className="tag" style={{ background: "var(--rust-bg)", color: "var(--rust)" }}>
+                          {issue.status === "ISSUE_REPORTED" ? "⚠️ Thiếu hàng" : issue.status}
                         </span>
                       </div>
 
-                      <div className="ck-bg-gray-900 ck-rounded-xl ck-p-4 ck-mb-4 ck-flex-1 ck-border ck-border-gray-800">
-                        <p className="ck-text-xs ck-text-gray-500 ck-uppercase ck-font-bold ck-mb-2">Chi tiết hàng thiếu:</p>
-                        <ul className="ck-space-y-3">
+                      <div className="kitchen-issue-list">
+                        <p style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px" }}>Chi tiết hàng thiếu</p>
+                        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                           {(issue.missingItems || []).map((item, i) => (
-                            <li key={i} className="ck-flex ck-justify-between ck-items-center ck-text-sm ck-border-b ck-border-gray-800 ck-pb-2 last:ck-border-0 last:ck-pb-0">
-                              <span className="ck-text-gray-300">
+                            <li
+                              key={i}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 12,
+                                fontSize: 13,
+                                padding: "10px 0",
+                                borderBottom: i < (issue.missingItems || []).length - 1 ? "1px solid var(--border)" : "none",
+                              }}
+                            >
+                              <span style={{ color: "var(--ink2)" }}>
                                 {item.productName}
                                 {item.issueNote && (
-                                  <span className="ck-block ck-text-[11px] ck-text-red-400 italic ck-mt-0.5">💬 "{item.issueNote}"</span>
+                                  <span style={{ display: "block", fontSize: 11, color: "var(--rust)", fontStyle: "italic", marginTop: 4 }}>
+                                    💬 &ldquo;{item.issueNote}&rdquo;
+                                  </span>
                                 )}
                               </span>
-                              <span className="ck-bg-red-500/10 ck-text-red-400 ck-px-2 ck-py-1 ck-rounded ck-font-black">
+                              <span className="tag" style={{ background: "var(--rust-bg)", color: "var(--rust)", flexShrink: 0 }}>
                                 -{item.missingQuantity}
                               </span>
                             </li>
@@ -651,120 +847,126 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                         </ul>
                       </div>
 
-                      <button
-                        onClick={() => handleResolveReplacement(issue.shipmentId)}
-                        className="ck-w-full ck-bg-red-600 hover:ck-bg-red-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors shadow-lg shadow-red-500/20"
-                      >
-                        🚀 Duyệt đền bù & Lên mẻ nấu
+                      <button type="button" onClick={() => handleResolveReplacement(issue.shipmentId)} className="btn btn-rust" style={{ width: "100%" }}>
+                        🚀 Duyệt đền bù &amp; lên mẻ nấu
                       </button>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-
-        </div>
+            </div>
+          </div>
+        </main>
       </div>
 
       {/* ====================================================================== */}
       {/* CÁC MODALS TRỢ NĂNG XUẤT HIỆN KHI CẦN                                  */}
       {/* ====================================================================== */}
 
-      {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU */}
+      {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU — layout sáng giống Store */}
       {showAggModal && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/80 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
-          <div className="ck-bg-gray-900 ck-border ck-border-blue-500 ck-rounded-2xl ck-p-8 ck-w-full ck-max-w-md ck-shadow-2xl">
-            <h2 className="ck-text-xl ck-font-black ck-text-white ck-mb-2">Gom đơn chi nhánh</h2>
-            <p className="ck-text-gray-300 ck-mb-4">
-              Hệ thống đã quét các đơn hàng mới. Bạn có muốn chốt tổng hợp thành mẻ nấu không?
-            </p>
-            {aggregationData && (
-              <div className="ck-bg-gray-800 ck-border ck-border-gray-700 ck-p-3 ck-rounded-lg ck-mb-6 ck-text-sm ck-text-gray-400">
-                Có <strong className="ck-text-blue-400">{Array.isArray(aggregationData) ? aggregationData.length : Object.keys(aggregationData).length}</strong> loại sản phẩm cần nấu.
-              </div>
-            )}
-            <div className="ck-flex ck-gap-4">
-              <button onClick={() => setShowAggModal(false)} className="ck-w-full ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors ck-cursor-pointer">
-                Hủy
-              </button>
-              <button 
-                onClick={handleConfirmAggregation} 
-                className="ck-w-full ck-bg-orange-600 hover:ck-bg-orange-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer shadow-lg shadow-orange-500/30"
-              >
-                Chốt Gom Đơn & Xuất Kho
+        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="agg-modal-title">
+          <div className="sm-modal-box">
+            <div className="sm-modal-hd">
+              <h2 id="agg-modal-title" className="sm-modal-title">Gom đơn chi nhánh</h2>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowAggModal(false)} aria-label="Đóng">✕</button>
+            </div>
+            <div className="sm-modal-bd">
+              <p style={{ margin: 0 }}>
+                Hệ thống đã quét các đơn hàng mới. Bạn có muốn chốt tổng hợp thành mẻ nấu không?
+              </p>
+              {aggregationData && (
+                <div className="sm-agg-stat">
+                  Có{" "}
+                  <strong>
+                    {Array.isArray(aggregationData) ? aggregationData.length : Object.keys(aggregationData).length}
+                  </strong>{" "}
+                  loại sản phẩm cần nấu.
+                </div>
+              )}
+            </div>
+            <div className="sm-modal-ft">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowAggModal(false)}>Hủy</button>
+              <button type="button" className="btn btn-amber" onClick={handleConfirmAggregation}>
+                Chốt gom đơn &amp; xuất kho
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. MODAL HIỂN THỊ CÔNG THỨC & ĐỊNH MỨC */}
+      {/* 3. MODAL CÔNG THỨC / BOM — layout sáng */}
       {selectedRecipeRun && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/90 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
-          <div className="ck-bg-gray-900 ck-border ck-border-blue-500/30 ck-rounded-2xl ck-flex ck-flex-col ck-w-full ck-max-w-md ck-shadow-2xl">
-            <div className="ck-p-6 ck-border-b ck-border-gray-800 ck-flex ck-justify-between ck-items-center">
-              <div className="ck-flex ck-items-center ck-gap-3">
-                <div className="ck-p-2 ck-bg-blue-500/20 ck-rounded-lg ck-text-blue-400">
-                  <ChefHat size={24} />
+        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="bom-modal-title">
+          <div className="sm-modal-box sm-modal-lg">
+            <div className="sm-modal-hd">
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                  className="card-icon"
+                  style={{ background: "var(--amber-bg)", color: "var(--amber)" }}
+                >
+                  <ChefHat size={18} />
                 </div>
                 <div>
-                  <h3 className="ck-text-lg ck-font-bold ck-text-white">Định mức sản xuất (BOM)</h3>
-                  <p className="ck-text-xs ck-text-gray-500 uppercase">{selectedRecipeRun.name}</p>
+                  <h3 id="bom-modal-title" className="sm-modal-title">Định mức sản xuất (BOM)</h3>
+                  <p className="sm-modal-sub">{selectedRecipeRun.name}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedRecipeRun(null)} className="ck-text-gray-500 hover:ck-text-white ck-bg-transparent ck-border-none ck-text-xl ck-cursor-pointer">✕</button>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setSelectedRecipeRun(null)} aria-label="Đóng">✕</button>
             </div>
-            <div className="ck-p-6 ck-flex-1 ck-overflow-y-auto ck-scrollbar" style={{ maxHeight: "60vh" }}>
-              <div className="ck-bg-blue-500/10 ck-border ck-border-blue-500/20 ck-p-4 ck-rounded-xl ck-mb-6">
-                <p className="ck-text-[11px] ck-text-blue-400 ck-font-bold ck-uppercase ck-mb-1">Tổng sản lượng cần nấu:</p>
-                <p className="ck-text-2xl ck-font-black ck-text-white">{selectedRecipeRun.totalQty} <span className="ck-text-sm ck-font-normal ck-text-gray-500">phần ăn</span></p>
-              </div>
-              <div className="ck-mb-6">
-                <p className="ck-text-[11px] ck-text-gray-500 ck-font-bold ck-uppercase ck-mb-3">Nguyên liệu cần xuất kho:</p>
-                <div className="ck-space-y-3">
-                  {selectedRecipeRun.bom ? (
-                    selectedRecipeRun.bom.map((ing, i) => {
-                      const totalNeeded = (ing.qtyPerItem * selectedRecipeRun.totalQty).toFixed(2);
-                      return (
-                        <div key={i} className="ck-bg-gray-800/50 ck-border ck-border-gray-800 ck-p-3 ck-rounded-xl ck-flex ck-items-center ck-justify-between">
-                          <span className="ck-text-sm ck-text-gray-300">{ing.name}</span>
-                          <div className="ck-text-right">
-                            <span className="ck-text-lg ck-font-black ck-text-blue-400 ck-font-mono">{totalNeeded}</span>
-                            <span className="ck-text-[10px] ck-text-gray-500 ck-ml-1 uppercase">{ing.unit}</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="ck-text-xs ck-text-gray-500 italic">Dữ liệu công thức đang được cập nhật...</p>
-                  )}
+            <div className="sm-modal-bd">
+              <div className="sm-highlight-box">
+                <div className="sm-hl-label">Tổng sản lượng cần nấu</div>
+                <div className="sm-hl-val">
+                  {selectedRecipeRun.totalQty}{" "}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink3)" }}>phần ăn</span>
                 </div>
               </div>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ink3)", margin: "0 0 10px" }}>
+                Nguyên liệu cần xuất kho
+              </p>
+              {selectedRecipeRun.bom ? (
+                selectedRecipeRun.bom.map((ing, i) => {
+                  const totalNeeded = (ing.qtyPerItem * selectedRecipeRun.totalQty).toFixed(2);
+                  return (
+                    <div key={i} className="sm-bom-row">
+                      <span style={{ color: "var(--ink)", fontWeight: 600 }}>{ing.name}</span>
+                      <div style={{ textAlign: "right" }}>
+                        <span className="mono" style={{ fontSize: 15, fontWeight: 800, color: "var(--slate)" }}>{totalNeeded}</span>
+                        <span style={{ fontSize: 10, color: "var(--ink4)", marginLeft: 4, textTransform: "uppercase" }}>{ing.unit}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p style={{ fontSize: 12, color: "var(--ink4)", fontStyle: "italic", margin: 0 }}>Dữ liệu công thức đang được cập nhật...</p>
+              )}
             </div>
-            <div className="ck-p-6 ck-bg-gray-800/30 ck-rounded-b-2xl">
-              <button 
-                onClick={() => setSelectedRecipeRun(null)} 
-                className="ck-w-full ck-bg-green-600 hover:ck-bg-green-500 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border-none ck-transition-colors ck-cursor-pointer"
-              >
-                Xác nhận & Đóng
+            <div className="sm-modal-ft">
+              <button type="button" className="btn btn-sage" style={{ flex: 1 }} onClick={() => setSelectedRecipeRun(null)}>
+                Xác nhận &amp; đóng
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 4. MODAL BÁO LỖI CHUNG */}
+      {/* 4. MODAL BÁO LỖI */}
       {errorModal.show && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/80 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
-          <div className="ck-bg-gray-900 ck-border ck-border-red-500 ck-rounded-2xl ck-p-8 ck-w-full ck-max-w-md ck-shadow-2xl">
-            <div className="ck-flex ck-flex-col ck-items-center ck-text-center">
-              <div className="ck-w-16 ck-h-16 ck-bg-red-500/20 ck-rounded-full ck-flex ck-items-center ck-justify-center ck-mb-4">
-                <span className="ck-text-3xl">❌</span>
-              </div>
-              <h2 className="ck-text-xl ck-font-black ck-text-white ck-mb-2">Thao tác thất bại!</h2>
-              <p className="ck-text-gray-300 ck-mb-6">{errorModal.message}</p>
-              <button onClick={() => setErrorModal({ show: false, message: "" })} className="ck-w-full ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-white ck-py-3 ck-rounded-xl ck-font-bold ck-border ck-border-gray-600 ck-transition-colors">Đóng</button>
+        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="err-modal-title">
+          <div className="sm-modal-box">
+            <div className="sm-modal-hd">
+              <h2 id="err-modal-title" className="sm-modal-title" style={{ color: "var(--rust)" }}>Thao tác thất bại</h2>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setErrorModal({ show: false, message: "" })} aria-label="Đóng">✕</button>
+            </div>
+            <div className="sm-modal-bd" style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>❌</div>
+              <p style={{ margin: 0, color: "var(--ink2)" }}>{errorModal.message}</p>
+            </div>
+            <div className="sm-modal-ft">
+              <button type="button" className="btn btn-amber" style={{ flex: 1 }} onClick={() => setErrorModal({ show: false, message: "" })}>Đóng</button>
             </div>
           </div>
         </div>
@@ -772,36 +974,76 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
       {/* 5. MODAL TẠO MẺ NẤU CHỦ ĐỘNG */}
       {showManualCookModal && (
-        <div className="ck-fixed ck-inset-0 ck-bg-black/80 ck-flex ck-items-center ck-justify-center ck-z-50 ck-animate-fade-in">
-          <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-2xl ck-p-8 ck-w-full ck-max-w-md ck-shadow-2xl">
-            <div className="ck-flex ck-justify-between ck-items-center ck-mb-6">
-              <h2 className="ck-text-xl ck-font-black ck-text-white">Tạo Mẻ Nấu Chủ Động</h2>
-              <button onClick={() => setShowManualCookModal(false)} className="ck-text-gray-400 hover:ck-text-white ck-bg-transparent ck-border-none ck-cursor-pointer">✕</button>
+        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="manual-cook-title">
+          <div className="sm-modal-box">
+            <div className="sm-modal-hd">
+              <h2 id="manual-cook-title" className="sm-modal-title">Tạo mẻ nấu chủ động</h2>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowManualCookModal(false)} aria-label="Đóng">✕</button>
             </div>
-            <div className="ck-space-y-4">
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Chọn Món Ăn *</label>
-                <select value={manualCookData.productId} onChange={(e) => setManualCookData({ ...manualCookData, productId: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none">
-                  <option value="">-- Chọn sản phẩm --</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.name}</option>)}
+            <div className="sm-modal-bd">
+              <div className="fg">
+                <label htmlFor="manual-cook-product">Chọn món ăn *</label>
+                <select id="manual-cook-product" value={manualCookData.productId} onChange={(e) => setManualCookData({ ...manualCookData, productId: e.target.value })}>
+                  <option value="">— Chọn sản phẩm —</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>{p.emoji} {p.name}</option>
+                  ))}
                 </select>
               </div>
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Số lượng (phần) *</label>
-                <input type="number" value={manualCookData.quantity} onChange={(e) => setManualCookData({ ...manualCookData, quantity: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none" placeholder="0" />
+              <div className="fg">
+                <label htmlFor="manual-cook-qty">Số lượng (phần) *</label>
+                <input id="manual-cook-qty" type="number" value={manualCookData.quantity} onChange={(e) => setManualCookData({ ...manualCookData, quantity: e.target.value })} placeholder="0" />
               </div>
-              <div>
-                <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">Ghi chú (nếu có)</label>
-                <input type="text" value={manualCookData.note} onChange={(e) => setManualCookData({ ...manualCookData, note: e.target.value })} className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none" placeholder="Ví dụ: Nấu dự phòng trưa..." />
+              <div className="fg">
+                <label htmlFor="manual-cook-note">Ghi chú (nếu có)</label>
+                <input id="manual-cook-note" type="text" value={manualCookData.note} onChange={(e) => setManualCookData({ ...manualCookData, note: e.target.value })} placeholder="Ví dụ: Nấu dự phòng trưa…" />
               </div>
-              <button onClick={handleManualCook} className="ck-w-full ck-bg-gray-100 hover:ck-bg-white ck-text-black ck-py-3 ck-rounded-xl ck-font-black ck-border-none ck-mt-2">
-                🚀 Bắt đầu nấu
-              </button>
+            </div>
+            <div className="sm-modal-ft">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowManualCookModal(false)}>Hủy</button>
+              <button type="button" className="btn btn-amber" onClick={handleManualCook}>🚀 Bắt đầu nấu</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* 6. MODAL BÁO CÁO HAO HỤT */}
+      {showWastageModal && (
+        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="wastage-modal-title">
+          <div className="sm-modal-box">
+            <div className="sm-modal-hd">
+              <h2 id="wastage-modal-title" className="sm-modal-title" style={{ color: "var(--rust)" }}>Báo cáo hao hụt</h2>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowWastageModal(false)} aria-label="Đóng">✕</button>
+            </div>
+            <div className="sm-modal-bd">
+              <div className="ibox danger" style={{ marginTop: 0 }}>
+                <span aria-hidden>⚠️</span>
+                <span>
+                  Mẻ nấu: <strong>{wastageData.runName}</strong>
+                </span>
+              </div>
+              <div className="fg">
+                <label htmlFor="wastage-qty">Số lượng hỏng/cháy (phần) *</label>
+                <input id="wastage-qty" type="number" value={wastageData.wasteQty} onChange={(e) => setWastageData({ ...wastageData, wasteQty: e.target.value })} placeholder="0" />
+              </div>
+              <div className="fg">
+                <label htmlFor="wastage-reason">Lý do</label>
+                <select id="wastage-reason" value={wastageData.reason} onChange={(e) => setWastageData({ ...wastageData, reason: e.target.value })}>
+                  <option value="">— Chọn lý do —</option>
+                  <option value="Cháy khét">Cháy khét</option>
+                  <option value="Rơi vãi">Rơi vãi</option>
+                  <option value="Nguyên liệu hỏng">Nguyên liệu hỏng</option>
+                  <option value="Khác">Lý do khác…</option>
+                </select>
+              </div>
+            </div>
+            <div className="sm-modal-ft">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowWastageModal(false)}>Hủy</button>
+              <button type="button" className="btn btn-amber" onClick={handleReportWastage}>Ghi nhận hao hụt</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

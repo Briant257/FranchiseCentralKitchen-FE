@@ -19,13 +19,13 @@ export const ORDER_STATUS = {
   cancelled: { bg: "ck-badge-red", label: "Đã hủy", icon: XCircle },
 };
 
-/** Menu sidebar trang cửa hàng franchise */
+/** Menu sidebar trang cửa hàng franchise — cùng thuật ngữ với Admin (Cửa hàng, Sản phẩm, Đơn hàng) */
 export const FRANCHISE_MENU = [
   { id: "create-order", name: "Tạo đơn hàng", icon: Plus },
-  { id: "orders", name: "Đơn hàng của tôi", icon: FileText },
+  { id: "orders", name: "Đơn hàng", icon: FileText },
   { id: "inventory", name: "Tồn kho", icon: Package },
   { id: "reports", name: "Báo cáo", icon: BarChart3 },
-  { id: "settings", name: "Cài đặt tiệm", icon: Store },
+  { id: "settings", name: "Cài đặt cửa hàng", icon: Store },
 ];
 
 /** Tab trang Admin — theo cấu trúc API */
@@ -42,6 +42,17 @@ export const SYSTEM_ROLES = [
   { value: "COORDINATOR", label: "Điều phối cung ứng" },
   { value: "KITCHEN_MANAGER", label: "Nhân viên quản lý bếp trung tâm" },
   { value: "STORE_MANAGER", label: "Nhân viên quản lý cửa hàng (Franchise)" },
+];
+
+/**
+ * Vai trò tạo/sửa tài khoản nhân viên trên Admin (không gồm Admin).
+ * value = mã BE; label = cùng bộ nhãn form "Vai trò" / chỉnh sửa.
+ */
+export const ADMIN_ACCOUNT_ROLE_OPTIONS = [
+  { value: "STORE_MANAGER", label: "Quản lý cửa hàng" },
+  { value: "KITCHEN_MANAGER", label: "Nhân viên bếp" },
+  { value: "COORDINATOR", label: "Điều phối viên" },
+  { value: "MANAGER", label: "Quản lý" },
 ];
 
 /** Nhãn hiển thị theo enum (key = ADMIN | MANAGER | COORDINATOR | KITCHEN_MANAGER | STORE_MANAGER) */

@@ -34,18 +34,207 @@ const PAGE_META = {
     iconStroke: "#8b5cf6",
   },
   settings: {
-    title: "Cài đặt tiệm",
-    crumb: "Cài đặt",
+    title: "Cài đặt cửa hàng",
+    crumb: "Cài đặt cửa hàng",
     iconBg: "#eef5f1",
     iconStroke: "#4a7c5f",
   },
 };
 
+/** Chuẩn hóa GET /api/store/settings/profile (nhiều kiểu tên trường / bọc data). */
+function normalizeStoreProfilePayload(raw) {
+  const p =
+    raw && typeof raw === "object"
+      ? raw.data != null && typeof raw.data === "object" && !Array.isArray(raw.data)
+        ? raw.data
+        : raw
+      : {};
+  const name = (
+    p.name ??
+    p.storeName ??
+    p.store_name ??
+    p.store?.name ??
+    ""
+  )
+    .toString()
+    .trim();
+  const address = (p.address ?? p.storeAddress ?? p.store_address ?? "")
+    .toString()
+    .trim();
+  const phone = (
+    p.phone ??
+    p.phoneNumber ??
+    p.phone_number ??
+    p.hotline ??
+    ""
+  )
+    .toString()
+    .trim();
+  return { name, address, phone };
+}
+
+/** Một dòng sản phẩm trong đơn — BE có thể dùng productName, unitPrice, … */
+function normalizeOrderLine(line) {
+  if (line == null || typeof line !== "object") return null;
+  const quantity = Number(line.quantity ?? line.qty ?? 0);
+  const price = Number(
+    line.price ??
+      line.unitPrice ??
+      line.unit_price ??
+      line.productPrice ??
+      line.sellingPrice ??
+      0,
+  );
+  const name =
+    line.name ??
+    line.productName ??
+    line.product_name ??
+    line.title ??
+    "Sản phẩm";
+  return { ...line, name, quantity, price };
+}
+
+/**
+ * Chuẩn hóa 1 đơn từ GET /api/store/orders hoặc chi tiết đơn.
+ * FE cũ đọc id, items, total, date — BE thường trả orderId, orderItems, totalAmount, createdAt.
+ */
+function normalizeStoreOrderRow(raw) {
+  const d =
+    raw && typeof raw === "object"
+      ? raw.data != null &&
+          typeof raw.data === "object" &&
+          !Array.isArray(raw.data)
+        ? raw.data
+        : raw
+      : null;
+  if (!d || typeof d !== "object") {
+    return {
+      id: "",
+      status: "",
+      items: [],
+      itemCount: 0,
+      itemsCountUnknown: true,
+      total: 0,
+      date: "—",
+      orderType: "STANDARD",
+    };
+  }
+
+  const LINE_KEYS = [
+    "items",
+    "orderItems",
+    "order_items",
+    "lines",
+    "lineItems",
+    "line_items",
+    "details",
+  ];
+  let itemsArr;
+  let hadLinePayload = false;
+  for (const k of LINE_KEYS) {
+    if (d[k] != null) {
+      hadLinePayload = true;
+      itemsArr = d[k];
+      break;
+    }
+  }
+  if (!hadLinePayload) itemsArr = [];
+  const items = (Array.isArray(itemsArr) ? itemsArr : [])
+    .map(normalizeOrderLine)
+    .filter(Boolean);
+
+  const COUNT_KEYS = [
+    "itemCount",
+    "lineCount",
+    "itemsCount",
+    "productCount",
+    "totalLines",
+    "total_items",
+  ];
+  const hadCountField = COUNT_KEYS.some(
+    (k) => d[k] != null && String(d[k]).trim() !== "",
+  );
+  const nFromFields =
+    Number(
+      d.itemCount ??
+        d.lineCount ??
+        d.itemsCount ??
+        d.productCount ??
+        d.totalLines ??
+        d.total_items,
+    ) || 0;
+  const itemCount = items.length > 0 ? items.length : nFromFields;
+  const itemsCountUnknown =
+    !hadLinePayload && !hadCountField && itemCount === 0;
+
+  const totalNum =
+    Number(
+      d.total ??
+        d.totalAmount ??
+        d.total_amount ??
+        d.grandTotal ??
+        d.grand_total ??
+        d.amount ??
+        d.totalPrice ??
+        d.total_price ??
+        d.orderTotal ??
+        d.payableAmount ??
+        0,
+    ) || 0;
+
+  const idRaw =
+    d.id ?? d.orderId ?? d.order_id ?? d.code ?? d.orderCode ?? d.order_code;
+  const id =
+    idRaw != null && String(idRaw).trim() !== "" ? String(idRaw) : "";
+
+  const orderType = (
+    d.orderType ??
+    d.type ??
+    d.order_type ??
+    "STANDARD"
+  )
+    .toString()
+    .toUpperCase();
+
+  const dateRaw =
+    d.date ??
+    d.createdAt ??
+    d.created_at ??
+    d.orderDate ??
+    d.order_date ??
+    d.updatedAt ??
+    d.timestamp;
+  let dateStr = "—";
+  if (dateRaw != null && dateRaw !== "") {
+    const dt = new Date(dateRaw);
+    if (!Number.isNaN(dt.getTime())) {
+      dateStr = dt.toLocaleString("vi-VN");
+    } else {
+      dateStr = String(dateRaw);
+    }
+  }
+
+  return {
+    ...d,
+    id,
+    items,
+    itemCount,
+    itemsCountUnknown,
+    total: totalNum,
+    date: dateStr,
+    status: d.status ?? d.orderStatus ?? d.order_status ?? d.state ?? "",
+    orderType,
+  };
+}
+
 const STATUS_MAP = {
   PENDING: { l: "Chờ xác nhận", c: "#d97706", b: "rgba(217,119,6,.1)" },
+  NEW: { l: "Mới", c: "#d97706", b: "rgba(217,119,6,.1)" },
   CONFIRMED: { l: "Đã xác nhận", c: "#3d5a70", b: "rgba(61,90,112,.1)" },
   SHIPPING: { l: "Đang giao", c: "#7c3aed", b: "rgba(124,58,237,.1)" },
   DELIVERED: { l: "Đã giao", c: "#4a7c5f", b: "rgba(74,124,95,.1)" },
+  DONE: { l: "Hoàn thành", c: "#4a7c5f", b: "rgba(74,124,95,.1)" },
+  CANCELLED: { l: "Đã hủy", c: "#94a3b8", b: "rgba(148,163,184,.2)" },
   completed: { l: "Hoàn thành", c: "#4a7c5f", b: "rgba(74,124,95,.1)" },
   pending: { l: "Chờ xử lý", c: "#d97706", b: "rgba(217,119,6,.1)" },
   processing: { l: "Đang xử lý", c: "#3d5a70", b: "rgba(61,90,112,.1)" },
@@ -80,6 +269,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   );
   const [reportShipmentId, setReportShipmentId] = useState(null);
   const [reportItems, setReportItems] = useState([]);
+  const [confirmingShipmentId, setConfirmingShipmentId] = useState(null);
   const [orderDetail, setOrderDetail] = useState(null);
   const [orderDetailData, setOrderDetailData] = useState(null);
   const [toast, setToast] = useState({
@@ -88,6 +278,8 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     color: "#4a7c5f",
   });
   const [profileEditing, setProfileEditing] = useState(false);
+  /** productId -> chuỗi đang gõ trong ô số lượng giỏ hàng (cho phép nhập bàn phím) */
+  const [cartQtyDraft, setCartQtyDraft] = useState({});
 
   const loadCart = useCallback(async (productsList = []) => {
     try {
@@ -115,17 +307,30 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   }, []);
 
+  const loadPendingShipments = useCallback(async () => {
+    try {
+      const list = await api.getShipmentsPendingReport();
+      setShipments(Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.error("loadPendingShipments:", e);
+      setShipments([]);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
-      const [productsList, ordersList] = await Promise.all([
+      const [productsList, ordersList, profileRaw] = await Promise.all([
         api.getProducts(),
         api.getStoreOrders(),
+        api.getStoreProfile().catch(() => ({})),
       ]);
       const prods = Array.isArray(productsList) ? productsList : [];
       setProducts(prods);
-      setOrders(Array.isArray(ordersList) ? ordersList : []);
+      const rawOrders = Array.isArray(ordersList) ? ordersList : [];
+      setOrders(rawOrders.map((row) => normalizeStoreOrderRow(row)));
+      setStoreProfile(normalizeStoreProfilePayload(profileRaw));
       await loadCart(prods);
-      setShipments([]);
+      await loadPendingShipments();
     } catch (err) {
       console.error("loadData:", err);
       setProducts([]);
@@ -133,7 +338,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       setCart([]);
       setShipments([]);
     }
-  }, [loadCart]);
+  }, [loadCart, loadPendingShipments]);
 
   useEffect(() => {
     loadData();
@@ -141,14 +346,13 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   useEffect(() => {
     if (activePage === "settings") {
       api.getStoreProfile().then((p) => {
-        setStoreProfile({
-          name: p.name ?? "",
-          address: p.address ?? "",
-          phone: p.phone ?? "",
-        });
+        setStoreProfile(normalizeStoreProfilePayload(p));
       });
     }
-  }, [activePage]);
+    if (activePage === "shipments") {
+      loadPendingShipments();
+    }
+  }, [activePage, loadPendingShipments]);
 
   const showToast = (msg, color = "#4a7c5f") => {
     setToast({ show: true, msg, color });
@@ -164,7 +368,47 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       await loadCart(products);
       showToast("Đã thêm: " + (product.name || productId), "#4a7c5f");
     } catch (err) {
-      showToast("Thêm món thất bại", "#c0392b");
+      showToast("Thêm sản phẩm thất bại", "#c0392b");
+    }
+  };
+
+  const clearCartQtyDraft = (productId) => {
+    const pid = String(productId);
+    setCartQtyDraft((prev) => {
+      if (!(pid in prev)) return prev;
+      const next = { ...prev };
+      delete next[pid];
+      return next;
+    });
+  };
+
+  const commitCartQtyInput = async (item, rawInput) => {
+    const productId = item.id ?? item.productId;
+    const s = String(rawInput ?? "").trim();
+    const n = parseInt(s, 10);
+    if (s === "" || !Number.isFinite(n) || n < 0) {
+      showToast("Nhập số nguyên từ 0 trở lên", "#c0392b");
+      await loadCart(products);
+      return;
+    }
+    if (n === item.quantity) return;
+    if (n === 0) {
+      try {
+        await api.removeFromStoreCart(productId);
+        await loadCart(products);
+        showToast("Đã xóa khỏi giỏ", "#c0392b");
+      } catch (err) {
+        showToast("Cập nhật thất bại", "#c0392b");
+        await loadCart(products);
+      }
+      return;
+    }
+    try {
+      await api.updateStoreCartItem({ productId, quantity: n });
+      await loadCart(products);
+    } catch (err) {
+      showToast("Cập nhật thất bại", "#c0392b");
+      await loadCart(products);
     }
   };
 
@@ -172,6 +416,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     const item = cart.find((c) => (c.id ?? c.productId) === productId);
     if (!item) return;
     const newQty = item.quantity + delta;
+    clearCartQtyDraft(productId);
     if (newQty <= 0) {
       try {
         await api.removeFromStoreCart(productId);
@@ -247,27 +492,81 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const openOrderDetail = async (order) => {
     setOrderDetail(order);
     setOrderDetailData(null);
+    const oid = order.id;
+    if (!oid) {
+      setOrderDetailData(order);
+      openPanel("orderDetail");
+      return;
+    }
     try {
-      const detail = await api.getStoreOrderDetail(order.id);
-      setOrderDetailData(detail ?? order);
+      const detail = await api.getStoreOrderDetail(oid);
+      const unwrapped =
+        detail?.data != null &&
+        typeof detail.data === "object" &&
+        !Array.isArray(detail.data)
+          ? detail.data
+          : detail;
+      setOrderDetailData(normalizeStoreOrderRow(unwrapped));
     } catch {
       setOrderDetailData(order);
     }
     openPanel("orderDetail");
   };
 
-  const openReport = (shipmentId) => {
+  const openReport = (shipmentOrId) => {
+    const shipmentId =
+      typeof shipmentOrId === "object" && shipmentOrId != null
+        ? shipmentOrId.shipmentId ?? shipmentOrId.id
+        : shipmentOrId;
     setReportShipmentId(shipmentId);
-    setReportItems(
-      products.slice(0, 5).map((p) => ({
-        productId: p.id ?? p.productId,
-        productName: p.name,
-        expectedQuantity: 10,
-        receivedQuantity: 10,
-        note: "",
-      })),
-    );
+    const fromApi =
+      typeof shipmentOrId === "object" &&
+      shipmentOrId != null &&
+      Array.isArray(shipmentOrId.items) &&
+      shipmentOrId.items.length > 0
+        ? shipmentOrId.items
+        : null;
+    if (fromApi) {
+      setReportItems(
+        fromApi.map((it) => ({
+          productId: it.productId ?? it.id,
+          productName: it.productName ?? it.name ?? it.productId ?? "—",
+          expectedQuantity: Number(it.expectedQuantity ?? it.quantity ?? 0),
+          receivedQuantity: Number(
+            it.expectedQuantity ?? it.quantity ?? 0,
+          ),
+          note: "",
+        })),
+      );
+    } else {
+      setReportItems(
+        products.slice(0, 5).map((p) => ({
+          productId: p.id ?? p.productId,
+          productName: p.name,
+          expectedQuantity: 10,
+          receivedQuantity: 10,
+          note: "",
+        })),
+      );
+    }
     openPanel("report");
+  };
+
+  const confirmPendingShipment = async (shipmentId) => {
+    if (!shipmentId) return;
+    setConfirmingShipmentId(shipmentId);
+    try {
+      await api.confirmShipmentReport(shipmentId);
+      showToast("Đã xác nhận nhận hàng", "#4a7c5f");
+      await loadPendingShipments();
+    } catch (err) {
+      showToast(
+        "Xác nhận thất bại: " + (err.message || "Lỗi"),
+        "#c0392b",
+      );
+    } finally {
+      setConfirmingShipmentId(null);
+    }
   };
 
   const doReport = async () => {
@@ -281,6 +580,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       await api.reportShipmentShortage(reportShipmentId, { reportedItems });
       closePanel();
       showToast("Đã gửi báo cáo sự cố", "#c0392b");
+      await loadPendingShipments();
     } catch (err) {
       showToast("Gửi báo cáo thất bại", "#c0392b");
     }
@@ -291,7 +591,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     try {
       await api.updateStoreProfile(storeProfile);
       setProfileEditing(false);
-      showToast("Đã lưu thông tin tiệm", "#4a7c5f");
+      showToast("Đã lưu thông tin cửa hàng", "#4a7c5f");
     } catch (err) {
       showToast("Lưu thất bại", "#c0392b");
     } finally {
@@ -300,6 +600,11 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   };
 
   const fmt = (n) => (n ?? 0).toLocaleString("vi-VN") + "₫";
+  const fmtDateTime = (iso) => {
+    if (iso == null || iso === "") return "—";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString("vi-VN");
+  };
   const badge = (status) => {
     const s = STATUS_MAP[status] || STATUS_MAP.pending;
     return (
@@ -314,6 +619,12 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     ...new Set(products.map((p) => p.category).filter(Boolean)),
   ];
   const meta = PAGE_META[activePage] || PAGE_META.cart;
+  const sidebarStoreTitle =
+    storeProfile.name ||
+    userData?.storeName ||
+    (typeof userData?.managedStores === "string" && userData.managedStores.trim()
+      ? userData.managedStores.trim()
+      : "");
 
   return (
     <div className="sm-page">
@@ -340,8 +651,9 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               <span className="sb-logo-text">Cửa hàng</span>
             </div>
             <div className="sb-store-card">
+              <div className="sb-store-label">Cửa hàng phụ trách</div>
               <div className="sb-store-name">
-                {storeProfile.name || "Chưa Có Cửa Hàng"}
+                {sidebarStoreTitle || "Chưa có tên cửa hàng"}
               </div>
               <div className="sb-store-role">
                 {userData?.name ?? userData?.fullName ?? "—"}
@@ -349,7 +661,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
             </div>
           </div>
           <nav className="sb-nav">
-            <div className="nav-group-label">Đặt hàng</div>
+            <div className="nav-group-label">Giỏ hàng & đơn hàng</div>
             <button
               type="button"
               className={`ni ${activePage === "cart" ? "on" : ""}`}
@@ -382,7 +694,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               onClick={() => setActivePage("settings")}
             >
               <Store size={15} />
-              Cài đặt tiệm
+              Cài đặt cửa hàng
             </button>
           </nav>
         </aside>
@@ -484,7 +796,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                 />
                 <div className="sc-top">
                   <div>
-                    <div className="sc-label">Đã nhận</div>
+                    <div className="sc-label">Chờ xác nhận</div>
                   </div>
                   <div
                     className="sc-icon"
@@ -494,11 +806,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                   </div>
                 </div>
                 <div className="sc-val" style={{ color: "var(--sage)" }}>
-                  {
-                    shipments.filter(
-                      (s) => s.status === "ARRIVED" || s.status === "DELIVERED",
-                    ).length
-                  }
+                  {shipments.length}
                 </div>
               </div>
             </div>
@@ -555,18 +863,20 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                 <div className="cart-panel">
                   <div className="cp-header">
                     <div className="cp-title">
-                      <ShoppingCart size={15} style={{ opacity: 0.7 }} /> Giỏ
-                      hàng
+                      <ShoppingCart size={15} style={{ opacity: 0.7 }} />{" "}
+                      Giỏ hàng
                     </div>
                     <span className="cp-count">
-                      {cartCount ? cartCount + " món" : "trống"}
+                      {cartCount
+                        ? cartCount + " sản phẩm"
+                        : "trống"}
                     </span>
                   </div>
                   {cart.length === 0 ? (
                     <div className="cp-empty">
                       <div className="cp-empty-icon">🛒</div>
                       <p>Giỏ hàng đang trống</p>
-                      <p>Chọn món từ thực đơn bên trái</p>
+                      <p>Chọn sản phẩm từ danh sách bên trái</p>
                     </div>
                   ) : (
                     <>
@@ -589,7 +899,56 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                               >
                                 −
                               </button>
-                              <span className="qv">{item.quantity}</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                className="qv qv-input"
+                                aria-label="Số lượng"
+                                value={
+                                  cartQtyDraft[
+                                    String(item.id ?? item.productId)
+                                  ] !== undefined
+                                    ? cartQtyDraft[
+                                        String(item.id ?? item.productId)
+                                      ]
+                                    : String(item.quantity ?? 0)
+                                }
+                                onChange={(e) => {
+                                  const pid = String(
+                                    item.id ?? item.productId,
+                                  );
+                                  const v = e.target.value.replace(
+                                    /\D/g,
+                                    "",
+                                  );
+                                  setCartQtyDraft((prev) => ({
+                                    ...prev,
+                                    [pid]: v,
+                                  }));
+                                }}
+                                onBlur={(e) => {
+                                  const pid = String(
+                                    item.id ?? item.productId,
+                                  );
+                                  const val =
+                                    cartQtyDraft[pid] !== undefined
+                                      ? cartQtyDraft[pid]
+                                      : e.target.value;
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[pid];
+                                    return next;
+                                  });
+                                  commitCartQtyInput(item, val);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                              />
                               <button
                                 type="button"
                                 className="qb"
@@ -682,17 +1041,15 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                     >
                       <FileText size={13} style={{ color: "var(--slate)" }} />
                     </div>
-                    Đơn hàng của tiệm
+                    Đơn hàng cửa hàng
                   </div>
                 </div>
                 <div className="tbl-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>Mã đơn</th>
                         <th>Loại</th>
                         <th>Trạng thái</th>
-                        <th>Số món</th>
                         <th>Tổng tiền</th>
                         <th>Thời gian</th>
                         <th></th>
@@ -702,7 +1059,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                       {orders.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={5}
                             style={{ textAlign: "center", padding: 24 }}
                           >
                             <div className="empty">
@@ -720,26 +1077,34 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                           </td>
                         </tr>
                       ) : (
-                        orders.map((o) => (
-                          <tr key={o.id}>
+                        orders.map((o, oidx) => {
+                          const orderTypeUpper = (
+                            o.orderType || "STANDARD"
+                          ).toString().toUpperCase();
+                          const isUrgent = orderTypeUpper === "URGENT";
+                          return (
+                          <tr key={o.id || `ord-${oidx}`}>
                             <td>
                               <span
-                                className="mono"
-                                style={{ fontWeight: 600 }}
+                                className="tag tag-s"
+                                style={
+                                  isUrgent
+                                    ? {
+                                        color: "#b91c1c",
+                                        background: "rgba(185, 28, 28, 0.12)",
+                                        borderColor: "rgba(185, 28, 28, 0.28)",
+                                      }
+                                    : {
+                                        color: "#1d4ed8",
+                                        background: "rgba(29, 78, 216, 0.1)",
+                                        borderColor: "rgba(29, 78, 216, 0.22)",
+                                      }
+                                }
                               >
-                                {o.id}
+                                {orderTypeUpper}
                               </span>
                             </td>
-                            <td>
-                              <span className="tag tag-s">STANDARD</span>
-                            </td>
                             <td>{badge(o.status)}</td>
-                            <td
-                              className="mono"
-                              style={{ color: "var(--ink2)" }}
-                            >
-                              {(o.items || []).length}
-                            </td>
                             <td
                               className="mono"
                               style={{ color: "var(--amber)", fontWeight: 600 }}
@@ -761,7 +1126,8 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                               </button>
                             </td>
                           </tr>
-                        ))
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -782,74 +1148,183 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                     >
                       <Package size={13} style={{ color: "#8b5cf6" }} />
                     </div>
-                    Lô hàng đến
+                    Hàng đã đến
                   </div>
                 </div>
-                <div className="tbl-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã lô</th>
-                        <th>Mã đơn</th>
-                        <th>Trạng thái</th>
-                        <th>Thời gian đến</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shipments.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            style={{ textAlign: "center", padding: 24 }}
+                <div className="card-body" style={{ paddingTop: 8 }}>
+                  <p
+                    style={{
+                      fontSize: 12.5,
+                      color: "var(--ink3)",
+                      margin: "0 0 16px",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Các lô đã đến cửa hàng. Xác nhận khi đã kiểm đủ hàng, hoặc
+                    báo sự cố nếu thiếu / hỏng.
+                  </p>
+                  {shipments.length === 0 ? (
+                    <div className="empty" style={{ padding: "32px 16px" }}>
+                      <Package size={40} />
+                      <p>Chưa có lô chờ xác nhận</p>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 14,
+                      }}
+                    >
+                      {shipments.map((s) => {
+                        const sid = s.shipmentId ?? s.id;
+                        const items = Array.isArray(s.items) ? s.items : [];
+                        return (
+                          <div
+                            key={sid}
+                            className="rpt-item"
+                            style={{ marginBottom: 0 }}
                           >
-                            <div className="empty">
-                              <Package size={40} />
-                              <p>Chưa có lô hàng</p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        shipments.map((s) => (
-                          <tr key={s.shipmentId ?? s.id}>
-                            <td>
-                              <span
-                                className="mono"
-                                style={{ fontWeight: 600 }}
-                              >
-                                {s.shipmentId ?? s.id}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="mono">{s.orderId ?? "—"}</span>
-                            </td>
-                            <td>{badge(s.status)}</td>
-                            <td
-                              style={{ fontSize: 11.5, color: "var(--ink3)" }}
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 12,
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                marginBottom: 10,
+                              }}
                             >
-                              {s.arrivedAt
-                                ? new Date(s.arrivedAt).toLocaleString("vi-VN")
-                                : "—"}
-                            </td>
-                            <td>
-                              {(s.status === "ARRIVED" ||
-                                s.status === "DELIVERED") && (
+                              <div>
+                                <div
+                                  className="mono"
+                                  style={{
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                    color: "var(--ink)",
+                                  }}
+                                >
+                                  {sid}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12.5,
+                                    color: "var(--ink2)",
+                                    marginTop: 6,
+                                  }}
+                                >
+                                  <strong>Tài xế:</strong>{" "}
+                                  {s.driverName ?? "—"}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12.5,
+                                    color: "var(--ink2)",
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  <strong>Đến nơi:</strong>{" "}
+                                  {fmtDateTime(
+                                    s.deliveredAt ?? s.arrivedAt,
+                                  )}
+                                </div>
+                                {s.minutesElapsed != null && (
+                                  <div
+                                    style={{
+                                      fontSize: 11.5,
+                                      color: "var(--ink4)",
+                                      marginTop: 4,
+                                    }}
+                                  >
+                                    Cách đây ~{s.minutesElapsed} phút
+                                  </div>
+                                )}
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 8,
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-sage"
+                                  disabled={confirmingShipmentId === sid}
+                                  onClick={() => confirmPendingShipment(sid)}
+                                >
+                                  {confirmingShipmentId === sid
+                                    ? "Đang gửi…"
+                                    : "Xác nhận nhận hàng"}
+                                </button>
                                 <button
                                   type="button"
                                   className="btn btn-xs btn-rust"
-                                  onClick={() =>
-                                    openReport(s.shipmentId ?? s.id)
-                                  }
+                                  onClick={() => openReport(s)}
                                 >
                                   ⚠ Báo sự cố
                                 </button>
+                              </div>
+                            </div>
+                            <div className="sec-label" style={{ marginBottom: 8 }}>
+                              Hàng trong lô ({items.length} dòng)
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                              }}
+                            >
+                              {items.length === 0 ? (
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    color: "var(--ink4)",
+                                  }}
+                                >
+                                  (Chưa có chi tiết sản phẩm)
+                                </span>
+                              ) : (
+                                items.map((it, idx) => (
+                                  <div
+                                    key={
+                                      it.productId ??
+                                      idx
+                                    }
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      fontSize: 12.5,
+                                      padding: "6px 10px",
+                                      background: "var(--parchment)",
+                                      borderRadius: 8,
+                                      border: "1px solid var(--border)",
+                                    }}
+                                  >
+                                    <span style={{ color: "var(--ink)" }}>
+                                      {it.productName ?? it.name ?? it.productId}
+                                    </span>
+                                    <span
+                                      className="mono"
+                                      style={{
+                                        color: "var(--ink3)",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      SL dự kiến:{" "}
+                                      {it.expectedQuantity ?? it.quantity ?? "—"}
+                                    </span>
+                                  </div>
+                                ))
                               )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1003,7 +1478,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
               ))}
               <div className="ck-total">
-                <span className="ck-total-lbl">Tổng tiền</span>
+                <span className="ck-total-lbl">Tổng cộng</span>
                 <span className="ck-total-val">
                   {fmt(
                     cart.reduce(
@@ -1209,7 +1684,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
           <div className="sp-body">
             <div className="ibox danger">
               Ghi lại hàng <strong>thiếu hoặc hỏng</strong> — thông tin sẽ được
-              gửi về kho
+              gửi về quản lý kho
             </div>
             <div className="sec-label">Kiểm tra từng sản phẩm</div>
             {reportItems.map((r, idx) => (
@@ -1308,7 +1783,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                   Mã đơn
                 </div>
                 <div className="mono" style={{ fontWeight: 700, fontSize: 13 }}>
-                  {(orderDetailData || orderDetail).id}
+                  {(orderDetailData || orderDetail).id || "—"}
                 </div>
               </div>
               <div
@@ -1360,7 +1835,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               </span>
               <span
                 style={{
-                  fontFamily: "var(--serif)",
+                  fontFamily: "var(--sans)",
                   fontSize: 20,
                   fontWeight: 700,
                   color: "var(--amber)",

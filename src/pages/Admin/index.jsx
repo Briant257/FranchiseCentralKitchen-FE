@@ -15,8 +15,22 @@ import {
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
-import { ADMIN_TABS, SYSTEM_ROLES } from "../../constants";
+import {
+  ADMIN_TABS,
+  ROLE_LABELS,
+  ADMIN_ACCOUNT_ROLE_OPTIONS,
+} from "../../constants";
 import "../../styles/admin-theme.css";
+
+const ADMIN_ACCOUNT_ROLE_VALUES = new Set(
+  ADMIN_ACCOUNT_ROLE_OPTIONS.map((r) => r.value),
+);
+
+function isAdminRoleUser(user) {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  return String(user.roleRaw ?? "").toUpperCase() === "ADMIN";
+}
 
 const AdminPage = ({ onLogout, userData }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -47,7 +61,7 @@ const AdminPage = ({ onLogout, userData }) => {
     password: "",
     name: "",
     email: "",
-    role: "franchise",
+    role: "STORE_MANAGER",
     status: "active",
     employeeCode: "",
   });
@@ -446,13 +460,9 @@ const AdminPage = ({ onLogout, userData }) => {
       window.alert("Email không đúng định dạng!");
       return;
     }
-    const roleToBackend = {
-      admin: "ADMIN",
-      manager: "MANAGER",
-      coordinator: "COORDINATOR",
-      kitchen: "KITCHEN_MANAGER",
-      franchise: "STORE_MANAGER",
-    };
+    const roleForApi = ADMIN_ACCOUNT_ROLE_VALUES.has(newUser.role)
+      ? newUser.role
+      : "KITCHEN_MANAGER";
     try {
       const existingUsers = await api.getUsers();
       if (existingUsers.find((u) => u.username === newUser.username)) {
@@ -465,7 +475,7 @@ const AdminPage = ({ onLogout, userData }) => {
         email: emailTrim,
         fullName: newUser.name.trim(),
         employeeCode: newUser.employeeCode?.trim() || undefined,
-        role: roleToBackend[newUser.role] || "KITCHEN_MANAGER",
+        role: roleForApi,
       });
       await loadAdminData();
       setShowAddUser(false);
@@ -474,7 +484,7 @@ const AdminPage = ({ onLogout, userData }) => {
         password: "",
         name: "",
         email: "",
-        role: "franchise",
+        role: "STORE_MANAGER",
         status: "active",
         employeeCode: "",
       });
@@ -559,8 +569,8 @@ const AdminPage = ({ onLogout, userData }) => {
     const accountId =
       editAccountUser.accountId ?? editAccountUser.id ?? editAccountUser.userId;
     const { roleName, storeId, email } = editAccountForm;
-    if (!roleName?.trim()) {
-      window.alert("Vui lòng chọn chức vụ.");
+    if (!isAdminRoleUser(editAccountUser) && !roleName?.trim()) {
+      window.alert("Vui lòng chọn vai trò.");
       return;
     }
     const emailTrim = email?.trim();
@@ -573,9 +583,11 @@ const AdminPage = ({ onLogout, userData }) => {
       return;
     }
     try {
-      await api.updateAccountRole(accountId, roleName.trim());
-      if (roleName === "STORE_MANAGER" && storeId?.trim()) {
-        await api.updateAccountStore(accountId, storeId.trim());
+      if (!isAdminRoleUser(editAccountUser)) {
+        await api.updateAccountRole(accountId, roleName.trim());
+        if (roleName === "STORE_MANAGER" && storeId?.trim()) {
+          await api.updateAccountStore(accountId, storeId.trim());
+        }
       }
       await api.updateAccount(accountId, { email: emailTrim });
       window.alert("✅ Đã cập nhật thông tin!");
@@ -983,97 +995,124 @@ const AdminPage = ({ onLogout, userData }) => {
             </div>
             <div className="form-body">
               <div className="field">
-                <label>Chức vụ</label>
-                <select
-                  value={editAccountForm.roleName}
-                  onChange={(e) =>
-                    setEditAccountForm((f) => ({
-                      ...f,
-                      roleName: e.target.value,
-                      storeId:
-                        e.target.value === "STORE_MANAGER" ? f.storeId : "",
-                    }))
-                  }
-                >
-                  {SYSTEM_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {editAccountForm.roleName === "STORE_MANAGER" && (
-                <div className="field">
-                  <label>
-                    Cửa hàng <span className="helper">(tùy chọn)</span>
-                  </label>
+                <label>Vai trò</label>
+                {isAdminRoleUser(editAccountUser) ? (
+                  <div
+                    className="helper"
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid var(--border, #4b5563)",
+                      background: "rgba(17,24,39,0.5)",
+                      color: "var(--text2, #d1d5db)",
+                      fontSize: 14,
+                    }}
+                  >
+                    {ROLE_LABELS.ADMIN}
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+                      Vai trò này không đổi từ form chỉnh sửa.
+                    </div>
+                  </div>
+                ) : (
                   <select
-                    value={String(editAccountForm.storeId ?? "")}
+                    value={editAccountForm.roleName}
                     onChange={(e) =>
                       setEditAccountForm((f) => ({
                         ...f,
-                        storeId: e.target.value,
+                        roleName: e.target.value,
+                        storeId:
+                          e.target.value === "STORE_MANAGER" ? f.storeId : "",
                       }))
                     }
                   >
-                    <option value="">Chưa có</option>
-                    {stores
-                      .filter((s) => {
-                        if (s.isActive === false) return false;
-                        const storeIds = [s.storeId, s.id]
-                          .filter(Boolean)
-                          .map(String);
-                        if (storeIds.length === 0) return true;
-                        const currentUserId = String(
-                          editAccountUser?.accountId ??
-                            editAccountUser?.id ??
-                            editAccountUser?.userId ??
-                            "",
-                        );
-                        const allAccounts =
-                          users.length > 0 ? users : accountsList;
-                        const isAssignedToOther = allAccounts.some((acc) => {
-                          if (acc.roleRaw !== "STORE_MANAGER") return false;
-                          if (
-                            String(acc.accountId ?? acc.id ?? acc.userId) ===
-                            currentUserId
-                          )
-                            return false;
-                          const accStoreIds = [
-                            acc.storeId,
-                            ...(acc.storeIds || []),
-                          ]
+                    {ADMIN_ACCOUNT_ROLE_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {!isAdminRoleUser(editAccountUser) &&
+                editAccountForm.roleName === "STORE_MANAGER" && (
+                  <div className="field">
+                    <label>
+                      Cửa hàng <span className="helper">(tùy chọn)</span>
+                    </label>
+                    <select
+                      value={String(editAccountForm.storeId ?? "")}
+                      onChange={(e) =>
+                        setEditAccountForm((f) => ({
+                          ...f,
+                          storeId: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Chưa có</option>
+                      {stores
+                        .filter((s) => {
+                          if (s.isActive === false) return false;
+                          const storeIds = [s.storeId, s.id]
                             .filter(Boolean)
                             .map(String);
-                          const matchById = storeIds.some((sid) =>
-                            accStoreIds.some((aid) => aid === sid),
+                          if (storeIds.length === 0) return true;
+                          const currentUserId = String(
+                            editAccountUser?.accountId ??
+                              editAccountUser?.id ??
+                              editAccountUser?.userId ??
+                              "",
                           );
-                          if (matchById) return true;
-                          const storeName = (s.name ?? "").trim();
-                          if (!storeName) return false;
-                          const accNames = [acc.managedStores, acc.storeName]
-                            .filter(Boolean)
-                            .flatMap((x) =>
-                              String(x)
-                                .split(",")
-                                .map((n) => n.trim())
-                                .filter(Boolean),
-                            );
-                          return accNames.some((n) => n === storeName);
-                        });
-                        return !isAssignedToOther;
-                      })
-                      .map((s) => (
-                        <option
-                          key={s.storeId ?? s.id}
-                          value={String(s.storeId ?? s.id ?? "")}
-                        >
-                          {s.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
+                          const allAccounts =
+                            users.length > 0 ? users : accountsList;
+                          const isAssignedToOther = allAccounts.some(
+                            (acc) => {
+                              if (acc.roleRaw !== "STORE_MANAGER")
+                                return false;
+                              if (
+                                String(
+                                  acc.accountId ?? acc.id ?? acc.userId,
+                                ) === currentUserId
+                              )
+                                return false;
+                              const accStoreIds = [
+                                acc.storeId,
+                                ...(acc.storeIds || []),
+                              ]
+                                .filter(Boolean)
+                                .map(String);
+                              const matchById = storeIds.some((sid) =>
+                                accStoreIds.some((aid) => aid === sid),
+                              );
+                              if (matchById) return true;
+                              const storeName = (s.name ?? "").trim();
+                              if (!storeName) return false;
+                              const accNames = [
+                                acc.managedStores,
+                                acc.storeName,
+                              ]
+                                .filter(Boolean)
+                                .flatMap((x) =>
+                                  String(x)
+                                    .split(",")
+                                    .map((n) => n.trim())
+                                    .filter(Boolean),
+                                );
+                              return accNames.some((n) => n === storeName);
+                            },
+                          );
+                          return !isAssignedToOther;
+                        })
+                        .map((s) => (
+                          <option
+                            key={s.storeId ?? s.id}
+                            value={String(s.storeId ?? s.id ?? "")}
+                          >
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
               <div className="field">
                 <label>Email *</label>
                 <input
@@ -2329,10 +2368,11 @@ const AdminPage = ({ onLogout, userData }) => {
                     setNewUser({ ...newUser, role: e.target.value })
                   }
                 >
-                  <option value="franchise">Quản lý cửa hàng</option>
-                  <option value="kitchen">Nhân viên bếp</option>
-                  <option value="coordinator">Điều phối viên</option>
-                  <option value="manager">Quản lý</option>
+                  {ADMIN_ACCOUNT_ROLE_OPTIONS.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="form-actions">

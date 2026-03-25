@@ -1209,3 +1209,27 @@
   color: #9ca3af;
   text-transform: uppercase;
 }
+
+/* Trang Quản lý — nhiều tab, xuống dòng */
+.ingredient-polished.manager-shell .tabs {
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+.ingredient-polished.manager-shell .tab {
+  flex: 1 1 auto;
+  min-width: min(100%, 140px);
+  justify-content: center;
+}
+
+/* Fix lỗi Tab phụ (Sản phẩm/Danh mục) bị giãn dài trong trang Manager */
+.ingredient-polished.manager-shell .tabs.sub-tabs {
+  width: fit-content; /* Ép nó co lại vừa với nội dung */
+  flex-wrap: nowrap;  /* Ép nằm ngang tuyệt đối, không cho rớt dòng */
+}
+.ingredient-polished.manager-shell .tabs.sub-tabs .tab {
+  flex: 0 1 auto;     /* Không cho phép nút bấm tự động giãn dài */
+  min-width: auto;    /* Hủy bỏ min-width 140px của menu chính */
+  padding: 8px 20px;  /* Trả lại padding chuẩn của nút Admin */
+}
