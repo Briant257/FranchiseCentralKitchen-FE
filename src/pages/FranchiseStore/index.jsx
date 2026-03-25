@@ -45,32 +45,31 @@ const PAGE_META = {
 function normalizeStoreProfilePayload(raw) {
   const p =
     raw && typeof raw === "object"
-      ? raw.data != null && typeof raw.data === "object" && !Array.isArray(raw.data)
+      ? raw.data != null &&
+        typeof raw.data === "object" &&
+        !Array.isArray(raw.data)
         ? raw.data
         : raw
       : {};
-  const name = (
-    p.name ??
-    p.storeName ??
-    p.store_name ??
-    p.store?.name ??
-    ""
-  )
+  const name = (p.name ?? p.storeName ?? p.store_name ?? p.store?.name ?? "")
     .toString()
     .trim();
   const address = (p.address ?? p.storeAddress ?? p.store_address ?? "")
     .toString()
     .trim();
-  const phone = (
-    p.phone ??
-    p.phoneNumber ??
-    p.phone_number ??
-    p.hotline ??
-    ""
-  )
+  const phone = (p.phone ?? p.phoneNumber ?? p.phone_number ?? p.hotline ?? "")
     .toString()
     .trim();
-  return { name, address, phone };
+  const isActiveRaw =
+    p.isActive ?? p.active ?? p.is_active ?? p.storeActive ?? p.store_active;
+  const isActive =
+    isActiveRaw == null
+      ? true
+      : !(
+          String(isActiveRaw).toLowerCase() === "false" || isActiveRaw === false
+        );
+
+  return { name, address, phone, isActive };
 }
 
 /** Một dòng sản phẩm trong đơn — BE có thể dùng productName, unitPrice, … */
@@ -102,8 +101,8 @@ function normalizeStoreOrderRow(raw) {
   const d =
     raw && typeof raw === "object"
       ? raw.data != null &&
-          typeof raw.data === "object" &&
-          !Array.isArray(raw.data)
+        typeof raw.data === "object" &&
+        !Array.isArray(raw.data)
         ? raw.data
         : raw
       : null;
@@ -184,15 +183,9 @@ function normalizeStoreOrderRow(raw) {
 
   const idRaw =
     d.id ?? d.orderId ?? d.order_id ?? d.code ?? d.orderCode ?? d.order_code;
-  const id =
-    idRaw != null && String(idRaw).trim() !== "" ? String(idRaw) : "";
+  const id = idRaw != null && String(idRaw).trim() !== "" ? String(idRaw) : "";
 
-  const orderType = (
-    d.orderType ??
-    d.type ??
-    d.order_type ??
-    "STANDARD"
-  )
+  const orderType = (d.orderType ?? d.type ?? d.order_type ?? "STANDARD")
     .toString()
     .toUpperCase();
 
@@ -227,6 +220,46 @@ function normalizeStoreOrderRow(raw) {
   };
 }
 
+function stripVietnameseDiacritics(input) {
+  return String(input ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getShipmentIssueBadge(rawShipment) {
+  if (!rawShipment || typeof rawShipment !== "object") return null;
+
+  const fields = [
+    rawShipment.status,
+    rawShipment.reportStatus,
+    rawShipment.issueStatus,
+    rawShipment.state,
+    rawShipment.problemType,
+  ].filter((x) => x != null && String(x).trim() !== "");
+
+  const joined = fields.map((v) => String(v)).join(" ");
+  const u = joined.toUpperCase();
+  const noDia = stripVietnameseDiacritics(joined).toUpperCase();
+
+  // Các keyword thường gặp khi "báo thiếu hàng".
+  const indicatesMissing =
+    u.includes("SHORTAGE") ||
+    u.includes("MISSING") ||
+    u.includes("REPORTED_SHORTAGE") ||
+    noDia.includes("THIEU") ||
+    u.includes("THIẾU");
+
+  if (indicatesMissing) {
+    return {
+      text: "Thiếu",
+      color: "#b91c1c",
+      bg: "rgba(185, 28, 28, 0.12)",
+      border: "rgba(185, 28, 28, 0.28)",
+    };
+  }
+  return null;
+}
+
 const STATUS_MAP = {
   PENDING: { l: "Chờ xác nhận", c: "#d97706", b: "rgba(217,119,6,.1)" },
   NEW: { l: "Mới", c: "#d97706", b: "rgba(217,119,6,.1)" },
@@ -254,11 +287,26 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     name: "",
     address: "",
     phone: "",
+    isActive: true,
   });
   const [storeProfileSaving, setStoreProfileSaving] = useState(false);
   const [panel, setPanel] = useState(null);
   const [checkoutOrderType, setCheckoutOrderType] = useState("STANDARD");
   const [checkoutNote, setCheckoutNote] = useState("");
+
+  // --- VNPay ---
+  const [vnPayOrderId, setVnPayOrderId] = useState(null);
+  const [vnPayAmount, setVnPayAmount] = useState(null);
+  const [vnPayPaymentUrl, setVnPayPaymentUrl] = useState(null);
+  const [vnPayChecking, setVnPayChecking] = useState(false);
+  const [vnPayStatus, setVnPayStatus] = useState(null);
+  const [vnPayError, setVnPayError] = useState(null);
+  const [vnPayResponseCode, setVnPayResponseCode] = useState(null);
+  const [vnPayPollingActive, setVnPayPollingActive] = useState(false);
+  const [vnPayReturnActive, setVnPayReturnActive] = useState(false);
+  const [vnPayImmediateToastShown, setVnPayImmediateToastShown] =
+    useState(false);
+
   const [quickOrderItems, setQuickOrderItems] = useState([
     { productId: "", quantity: 1 },
   ]);
@@ -280,6 +328,8 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const [profileEditing, setProfileEditing] = useState(false);
   /** productId -> chuỗi đang gõ trong ô số lượng giỏ hàng (cho phép nhập bàn phím) */
   const [cartQtyDraft, setCartQtyDraft] = useState({});
+  const [cartSearch, setCartSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
 
   const loadCart = useCallback(async (productsList = []) => {
     try {
@@ -361,6 +411,314 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const openPanel = (name) => setPanel(name);
   const closePanel = () => setPanel(null);
 
+  // Nếu backend cấu hình VNPay ReturnUrl trỏ về FE với query `vnp_TxnRef`,
+  // thì tại đây FE tự poll /api/payment/status/{id} để cập nhật UI.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const txnRef =
+        params.get("vnp_TxnRef") ||
+        params.get("txnRef") ||
+        params.get("orderId");
+      const responseCode = params.get("vnp_ResponseCode");
+      const hasVnPayCallback =
+        params.has("vnp_ResponseCode") ||
+        params.get("paymentReturn") === "true";
+
+      if (txnRef && hasVnPayCallback) {
+        setVnPayOrderId(txnRef);
+        setVnPayPaymentUrl(null);
+        setVnPayAmount(null);
+        setVnPayStatus(null);
+        setVnPayError(null);
+        setVnPayResponseCode(responseCode);
+        setVnPayReturnActive(true);
+        setVnPayPollingActive(false);
+        closePanel();
+        // Lưu lại để trường hợp callback không kèm đủ query, vẫn có thể check lại trạng thái.
+        try {
+          sessionStorage.setItem("vnPayPendingOrderId", String(txnRef));
+        } catch {
+          // ignore
+        }
+
+        // Dọn query để refresh không tự mở lại popup.
+        params.delete("vnp_TxnRef");
+        params.delete("txnRef");
+        params.delete("orderId");
+        params.delete("vnp_ResponseCode");
+        params.delete("paymentReturn");
+        const qs = params.toString();
+        window.history.replaceState(
+          {},
+          document.title,
+          qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
+        );
+      }
+
+      // Fallback: nếu backend redirect về FE nhưng không kèm vnp_TxnRef/vnp_ResponseCode,
+      // vẫn check theo orderId đã lưu lúc redirect đi VNPay.
+      const pendingOrderId = sessionStorage.getItem("vnPayPendingOrderId");
+      if (!txnRef && pendingOrderId && pendingOrderId.trim() !== "") {
+        setVnPayOrderId(pendingOrderId);
+        setVnPayPaymentUrl(null);
+        setVnPayAmount(null);
+        setVnPayStatus(null);
+        setVnPayError(null);
+        setVnPayResponseCode(null);
+        setVnPayReturnActive(true);
+        setVnPayPollingActive(false);
+        closePanel();
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Backend redirect về:
+  // - /payment-success?orderId=...
+  // - /payment-failed?orderId=...
+  useEffect(() => {
+    try {
+      const path = String(window.location.pathname ?? "");
+      const isSuccess = path.includes("payment-success");
+      const isFailed = path.includes("payment-failed");
+      if (!isSuccess && !isFailed) return;
+
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("orderId") || params.get("id");
+      if (!orderId) return;
+
+      setVnPayImmediateToastShown(false);
+      setVnPayOrderId(orderId);
+      setVnPayPaymentUrl(null);
+      setVnPayAmount(null);
+      setVnPayStatus(null);
+      setVnPayError(null);
+      setVnPayResponseCode(isSuccess ? "00" : "01");
+      setVnPayReturnActive(true);
+      setVnPayPollingActive(false);
+      closePanel();
+
+      setVnPayImmediateToastShown(true);
+      showToast(
+        isSuccess
+          ? "Thanh toán thành công! Đơn hàng của bạn đang được xử lý."
+          : "Thanh toán không thành công. Hãy kiểm tra lại phương thức thanh toán",
+        isSuccess ? "#4a7c5f" : "#c0392b",
+      );
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!vnPayReturnActive || !vnPayOrderId) return;
+
+    let cancelled = false;
+    let running = false;
+
+    const startedAt = Date.now();
+    const POLL_EVERY_MS = 2500;
+    const TIMEOUT_MS = 60000;
+
+    const poll = async () => {
+      if (cancelled || running) return;
+      running = true;
+      try {
+        const res = await api.getPaymentStatus(vnPayOrderId);
+        if (cancelled) return;
+        setVnPayStatus(res);
+
+        const paymentStatus = String(res?.paymentStatus ?? "").toUpperCase();
+        const orderStatus = String(res?.orderStatus ?? "").toUpperCase();
+
+        // Backend ví dụ:
+        // - orderStatus: PENDING_PAYMENT
+        // - paymentStatus: UNPAID
+        const isPaidByStatus =
+          paymentStatus === "PAID" ||
+          paymentStatus === "SUCCESS" ||
+          paymentStatus === "SUCCESSFUL" ||
+          orderStatus === "PAID" ||
+          orderStatus === "PAID_PAYMENT" ||
+          orderStatus === "PAID_SUCCESS";
+
+        const stillPending = !isPaidByStatus;
+
+        if (!stillPending) {
+          const code = String(vnPayResponseCode ?? "").trim();
+          const isSuccessCode =
+            code === "00" || code === "0" || code.toUpperCase() === "00";
+
+          const toastMsg =
+            isSuccessCode || isPaidByStatus
+              ? "Thanh toán thành công! Đơn hàng của bạn đang được xử lý."
+              : "Thanh toán không thành công. Hãy kiểm tra lại phương thức thanh toán";
+
+          // Đã cập nhật xong -> refresh danh sách đơn để thấy trạng thái mới
+          setVnPayChecking(false);
+          setVnPayReturnActive(false);
+          try {
+            sessionStorage.removeItem("vnPayPendingOrderId");
+          } catch {
+            // ignore
+          }
+          await loadData();
+          setActivePage("orders");
+          window.clearInterval(intervalId);
+          window.clearTimeout(timeoutId);
+          if (!vnPayImmediateToastShown) {
+            showToast(
+              toastMsg,
+              isSuccessCode || isPaidByStatus ? "#4a7c5f" : "#c0392b",
+            );
+          }
+          return;
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setVnPayError(err?.message || "Lỗi kiểm tra trạng thái thanh toán");
+      } finally {
+        running = false;
+      }
+    };
+
+    setVnPayChecking(true);
+    setVnPayError(null);
+
+    const intervalId = window.setInterval(() => {
+      if (Date.now() - startedAt >= TIMEOUT_MS) return;
+      poll();
+    }, POLL_EVERY_MS);
+
+    const timeoutId = window.setTimeout(async () => {
+      if (cancelled) return;
+      window.clearInterval(intervalId);
+      setVnPayChecking(false);
+      setVnPayError((prev) => prev || "Quá thời gian chờ xác nhận thanh toán.");
+      setVnPayReturnActive(false);
+      try {
+        sessionStorage.removeItem("vnPayPendingOrderId");
+      } catch {
+        // ignore
+      }
+    }, TIMEOUT_MS);
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    vnPayReturnActive,
+    vnPayOrderId,
+    loadData,
+    vnPayResponseCode,
+    vnPayImmediateToastShown,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Khi mở VNPay ở tab mới, FE vẫn cần tự kiểm tra trạng thái để cập nhật UI.
+  useEffect(() => {
+    if (!vnPayPollingActive || !vnPayOrderId) return;
+
+    let cancelled = false;
+    let running = false;
+    let didToastError = false;
+    let didToastPending = false;
+    const startedAt = Date.now();
+    const POLL_EVERY_MS = 2500;
+    const TIMEOUT_MS = 180000; // 3 phút
+
+    const poll = async () => {
+      if (cancelled || running) return;
+      running = true;
+      try {
+        const res = await api.getPaymentStatus(vnPayOrderId);
+        if (cancelled) return;
+        setVnPayStatus(res);
+
+        const paymentStatus = String(res?.paymentStatus ?? "").toUpperCase();
+        const orderStatus = String(res?.orderStatus ?? "").toUpperCase();
+
+        const isPaidByStatus =
+          paymentStatus === "PAID" ||
+          paymentStatus === "SUCCESS" ||
+          paymentStatus === "SUCCESSFUL" ||
+          orderStatus === "PAID" ||
+          orderStatus === "PAID_PAYMENT" ||
+          orderStatus === "PAID_SUCCESS";
+
+        const stillPending = !isPaidByStatus;
+
+        if (!stillPending) {
+          const code = String(vnPayResponseCode ?? "").trim();
+          const isSuccessCode =
+            code === "00" || code === "0" || code.toUpperCase() === "00";
+
+          setVnPayChecking(false);
+          setVnPayPollingActive(false);
+          await loadData();
+          setActivePage("orders");
+          closePanel();
+          showToast(
+            isSuccessCode || isPaidByStatus
+              ? "Thanh toán thành công! Đơn hàng của bạn đang được xử lý."
+              : "Thanh toán không thành công. Hãy kiểm tra lại phương thức thanh toán",
+            isSuccessCode || isPaidByStatus ? "#4a7c5f" : "#c0392b",
+          );
+          return;
+        }
+
+        if (!didToastPending) {
+          didToastPending = true;
+          showToast(
+            "Đang chờ VNPay cập nhật trạng thái thanh toán…",
+            "#d97706",
+          );
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err?.message || "Lỗi kiểm tra trạng thái thanh toán";
+        setVnPayError(msg);
+        if (!didToastError) {
+          didToastError = true;
+          showToast(msg, "#c0392b");
+        }
+      } finally {
+        running = false;
+      }
+    };
+
+    setVnPayChecking(true);
+    setVnPayError(null);
+
+    const intervalId = window.setInterval(() => {
+      if (Date.now() - startedAt >= TIMEOUT_MS) return;
+      poll();
+    }, POLL_EVERY_MS);
+
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      window.clearInterval(intervalId);
+      setVnPayChecking(false);
+      setVnPayPollingActive(false);
+      setVnPayError((prev) => prev || "Quá thời gian chờ cập nhật thanh toán.");
+    }, TIMEOUT_MS);
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [vnPayPollingActive, vnPayOrderId, loadData, vnPayResponseCode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addToCart = async (product) => {
     const productId = product.id ?? product.productId;
     try {
@@ -436,27 +794,82 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   };
 
   const doCheckout = async () => {
+    if (storeProfile?.isActive === false) {
+      showToast("Cửa hàng của bạn đã đóng. Không thể đặt đơn.", "#c0392b");
+      return;
+    }
     if (cart.length === 0) {
       showToast("Giỏ hàng trống", "#c0392b");
       return;
     }
     try {
-      await api.checkoutStoreCart({
+      const created = await api.checkoutStoreCart({
         orderType: checkoutOrderType,
         note: checkoutNote.trim() || undefined,
       });
+      const orderId =
+        created?.orderId ??
+        created?.data?.orderId ??
+        created?.id ??
+        created?.data?.id;
+      const totalAmount =
+        Number(
+          created?.totalAmount ??
+            created?.data?.totalAmount ??
+            created?.total ??
+            0,
+        ) || 0;
       setCheckoutNote("");
       await loadCart(products);
       await loadData();
       closePanel();
       setActivePage("orders");
-      showToast("Đã chốt đơn thành công!", "#4a7c5f");
+      if (!orderId) {
+        showToast("Đã chốt đơn thành công!", "#4a7c5f");
+        return;
+      }
+
+      try {
+        const pay = await api.createPaymentUrl(orderId);
+        const paymentUrl =
+          pay?.paymentUrl ?? pay?.data?.paymentUrl ?? pay?.url ?? null;
+
+        setVnPayOrderId(orderId);
+        setVnPayAmount(totalAmount);
+        setVnPayPaymentUrl(paymentUrl);
+        setVnPayStatus(null);
+        setVnPayError(null);
+        // Redirect thẳng trong tab hiện tại (không mở panel/popup).
+        try {
+          sessionStorage.setItem("vnPayPendingOrderId", String(orderId));
+          sessionStorage.setItem("vnPayPendingAt", String(Date.now()));
+        } catch {
+          // ignore
+        }
+
+        if (paymentUrl) {
+          showToast("Đang chuyển sang VNPay…", "#4a7c5f");
+          window.location.href = paymentUrl;
+        } else {
+          showToast("Mở VNPay thất bại: chưa lấy được paymentUrl.", "#c0392b");
+        }
+      } catch (errPay) {
+        showToast(
+          "Đã tạo đơn nhưng không tạo được VNPay: " +
+            (errPay?.message || "Lỗi"),
+          "#c0392b",
+        );
+      }
     } catch (err) {
       showToast("Chốt đơn thất bại: " + (err.message || "Lỗi"), "#c0392b");
     }
   };
 
   const doQuickOrder = async () => {
+    if (storeProfile?.isActive === false) {
+      showToast("Cửa hàng của bạn đã đóng. Không thể đặt đơn.", "#c0392b");
+      return;
+    }
     const items = quickOrderItems
       .filter((r) => r.productId && (r.quantity || 0) > 0)
       .map((r) => ({
@@ -471,7 +884,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       return;
     }
     try {
-      await api.createStoreOrder(
+      const created = await api.createStoreOrder(
         {
           deliveryDate: quickOrderDeliveryDate,
           items,
@@ -481,9 +894,56 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       );
       await loadData();
       closePanel();
+      const orderId =
+        created?.orderId ??
+        created?.data?.orderId ??
+        created?.id ??
+        created?.data?.id;
+      const totalAmount =
+        Number(
+          created?.totalAmount ??
+            created?.data?.totalAmount ??
+            created?.total ??
+            0,
+        ) || 0;
       setQuickOrderItems([{ productId: "", quantity: 1 }]);
       setQuickOrderNote("");
-      showToast("Đã tạo đơn hàng", "#4a7c5f");
+      setActivePage("orders");
+      if (!orderId) {
+        showToast("Đã tạo đơn hàng", "#4a7c5f");
+        return;
+      }
+
+      try {
+        const pay = await api.createPaymentUrl(orderId);
+        const paymentUrl =
+          pay?.paymentUrl ?? pay?.data?.paymentUrl ?? pay?.url ?? null;
+        setVnPayOrderId(orderId);
+        setVnPayAmount(totalAmount);
+        setVnPayPaymentUrl(paymentUrl);
+        setVnPayStatus(null);
+        setVnPayError(null);
+        // Redirect thẳng trong tab hiện tại (không mở panel/popup).
+        try {
+          sessionStorage.setItem("vnPayPendingOrderId", String(orderId));
+          sessionStorage.setItem("vnPayPendingAt", String(Date.now()));
+        } catch {
+          // ignore
+        }
+
+        if (paymentUrl) {
+          showToast("Đang chuyển sang VNPay…", "#4a7c5f");
+          window.location.href = paymentUrl;
+        } else {
+          showToast("Mở VNPay thất bại: chưa lấy được paymentUrl.", "#c0392b");
+        }
+      } catch (errPay) {
+        showToast(
+          "Đã tạo đơn nhưng không tạo được VNPay: " +
+            (errPay?.message || "Lỗi"),
+          "#c0392b",
+        );
+      }
     } catch (err) {
       showToast("Tạo đơn thất bại: " + (err.message || "Lỗi"), "#c0392b");
     }
@@ -516,7 +976,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const openReport = (shipmentOrId) => {
     const shipmentId =
       typeof shipmentOrId === "object" && shipmentOrId != null
-        ? shipmentOrId.shipmentId ?? shipmentOrId.id
+        ? (shipmentOrId.shipmentId ?? shipmentOrId.id)
         : shipmentOrId;
     setReportShipmentId(shipmentId);
     const fromApi =
@@ -532,9 +992,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
           productId: it.productId ?? it.id,
           productName: it.productName ?? it.name ?? it.productId ?? "—",
           expectedQuantity: Number(it.expectedQuantity ?? it.quantity ?? 0),
-          receivedQuantity: Number(
-            it.expectedQuantity ?? it.quantity ?? 0,
-          ),
+          receivedQuantity: Number(it.expectedQuantity ?? it.quantity ?? 0),
           note: "",
         })),
       );
@@ -556,14 +1014,11 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     if (!shipmentId) return;
     setConfirmingShipmentId(shipmentId);
     try {
-      await api.confirmShipmentReport(shipmentId);
-      showToast("Đã xác nhận nhận hàng", "#4a7c5f");
+      await api.reportShipment(shipmentId);
+      showToast("Đã nhận đủ hàng. Đơn hàng được kết thúc!", "#4a7c5f");
       await loadPendingShipments();
     } catch (err) {
-      showToast(
-        "Xác nhận thất bại: " + (err.message || "Lỗi"),
-        "#c0392b",
-      );
+      showToast("Xác nhận thất bại: " + (err.message || "Lỗi"), "#c0392b");
     } finally {
       setConfirmingShipmentId(null);
     }
@@ -571,15 +1026,34 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
 
   const doReport = async () => {
     if (!reportShipmentId) return;
-    const reportedItems = reportItems.map((r) => ({
+    // Chỉ gửi JSON với các dòng bị thiếu.
+    // Nếu không có dòng nào bị thiếu -> gọi POST /report không body để kết thúc đơn.
+    const missingLines = reportItems.filter(
+      (r) => Number(r.receivedQuantity ?? 0) < Number(r.expectedQuantity ?? 0),
+    );
+    const reportedItems = missingLines.map((r) => ({
       productId: r.productId,
       receivedQuantity: Number(r.receivedQuantity) ?? 0,
       note: (r.note || "").trim() || undefined,
     }));
     try {
-      await api.reportShipmentShortage(reportShipmentId, { reportedItems });
+      if (reportedItems.length === 0) {
+        const res = await api.reportShipment(reportShipmentId);
+        closePanel();
+        showToast(
+          res?.message ||
+            "Đã xác nhận đã nhận đủ hàng. Đơn hàng sẽ được kết thúc.",
+          "#4a7c5f",
+        );
+        await loadPendingShipments();
+        return;
+      }
+
+      const res = await api.reportShipmentShortage(reportShipmentId, {
+        reportedItems,
+      });
       closePanel();
-      showToast("Đã gửi báo cáo sự cố", "#c0392b");
+      showToast(res?.message || "Đã gửi báo cáo sự cố thiếu hàng.", "#c0392b");
       await loadPendingShipments();
     } catch (err) {
       showToast("Gửi báo cáo thất bại", "#c0392b");
@@ -614,6 +1088,22 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
     );
   };
   const cartCount = cart.reduce((s, i) => s + (i.quantity || 0), 0);
+  const cartSearchKeyword = cartSearch.trim().toLowerCase();
+  const productSearchKeyword = productSearch.trim().toLowerCase();
+  const visibleProducts = productSearchKeyword
+    ? products.filter((p) =>
+        String(p.name ?? "")
+          .toLowerCase()
+          .includes(productSearchKeyword),
+      )
+    : products;
+  const filteredCart = cartSearchKeyword
+    ? cart.filter((item) =>
+        String(item.name ?? "")
+          .toLowerCase()
+          .includes(cartSearchKeyword),
+      )
+    : cart;
   const categories = [
     "all",
     ...new Set(products.map((p) => p.category).filter(Boolean)),
@@ -622,7 +1112,8 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
   const sidebarStoreTitle =
     storeProfile.name ||
     userData?.storeName ||
-    (typeof userData?.managedStores === "string" && userData.managedStores.trim()
+    (typeof userData?.managedStores === "string" &&
+    userData.managedStores.trim()
       ? userData.managedStores.trim()
       : "");
 
@@ -817,6 +1308,26 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
             >
               <div className="cart-layout">
                 <div>
+                  <div style={{ marginBottom: 12 }}>
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Tìm sản phẩm..."
+                      style={{
+                        width: "100%",
+                        maxWidth: 360,
+                        height: 36,
+                        borderRadius: 9,
+                        border: "1.5px solid var(--border2)",
+                        background: "var(--white)",
+                        color: "var(--ink)",
+                        fontSize: 12.5,
+                        padding: "0 11px",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
                   {(categories.filter((c) => c !== "all").length
                     ? categories.filter((c) => c !== "all")
                     : ["all"]
@@ -827,8 +1338,8 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                       </div>
                       <div className="prod-grid">
                         {(cat === "all"
-                          ? products
-                          : products.filter((p) => p.category === cat)
+                          ? visibleProducts
+                          : visibleProducts.filter((p) => p.category === cat)
                         ).map((product) => {
                           const item = cart.find(
                             (c) =>
@@ -863,25 +1374,53 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                 <div className="cart-panel">
                   <div className="cp-header">
                     <div className="cp-title">
-                      <ShoppingCart size={15} style={{ opacity: 0.7 }} />{" "}
-                      Giỏ hàng
+                      <ShoppingCart size={15} style={{ opacity: 0.7 }} /> Giỏ
+                      hàng
                     </div>
                     <span className="cp-count">
-                      {cartCount
-                        ? cartCount + " sản phẩm"
-                        : "trống"}
+                      {cartCount ? cartCount + " sản phẩm" : "trống"}
                     </span>
                   </div>
+                  {cart.length > 0 && (
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={cartSearch}
+                        onChange={(e) => setCartSearch(e.target.value)}
+                        placeholder="Tìm sản phẩm trong giỏ..."
+                        style={{
+                          width: "100%",
+                          height: 34,
+                          borderRadius: 8,
+                          border: "1.5px solid var(--border2)",
+                          background: "var(--white)",
+                          color: "var(--ink)",
+                          fontSize: 12.5,
+                          padding: "0 10px",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                  )}
                   {cart.length === 0 ? (
                     <div className="cp-empty">
                       <div className="cp-empty-icon">🛒</div>
                       <p>Giỏ hàng đang trống</p>
                       <p>Chọn sản phẩm từ danh sách bên trái</p>
                     </div>
+                  ) : filteredCart.length === 0 ? (
+                    <div className="cp-empty" style={{ padding: "24px 16px" }}>
+                      <p>Không tìm thấy sản phẩm trong giỏ</p>
+                    </div>
                   ) : (
                     <>
                       <div>
-                        {cart.map((item) => (
+                        {filteredCart.map((item) => (
                           <div key={item.id} className="ci">
                             <div className="ci-info">
                               <div className="ci-name">{item.name}</div>
@@ -915,22 +1454,15 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                     : String(item.quantity ?? 0)
                                 }
                                 onChange={(e) => {
-                                  const pid = String(
-                                    item.id ?? item.productId,
-                                  );
-                                  const v = e.target.value.replace(
-                                    /\D/g,
-                                    "",
-                                  );
+                                  const pid = String(item.id ?? item.productId);
+                                  const v = e.target.value.replace(/\D/g, "");
                                   setCartQtyDraft((prev) => ({
                                     ...prev,
                                     [pid]: v,
                                   }));
                                 }}
                                 onBlur={(e) => {
-                                  const pid = String(
-                                    item.id ?? item.productId,
-                                  );
+                                  const pid = String(item.id ?? item.productId);
                                   const val =
                                     cartQtyDraft[pid] !== undefined
                                       ? cartQtyDraft[pid]
@@ -993,7 +1525,16 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                             justifyContent: "center",
                             fontSize: 13,
                           }}
-                          onClick={() => openPanel("checkout")}
+                          onClick={() => {
+                            if (storeProfile?.isActive === false) {
+                              showToast(
+                                "Cửa hàng của bạn đã đóng. Không thể đặt đơn.",
+                                "#c0392b",
+                              );
+                              return;
+                            }
+                            openPanel("checkout");
+                          }}
                         >
                           Chốt đơn hàng
                           <svg
@@ -1023,6 +1564,13 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                   type="button"
                   className="btn btn-amber"
                   onClick={() => {
+                    if (storeProfile?.isActive === false) {
+                      showToast(
+                        "Cửa hàng của bạn đã đóng. Không thể đặt đơn.",
+                        "#c0392b",
+                      );
+                      return;
+                    }
                     setQuickOrderItems([
                       { productId: products[0]?.id ?? "", quantity: 1 },
                     ]);
@@ -1078,54 +1626,59 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                         </tr>
                       ) : (
                         orders.map((o, oidx) => {
-                          const orderTypeUpper = (
-                            o.orderType || "STANDARD"
-                          ).toString().toUpperCase();
+                          const orderTypeUpper = (o.orderType || "STANDARD")
+                            .toString()
+                            .toUpperCase();
                           const isUrgent = orderTypeUpper === "URGENT";
                           return (
-                          <tr key={o.id || `ord-${oidx}`}>
-                            <td>
-                              <span
-                                className="tag tag-s"
-                                style={
-                                  isUrgent
-                                    ? {
-                                        color: "#b91c1c",
-                                        background: "rgba(185, 28, 28, 0.12)",
-                                        borderColor: "rgba(185, 28, 28, 0.28)",
-                                      }
-                                    : {
-                                        color: "#1d4ed8",
-                                        background: "rgba(29, 78, 216, 0.1)",
-                                        borderColor: "rgba(29, 78, 216, 0.22)",
-                                      }
-                                }
+                            <tr key={o.id || `ord-${oidx}`}>
+                              <td>
+                                <span
+                                  className="tag tag-s"
+                                  style={
+                                    isUrgent
+                                      ? {
+                                          color: "#b91c1c",
+                                          background: "rgba(185, 28, 28, 0.12)",
+                                          borderColor:
+                                            "rgba(185, 28, 28, 0.28)",
+                                        }
+                                      : {
+                                          color: "#1d4ed8",
+                                          background: "rgba(29, 78, 216, 0.1)",
+                                          borderColor:
+                                            "rgba(29, 78, 216, 0.22)",
+                                        }
+                                  }
+                                >
+                                  {orderTypeUpper}
+                                </span>
+                              </td>
+                              <td>{badge(o.status)}</td>
+                              <td
+                                className="mono"
+                                style={{
+                                  color: "var(--amber)",
+                                  fontWeight: 600,
+                                }}
                               >
-                                {orderTypeUpper}
-                              </span>
-                            </td>
-                            <td>{badge(o.status)}</td>
-                            <td
-                              className="mono"
-                              style={{ color: "var(--amber)", fontWeight: 600 }}
-                            >
-                              {fmt(o.total)}
-                            </td>
-                            <td
-                              style={{ fontSize: 11.5, color: "var(--ink3)" }}
-                            >
-                              {o.date ?? "—"}
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className="btn btn-xs"
-                                onClick={() => openOrderDetail(o)}
+                                {fmt(o.total)}
+                              </td>
+                              <td
+                                style={{ fontSize: 11.5, color: "var(--ink3)" }}
                               >
-                                Chi tiết
-                              </button>
-                            </td>
-                          </tr>
+                                {o.date ?? "—"}
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-xs"
+                                  onClick={() => openOrderDetail(o)}
+                                >
+                                  Chi tiết
+                                </button>
+                              </td>
+                            </tr>
                           );
                         })
                       )}
@@ -1206,6 +1759,27 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                 >
                                   {sid}
                                 </div>
+                                {(() => {
+                                  const badge = getShipmentIssueBadge(s);
+                                  if (!badge) return null;
+                                  return (
+                                    <div
+                                      style={{
+                                        marginTop: 8,
+                                        fontSize: 12.5,
+                                        color: badge.color,
+                                        background: badge.bg,
+                                        border: `1px solid ${badge.border}`,
+                                        padding: "6px 10px",
+                                        borderRadius: 10,
+                                        fontWeight: 700,
+                                        width: "fit-content",
+                                      }}
+                                    >
+                                      Trạng thái: {badge.text}
+                                    </div>
+                                  );
+                                })()}
                                 <div
                                   style={{
                                     fontSize: 12.5,
@@ -1213,8 +1787,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                     marginTop: 6,
                                   }}
                                 >
-                                  <strong>Tài xế:</strong>{" "}
-                                  {s.driverName ?? "—"}
+                                  <strong>Tài xế:</strong> {s.driverName ?? "—"}
                                 </div>
                                 <div
                                   style={{
@@ -1224,9 +1797,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                   }}
                                 >
                                   <strong>Đến nơi:</strong>{" "}
-                                  {fmtDateTime(
-                                    s.deliveredAt ?? s.arrivedAt,
-                                  )}
+                                  {fmtDateTime(s.deliveredAt ?? s.arrivedAt)}
                                 </div>
                                 {s.minutesElapsed != null && (
                                   <div
@@ -1266,7 +1837,10 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                 </button>
                               </div>
                             </div>
-                            <div className="sec-label" style={{ marginBottom: 8 }}>
+                            <div
+                              className="sec-label"
+                              style={{ marginBottom: 8 }}
+                            >
                               Hàng trong lô ({items.length} dòng)
                             </div>
                             <div
@@ -1288,10 +1862,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                               ) : (
                                 items.map((it, idx) => (
                                   <div
-                                    key={
-                                      it.productId ??
-                                      idx
-                                    }
+                                    key={it.productId ?? idx}
                                     style={{
                                       display: "flex",
                                       justifyContent: "space-between",
@@ -1304,7 +1875,9 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                     }}
                                   >
                                     <span style={{ color: "var(--ink)" }}>
-                                      {it.productName ?? it.name ?? it.productId}
+                                      {it.productName ??
+                                        it.name ??
+                                        it.productId}
                                     </span>
                                     <span
                                       className="mono"
@@ -1314,7 +1887,9 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
                                       }}
                                     >
                                       SL dự kiến:{" "}
-                                      {it.expectedQuantity ?? it.quantity ?? "—"}
+                                      {it.expectedQuantity ??
+                                        it.quantity ??
+                                        "—"}
                                     </span>
                                   </div>
                                 ))
@@ -1531,6 +2106,199 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               onClick={doCheckout}
             >
               Xác nhận chốt đơn
+            </button>
+          </div>
+        </div>
+      )}
+      {panel === "vnPayPayment" && (
+        <div className="spanel on">
+          <div className="sp-head">
+            <div>
+              <div className="sp-title">Thanh toán VNPay</div>
+            </div>
+            <button type="button" className="sp-close" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
+          <div className="sp-body">
+            <div className="ibox">
+              <div style={{ marginBottom: 10 }}>
+                <strong>Đơn hàng:</strong>{" "}
+                <span className="mono">{vnPayOrderId || "—"}</span>
+              </div>
+              <div>
+                <strong>Số tiền:</strong>{" "}
+                <span className="mono" style={{ color: "var(--amber)" }}>
+                  {vnPayAmount != null ? fmt(vnPayAmount) : "—"}
+                </span>
+              </div>
+            </div>
+
+            <div className="sec-label" style={{ marginTop: 12 }}>
+              URL thanh toán
+            </div>
+            <div className="fg" style={{ marginTop: 6 }}>
+              <input
+                type="text"
+                readOnly
+                value={vnPayPaymentUrl || ""}
+                placeholder="Chưa tạo được VNPay…"
+                style={{
+                  width: "100%",
+                  height: 36,
+                  borderRadius: 9,
+                  border: "1.5px solid var(--border2)",
+                  background: "var(--parchment)",
+                  color: "var(--ink)",
+                  fontSize: 12,
+                  padding: "0 11px",
+                  outline: "none",
+                }}
+              />
+            </div>
+            <div
+              style={{ marginTop: 10, fontSize: 12.5, color: "var(--ink3)" }}
+            >
+              Nếu chưa tự chuyển, bạn bấm nút bên dưới để mở VNPay.
+            </div>
+
+            {vnPayChecking && (
+              <div className="ibox" style={{ marginTop: 12 }}>
+                Đang kiểm tra trạng thái thanh toán…
+              </div>
+            )}
+
+            {vnPayError && (
+              <div className="ibox danger" style={{ marginTop: 12 }}>
+                {vnPayError}
+              </div>
+            )}
+
+            {vnPayStatus && (
+              <div className="ibox" style={{ marginTop: 12 }}>
+                <div style={{ marginBottom: 6 }}>
+                  <strong>orderStatus:</strong>{" "}
+                  <span className="mono">{vnPayStatus.orderStatus || "—"}</span>
+                </div>
+                <div>
+                  <strong>paymentStatus:</strong>{" "}
+                  <span className="mono">
+                    {vnPayStatus.paymentStatus || "—"}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="sp-foot">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={closePanel}
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              className="btn btn-sage"
+              onClick={() => openPanel("vnPayReturn")}
+              disabled={!vnPayOrderId}
+              style={{ marginRight: 8 }}
+            >
+              Kiểm tra trạng thái
+            </button>
+            <button
+              type="button"
+              className="btn btn-amber"
+              disabled={!vnPayPaymentUrl}
+              onClick={() => {
+                if (!vnPayPaymentUrl) return;
+                window.open(vnPayPaymentUrl, "_blank", "noopener,noreferrer");
+              }}
+            >
+              Mở VNPay
+            </button>
+          </div>
+        </div>
+      )}
+
+      {panel === "vnPayReturn" && (
+        <div className="spanel on">
+          <div className="sp-head">
+            <div>
+              <div className="sp-title">Xác nhận thanh toán</div>
+            </div>
+            <button type="button" className="sp-close" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
+          <div className="sp-body">
+            <div className="ibox">
+              <div style={{ marginBottom: 10 }}>
+                <strong>Đơn hàng:</strong>{" "}
+                <span className="mono">{vnPayOrderId || "—"}</span>
+              </div>
+              <div>
+                <strong>Trạng thái:</strong>{" "}
+                <span className="mono" style={{ color: "var(--ink)" }}>
+                  {vnPayChecking
+                    ? "Đang kiểm tra..."
+                    : vnPayStatus
+                      ? "Đã kiểm tra xong"
+                      : "—"}
+                </span>
+              </div>
+            </div>
+
+            {vnPayError && (
+              <div className="ibox danger" style={{ marginTop: 12 }}>
+                {vnPayError}
+              </div>
+            )}
+
+            {vnPayStatus && (
+              <div
+                style={{ marginTop: 12, fontSize: 12.5, color: "var(--ink3)" }}
+              >
+                <div style={{ marginBottom: 6 }}>
+                  <strong>orderStatus:</strong>{" "}
+                  <span className="mono">{vnPayStatus.orderStatus || "—"}</span>
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  <strong>paymentStatus:</strong>{" "}
+                  <span className="mono">
+                    {vnPayStatus.paymentStatus || "—"}
+                  </span>
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  <strong>paymentDate:</strong>{" "}
+                  <span className="mono">{vnPayStatus.paymentDate || "—"}</span>
+                </div>
+                <div>
+                  <strong>transactionNo:</strong>{" "}
+                  <span className="mono">
+                    {vnPayStatus.transactionNo || "—"}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="sp-foot">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={closePanel}
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              className="btn btn-amber"
+              onClick={() => {
+                closePanel();
+                setActivePage("orders");
+              }}
+            >
+              Về đơn hàng
             </button>
           </div>
         </div>
