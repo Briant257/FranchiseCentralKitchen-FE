@@ -91,6 +91,13 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     name: "", type: "EXCEL", fromDate: "", toDate: "",
   });
 
+  // --- BỔ SUNG STATE QUY ĐỔI ĐƠN VỊ ---
+  const [conversions, setConversions] = useState([]);
+  const [showAddConversion, setShowAddConversion] = useState(false);
+  const [newConversion, setNewConversion] = useState({ unitName: "", conversionFactor: "" });
+  const [testData, setTestData] = useState({ unit: "", qty: "" });
+  const [testResult, setTestResult] = useState(null);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -317,6 +324,22 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [recipeSearchText, setRecipeSearchText] = useState("");
   const [recipeAppliedSearch, setRecipeAppliedSearch] = useState("");
   const [editingRecipeIngredients, setEditingRecipeIngredients] = useState([]);
+
+  // --- EFFECT CHO QUY ĐỔI ĐƠN VỊ ---
+  useEffect(() => {
+    if (selectedInventoryItem) {
+      const ingId = selectedInventoryItem.ingredientId || selectedInventoryItem.id || selectedInventoryItem.sku;
+      api.getConversionsByIngredient(ingId)
+        .then(res => setConversions(Array.isArray(res) ? res : (res?.data || [])))
+        .catch(() => setConversions([]));
+    } else {
+      setConversions([]);
+    }
+    setTestResult(null);
+    setTestData({ unit: "", qty: "" });
+    setShowAddConversion(false);
+  }, [selectedInventoryItem]);
+
 
   // ==========================================
   // HÀM XỬ LÝ NHẬP KHO
@@ -938,7 +961,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
               {productSubTab === "categories" && (
                 <div className="ck-flex ck-gap-6 ck-items-start">
                   
-                  {/* DANH SÁCH DANH MỤC (GIỐNG ADMIN) */}
+                  {/* DANH SÁCH DANH MỤC */}
                   <div 
                     className="cat-grid ck-transition-all ck-duration-300"
                     style={{
@@ -1097,12 +1120,182 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                       <div><h3 className="mgr-aside__title">Chi tiết tồn kho</h3></div>
                       <button type="button" onClick={() => setSelectedInventoryItem(null)} className="mgr-icon-btn">✕</button>
                     </div>
+                    
                     <div className="ck-space-y-5 ck-text-sm">
                       <div className="ck-p-4 ck-rounded-xl" style={{ background: "rgba(20, 184, 166, 0.08)", border: "1px solid rgba(45, 212, 191, 0.25)" }}>
                         <p className="mgr-mono-muted ck-mb-1">{selectedInventoryItem.ingredientId || selectedInventoryItem.sku}</p>
                         <p className="ck-text-lg ck-text-white ck-font-bold ck-mb-1">{selectedInventoryItem.ingredientName || selectedInventoryItem.name}</p>
                         <p className="ck-text-xs ck-font-bold ck-mb-3" style={{ color: "#c4b5fd" }}>Đơn vị gốc: {selectedInventoryItem.unit}</p>
+                        
+                        <div className="ck-flex ck-justify-between ck-items-end mt-4">
+                          <div>
+                            <p className="ck-text-xs ck-text-gray-400 ck-mb-1">Số lượng tồn</p>
+                            <p className="ck-text-2xl ck-font-black ck-text-white">
+                              {Number(selectedInventoryItem.stock || 0).toLocaleString("vi-VN")}{" "}
+                              <span className="ck-text-sm ck-text-gray-500 ck-font-normal">
+                                {selectedInventoryItem.unit}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* BẮT ĐẦU KHỐI QUY ĐỔI ĐƠN VỊ */}
+                      <div className="ck-mt-6 ck-pt-6 ck-border-t ck-border-gray-700">
+                        <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
+                          <h4 className="ck-text-sm ck-font-bold ck-text-white">
+                            Quy đổi đơn vị (Gốc: {selectedInventoryItem.unit})
+                          </h4>
+                          <button
+                            onClick={() => setShowAddConversion(!showAddConversion)}
+                            className="ck-text-xs ck-bg-gray-800 hover:ck-bg-gray-700 ck-text-blue-400 ck-px-3 ck-py-1 ck-rounded-lg ck-font-bold ck-border ck-border-gray-600 ck-transition-colors"
+                          >
+                            {showAddConversion ? "Đóng" : "+ Thêm Đơn Vị"}
+                          </button>
+                        </div>
+
+                        {showAddConversion && (
+                          <div className="ck-bg-gray-800 ck-p-3 ck-rounded-xl ck-mb-4 ck-border ck-border-blue-500/30 ck-animate-fade-in">
+                            <div className="ck-flex ck-gap-2">
+                              <input
+                                type="text"
+                                placeholder="Tên (VD: BOX)"
+                                value={newConversion.unitName}
+                                onChange={(e) => setNewConversion({ ...newConversion, unitName: e.target.value.toUpperCase() })}
+                                className="ck-w-1/2 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
+                              />
+                              <input
+                                type="number"
+                                placeholder="Tỉ lệ (VD: 20)"
+                                value={newConversion.conversionFactor}
+                                onChange={(e) => setNewConversion({ ...newConversion, conversionFactor: e.target.value })}
+                                className="ck-w-1/2 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
+                              />
+                            </div>
+                            <button
+                              className="ck-w-full ck-mt-2 ck-bg-orange-500 hover:ck-bg-blue-600 ck-text-white ck-text-xs ck-font-bold ck-py-2 ck-rounded-lg ck-transition-colors"
+                              onClick={async () => {
+                                if (!newConversion.unitName || !newConversion.conversionFactor) return alert("Vui lòng nhập đủ thông tin!");
+                                try {
+                                  const ingId = selectedInventoryItem.ingredientId || selectedInventoryItem.id || selectedInventoryItem.sku;
+                                  await api.createUnitConversion({
+                                    ingredientId: ingId,
+                                    unitName: newConversion.unitName,
+                                    conversionFactor: Number(newConversion.conversionFactor)
+                                  });
+                                  const res = await api.getConversionsByIngredient(ingId);
+                                  setConversions(Array.isArray(res) ? res : (res?.data || []));
+                                  setShowAddConversion(false);
+                                  setNewConversion({ unitName: "", conversionFactor: "" });
+                                } catch (e) { alert("❌ Lỗi thêm quy đổi: " + e.message); }
+                              }}
+                            >
+                              Lưu quy đổi
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="ck-space-y-2 ck-max-h-40 ck-overflow-y-auto ck-scrollbar pr-1">
+                          {conversions.length > 0 ? conversions.map((conv, idx) => (
+                            <div key={idx} className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800 ck-p-2 ck-rounded-lg ck-border ck-border-gray-700">
+                              <div className="ck-text-xs ck-text-gray-300">
+                                <strong className="ck-text-white ck-font-mono">{conv.unitName || conv.unit_name}</strong> = {conv.conversionFactor || conv.conversion_factor} {selectedInventoryItem.unit}
+                              </div>
+                              
+                              <div className="ck-flex ck-gap-1">
+                                <button 
+                                  onClick={async () => {
+                                    const currentFactor = conv.conversionFactor || conv.conversion_factor;
+                                    const unit = conv.unitName || conv.unit_name;
+                                    const newFactor = window.prompt(`Nhập tỉ lệ quy đổi mới cho ${unit} (Gốc: ${selectedInventoryItem.unit}):`, currentFactor);
+                                    
+                                    if (newFactor && newFactor !== String(currentFactor) && !isNaN(newFactor)) {
+                                      try {
+                                        await api.updateUnitConversion(conv.id, Number(newFactor));
+                                        setConversions(conversions.map(c => 
+                                          c.id === conv.id 
+                                            ? { ...c, conversionFactor: Number(newFactor), conversion_factor: Number(newFactor) } 
+                                            : c
+                                        ));
+                                        alert(`✅ Đã cập nhật tỉ lệ ${unit} = ${newFactor} ${selectedInventoryItem.unit}`);
+                                      } catch (e) { 
+                                        alert("❌ Lỗi cập nhật: " + e.message); 
+                                      }
+                                    }
+                                  }}
+                                  className="ck-text-gray-500 hover:ck-text-blue-400 ck-bg-transparent ck-border-none ck-cursor-pointer ck-px-1"
+                                  title="Sửa tỉ lệ"
+                                >
+                                  ✏️
+                                </button>
+                                <button 
+                                  onClick={async () => {
+                                    if (window.confirm(`Bạn muốn xóa quy đổi ${conv.unitName || conv.unit_name}?`)) {
+                                      try {
+                                        await api.deleteUnitConversion(conv.id);
+                                        setConversions(conversions.filter(c => c.id !== conv.id));
+                                      } catch (e) { alert("Lỗi xóa: " + e.message); }
+                                    }
+                                  }}
+                                  className="ck-text-gray-500 hover:ck-text-red-400 ck-bg-transparent ck-border-none ck-cursor-pointer ck-px-1"
+                                  title="Xóa quy đổi"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          )) : (
+                            <p className="ck-text-xs ck-text-gray-500 ck-italic ck-text-center ck-py-2">Chưa có quy đổi nào được thiết lập.</p>
+                          )}
+                        </div>
+
+                        {conversions.length > 0 && (
+                          <div className="ck-mt-4 ck-pt-4 ck-border-t ck-border-gray-700 border-dashed">
+                            <p className="ck-text-xs ck-text-gray-400 ck-mb-2">🧪 Test công thức quy đổi</p>
+                            <div className="ck-flex ck-gap-2 ck-items-center">
+                              <input 
+                                type="number" placeholder="SL..." value={testData.qty}
+                                onChange={(e) => setTestData({...testData, qty: e.target.value})}
+                                className="ck-w-16 ck-bg-gray-900 ck-text-white ck-px-2 ck-py-1.5 ck-rounded-md ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
+                              />
+                              <select 
+                                value={testData.unit}
+                                onChange={(e) => setTestData({...testData, unit: e.target.value})}
+                                className="ck-flex-1 ck-bg-gray-900 ck-text-white ck-px-2 ck-py-1.5 ck-rounded-md ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
+                              >
+                                <option value="" disabled>Chọn ĐV</option>
+                                {conversions.map((c, i) => {
+                                  const unitLabel = typeof c === 'string' ? c : (c.unitName || c.unit_name || c.name || c.unit || c.unit_type || "Lỗi_Tên");
+                                  return (
+                                    <option key={i} value={unitLabel}>
+                                      {unitLabel}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <button 
+                                onClick={async () => {
+                                  if (!testData.qty || !testData.unit) return;
+                                  try {
+                                    const ingId = selectedInventoryItem.ingredientId || selectedInventoryItem.id || selectedInventoryItem.sku;
+                                    const res = await api.calculateConversion(ingId, testData.unit, testData.qty);
+                                    setTestResult(res.calculatedQuantity || res.result || res.data || res);
+                                  } catch (e) { alert("Lỗi tính toán: " + e.message); }
+                                }}
+                                className="ck-bg-orange-500 hover:ck-bg-orange-600 ck-text-white ck-px-3 ck-py-1.5 ck-rounded-md ck-text-xs ck-font-bold ck-border-none"
+                              >
+                                Tính
+                              </button>
+                            </div>
+                            {testResult !== null && typeof testResult !== "object" && (
+                              <p className="ck-text-xs ck-mt-2 ck-text-green-400 ck-font-bold ck-text-right">
+                                = {testResult} {selectedInventoryItem.unit}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {/* KẾT THÚC KHỐI QUY ĐỔI ĐƠN VỊ */}
                     </div>
                   </div>
                 )}
