@@ -13,6 +13,7 @@ import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
+import NotificationBell from "../../components/common/NotificationBell";
 
 /** Tiêu đề topbar theo tab — cùng kiểu meta như trang Cửa hàng */
 const KITCHEN_PAGE_META = {
@@ -61,7 +62,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
   // STATE: SỰ CỐ & KHIẾU NẠI (GIAI ĐOẠN 4)
   const [reportedShipments, setReportedShipments] = useState([]);
-  
+
   // STATE: BÁO CÁO HAO HỤT
   const [showWastageModal, setShowWastageModal] = useState(false);
   const [wastageData, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
@@ -125,33 +126,33 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
           api.getCategories().catch(() => []),
           api.getProducts().catch(() => []),
           api.getIngredients().catch(() => []),
-          api.getReportedShipments().catch(() => []) 
+          api.getReportedShipments().catch(() => [])
         ]);
 
       // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
       const rawRuns = Array.isArray(runsData) ? runsData : (runsData?.data || []);
       const mappedRuns = rawRuns.map((run, idx) => {
         const rawBom = run.bom || run.ingredients || run.formula || [];
-        
+
         // BƯỚC QUAN TRỌNG: CHUẨN HÓA TRẠNG THÁI (ÉP KIỂU)
         let currentStatus = String(run.status || "PENDING").toUpperCase();
         if (["PLANNED", "NEW", "CREATED", "WAITING", "TODO"].includes(currentStatus)) {
             currentStatus = "PENDING";
-        } 
+        }
         else if (["IN_PROGRESS", "PROCESSING", "DOING", "COOKING"].includes(currentStatus)) {
             currentStatus = "COOKING";
-        } 
+        }
         else if (["DONE", "FINISHED", "SUCCESS", "COMPLETED"].includes(currentStatus)) {
             currentStatus = "COMPLETED";
         }
 
         return {
-          id: run.runId || run.id || `RUN_TEMP_${idx}`, 
-          productId: run.productId || run.product_id || "", 
-          name: run.productName || run.name || "Đang tải tên món...", 
-          status: currentStatus, 
-          totalQty: Number(run.plannedQty || run.totalQty || 0), 
-          cookedQty: Number(run.cookedQty || 0), 
+          id: run.runId || run.id || `RUN_TEMP_${idx}`,
+          productId: run.productId || run.product_id || "",
+          name: run.productName || run.name || "Đang tải tên món...",
+          status: currentStatus,
+          totalQty: Number(run.plannedQty || run.totalQty || 0),
+          cookedQty: Number(run.cookedQty || 0),
           details: run.details || [],
           bom: rawBom.length > 0 ? rawBom.map(ing => ({
             name: ing.ingredientName || ing.name || "Nguyên liệu",
@@ -219,7 +220,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const handleBulkComplete = async () => {
     const activeRuns = productionRuns.filter(r => r.status === "COOKING").map(r => r.id);
     if (activeRuns.length === 0) return alert("Không có mẻ nào đang nấu để chốt!");
-    
+
     if (window.confirm(`Bạn có chắc chắn muốn chốt hoàn thành ${activeRuns.length} mẻ nấu này không?`)) {
       try {
         await api.updateBulkProductionStatus(activeRuns, "COMPLETED");
@@ -262,11 +263,11 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   };
 
   const handleViewRecipe = async (run) => {
-    setSelectedRecipeRun(run); 
-    
+    setSelectedRecipeRun(run);
+
     if (!run.bom || run.bom.length === 0) {
       let pId = run.productId || run.product_id;
-      
+
       if (!pId) {
         const matchedProduct = products.find(p => p.name === run.name || p.productName === run.name);
         if (matchedProduct) {
@@ -283,18 +284,18 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       try {
         const recipeData = await api.getRecipeOfProduct(pId);
         const rawBom = recipeData.ingredients || recipeData.items || recipeData.formulaItems || recipeData.bom || [];
-        
+
         const mappedBom = rawBom.map(ing => ({
           name: ing.ingredientName || ing.name || "Nguyên liệu",
           qtyPerItem: Number(ing.amountNeeded || ing.qtyPerItem || ing.amount || ing.quantity || 0),
           unit: ing.unit || "KG"
         }));
-        
+
         setSelectedRecipeRun(prev => prev ? { ...prev, bom: mappedBom } : prev);
-        
+
       } catch (err) {
         console.error("Lỗi tải công thức mẻ nấu:", err);
-        
+
         if (err.message.includes("quyền") || err.message.includes("403") || err.message.includes("Forbidden")) {
           console.warn("Backend đang cấm Bếp lấy công thức. Đổ dữ liệu giả lập để test UI...");
           const mockBom = [
@@ -403,6 +404,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
               <div className="tb-title">{meta.title}</div>
             </div>
             <div className="tb-actions">
+              <NotificationBell variant="light" />
               <HeaderSettingsMenu
                 userData={userData}
                 showProfile={true}
@@ -530,7 +532,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
               <div className="kitchen-crud-layout">
                 <div className="card kitchen-table-card">
-                    
+
                     {/* BẢNG DANH MỤC */}
                     {kitchenSubTab === "categories" && (
                       <>

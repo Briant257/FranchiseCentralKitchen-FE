@@ -15,6 +15,7 @@ import {
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
+import NotificationBell from "../../components/common/NotificationBell";
 import {
   ADMIN_TABS,
   ROLE_LABELS,
@@ -948,6 +949,7 @@ const AdminPage = ({ onLogout, userData }) => {
           </div>
         </div>
         <div className="ck-flex ck-items-center ck-gap-2">
+          <NotificationBell variant="dark" />
           <HeaderSettingsMenu
             userData={userData}
             showProfile={false}
@@ -1064,42 +1066,35 @@ const AdminPage = ({ onLogout, userData }) => {
                           );
                           const allAccounts =
                             users.length > 0 ? users : accountsList;
-                          const isAssignedToOther = allAccounts.some(
-                            (acc) => {
-                              if (acc.roleRaw !== "STORE_MANAGER")
-                                return false;
-                              if (
-                                String(
-                                  acc.accountId ?? acc.id ?? acc.userId,
-                                ) === currentUserId
-                              )
-                                return false;
-                              const accStoreIds = [
-                                acc.storeId,
-                                ...(acc.storeIds || []),
-                              ]
-                                .filter(Boolean)
-                                .map(String);
-                              const matchById = storeIds.some((sid) =>
-                                accStoreIds.some((aid) => aid === sid),
+                          const isAssignedToOther = allAccounts.some((acc) => {
+                            if (acc.roleRaw !== "STORE_MANAGER") return false;
+                            if (
+                              String(acc.accountId ?? acc.id ?? acc.userId) ===
+                              currentUserId
+                            )
+                              return false;
+                            const accStoreIds = [
+                              acc.storeId,
+                              ...(acc.storeIds || []),
+                            ]
+                              .filter(Boolean)
+                              .map(String);
+                            const matchById = storeIds.some((sid) =>
+                              accStoreIds.some((aid) => aid === sid),
+                            );
+                            if (matchById) return true;
+                            const storeName = (s.name ?? "").trim();
+                            if (!storeName) return false;
+                            const accNames = [acc.managedStores, acc.storeName]
+                              .filter(Boolean)
+                              .flatMap((x) =>
+                                String(x)
+                                  .split(",")
+                                  .map((n) => n.trim())
+                                  .filter(Boolean),
                               );
-                              if (matchById) return true;
-                              const storeName = (s.name ?? "").trim();
-                              if (!storeName) return false;
-                              const accNames = [
-                                acc.managedStores,
-                                acc.storeName,
-                              ]
-                                .filter(Boolean)
-                                .flatMap((x) =>
-                                  String(x)
-                                    .split(",")
-                                    .map((n) => n.trim())
-                                    .filter(Boolean),
-                                );
-                              return accNames.some((n) => n === storeName);
-                            },
-                          );
+                            return accNames.some((n) => n === storeName);
+                          });
                           return !isAssignedToOther;
                         })
                         .map((s) => (
@@ -1830,9 +1825,8 @@ const AdminPage = ({ onLogout, userData }) => {
                                     }
                                   } catch (_) {}
                                   try {
-                                    const legacy = await api.getRecipeOfProduct(
-                                      id,
-                                    );
+                                    const legacy =
+                                      await api.getRecipeOfProduct(id);
                                     const listFromLegacy =
                                       legacy?.ingredients ??
                                       (Array.isArray(legacy) ? legacy : []);
