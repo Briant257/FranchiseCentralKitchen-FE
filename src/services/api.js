@@ -55,6 +55,14 @@ function setStoredUser(user) {
  */
 function messageByField(s) {
   if (
+    s.includes("bị khóa") ||
+    s.includes("bi khoa") ||
+    s.includes("vô hiệu hóa") ||
+    s.includes("vo hieu hoa") ||
+    s.includes("forbidden")
+  )
+    return "Đăng nhập thất bại! Tài khoản của bạn đã bị khóa hoặc vô hiệu hóa.";
+  if (
     s.includes("email") ||
     s.includes("gmail") ||
     s.includes("mail") ||
@@ -261,8 +269,8 @@ const auth = {
         username: res.username ?? username,
       };
     }
-    setToken(token);
     const info = raw ?? res;
+    setToken(token);
     const { storeName, storeId } = extractStoreFromAuthPayload(info);
     const user = {
       id: info.userId ?? info.id ?? info.username,
@@ -296,8 +304,8 @@ const auth = {
     });
     const token = res.token ?? res.accessToken ?? res.access_token;
     if (token && typeof token === "string") {
-      setToken(token);
       const info = res?.data ?? res;
+      setToken(token);
       const { storeName, storeId } = extractStoreFromAuthPayload(info);
       const user = {
         id: res.userId ?? info.userId ?? res.username,
@@ -366,7 +374,12 @@ const auth = {
     if (res && current) {
       const raw = res?.data ?? res;
       const fullName =
-        raw.fullName ?? raw.name ?? res.fullName ?? res.name ?? current.fullName ?? current.name;
+        raw.fullName ??
+        raw.name ??
+        res.fullName ??
+        res.name ??
+        current.fullName ??
+        current.name;
       const { storeName, storeId } = extractStoreFromAuthPayload(raw);
       setStoredUser({
         ...current,
@@ -545,7 +558,6 @@ const auth = {
   deleteRecipe: (productId) =>
     request(`/api/formulas/${productId}`, { method: "DELETE" }),
 
-
   upsertFormula: (body) =>
     request("/api/formulas", {
       method: "POST",
@@ -576,13 +588,13 @@ const auth = {
       const res = await request("/api/kitchen/productions/active");
       const list = Array.isArray(res) ? res : (res?.data ?? []);
 
-      return list.map(run => ({
+      return list.map((run) => ({
         id: run.runId || run.id || Math.random().toString(),
         name: run.productName || run.name || "Mẻ nấu chưa có tên",
         status: run.status || "PENDING",
         totalQty: Number(run.plannedQty || run.totalQty || 0),
         cookedQty: Number(run.cookedQty || 0),
-        details: run.details || []
+        details: run.details || [],
       }));
     } catch (error) {
       console.error("Lỗi lấy danh sách mẻ nấu:", error);
@@ -819,7 +831,7 @@ const kitchenApi = {
 
 // --- API object thống nhất (tương thích code cũ) ---
 const api = {
-  init() { },
+  init() {},
 
   isAuthenticated: () => auth.isAuthenticated(),
   login: (username, password) => auth.login(username, password),
@@ -990,11 +1002,35 @@ const api = {
     });
   },
 
+  // --- Thanh toán (VNPay) ---
+  /**
+   * Tạo URL thanh toán VNPay.
+   * BE: POST /api/payment/create-url?orderId={id}
+   * Response kỳ vọng: { orderId, paymentUrl }
+   */
+  createPaymentUrl(orderId) {
+    const oid = encodeURIComponent(String(orderId ?? ""));
+    return request(`/api/payment/create-url?orderId=${oid}`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Lấy trạng thái thanh toán theo orderId.
+   * BE: GET /api/payment/status/{id}
+   */
+  getPaymentStatus(orderId) {
+    const oid = encodeURIComponent(String(orderId ?? ""));
+    return request(`/api/payment/status/${oid}`, { method: "GET" });
+  },
+
   async getStoreProfile() {
     try {
       const res = await request("/api/store/settings/profile");
       const body =
-        res?.data != null && typeof res.data === "object" && !Array.isArray(res.data)
+        res?.data != null &&
+        typeof res.data === "object" &&
+        !Array.isArray(res.data)
           ? res.data
           : res;
       return body && typeof body === "object" ? body : {};
@@ -1300,9 +1336,18 @@ const api = {
     return [];
   },
 
-  async reportShipment(shipId) {
-    const res = await request(`/api/shipments/${shipId}/report`);
-    return res.message ?? res.msg ?? res;
+  /**
+   * Cửa hàng xác nhận đã nhận đủ hàng:
+   * POST /api/shipments/{shipmentId}/report
+   * Không gửi body JSON.
+   */
+  reportShipment(shipmentId) {
+    return request(
+      `/api/shipments/${encodeURIComponent(String(shipmentId))}/report`,
+      {
+        method: "POST",
+      },
+    ).then((res) => res?.message ?? res?.msg ?? res);
   },
 
   reportShipmentShortage(shipmentId, body) {
@@ -1360,7 +1405,7 @@ const api = {
         totalWastageValue: {},
         exportTrend: [],
         topExportedProducts: [],
-        topWastedProducts: []
+        topWastedProducts: [],
       };
     }
   },
@@ -1450,7 +1495,12 @@ const api = {
         ingredientId: item.ingredient_id || item.ingredientId || item.id,
         ingredientName: item.name || item.ingredientName || item.name,
         unit: item.unit || "KG",
-        stock: item.stock ?? item.kitchenStock ?? item.stockQuantity ?? item.quantity ?? 0,
+        stock:
+          item.stock ??
+          item.kitchenStock ??
+          item.stockQuantity ??
+          item.quantity ??
+          0,
       }));
     } catch (error) {
       console.error("Lỗi lấy kho:", error);
@@ -1479,33 +1529,32 @@ const api = {
           label: "Doanh thu xuất kho",
           value: `${(exportData.currentValue || 0).toLocaleString()} ₫`,
           isUp: exportData.trend === "UP",
-          change: `${exportData.growthPercentage || 0}%`
+          change: `${exportData.growthPercentage || 0}%`,
         },
         {
           label: "Chi phí nhập hàng",
           value: `${(importData.currentValue || 0).toLocaleString()} ₫`,
           isUp: importData.trend === "UP",
-          change: `${importData.growthPercentage || 0}%`
+          change: `${importData.growthPercentage || 0}%`,
         },
         {
           label: "Tổng đơn hàng",
           value: ordersData.currentValue || 0,
           isUp: ordersData.trend === "UP",
-          change: `${ordersData.growthPercentage || 0}%`
+          change: `${ordersData.growthPercentage || 0}%`,
         },
         {
           label: "Số lần lệch kho",
           value: stocktakeData.currentValue || 0,
           isUp: stocktakeData.trend === "UP",
-          change: `${stocktakeData.growthPercentage || 0}%`
-        }
+          change: `${stocktakeData.growthPercentage || 0}%`,
+        },
       ];
     } catch (error) {
       console.error("Lỗi getKPIStats:", error);
       return [];
     }
   },
-
 
   getReports: async () => [],
 
@@ -1582,14 +1631,14 @@ const api = {
   markOrderPreparing: async (orderId) => {
     return request(`/api/orders/delivery/${orderId}/preparing`, {
       method: "POST",
-      body: JSON.stringify({})
+      body: JSON.stringify({}),
     });
   },
 
   markOrderReady: async (orderId) => {
     return request(`/api/orders/delivery/${orderId}/ready`, {
       method: "POST",
-      body: JSON.stringify({})
+      body: JSON.stringify({}),
     });
   },
 
@@ -1600,7 +1649,8 @@ const api = {
     });
   },
 
-  getReadyOrders: async () => toArray(await request("/api/logistics/orders/ready")),
+  getReadyOrders: async () =>
+    toArray(await request("/api/logistics/orders/ready")),
   manualAllocateRoutes: async (orderIds) => {
     return request("/api/logistics/orders/manual-allocate", {
       method: "POST",
@@ -1608,7 +1658,8 @@ const api = {
     });
   },
 
-  getDriverList: async () => toArray(await request("/api/logistics/orders/coordinators-list")),
+  getDriverList: async () =>
+    toArray(await request("/api/logistics/orders/coordinators-list")),
   assignDriver: async (shipmentId, accountId) => {
     return request(`/api/shipments/${shipmentId}/assign`, {
       method: "POST",
@@ -1621,20 +1672,33 @@ const api = {
     });
   },
 
-  getActiveShipments: async () => toArray(await request("/api/logistics/orders/active")),
-  getHistoryShipments: async () => toArray(await request("/api/logistics/orders/history")),
+  getActiveShipments: async () =>
+    toArray(await request("/api/logistics/orders/active")),
+  getHistoryShipments: async () =>
+    toArray(await request("/api/logistics/orders/history")),
   getShipmentDetails: async (shipmentId) => {
     return request(`/api/logistics/orders/${shipmentId}/details`);
   },
-  placeOrderForStore: (body) => request("/api/orders/standard", { method: "POST", body: JSON.stringify(body) }),
-  addOrderUrgent: (body) => request("/api/orders/urgent", { method: "POST", body: JSON.stringify(body) }),
-  getStoreHistoryForManager: (storeId) => request(`/api/orders/history?storeId=${storeId}`),
+  placeOrderForStore: (body) =>
+    request("/api/orders/standard", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  addOrderUrgent: (body) =>
+    request("/api/orders/urgent", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getStoreHistoryForManager: (storeId) =>
+    request(`/api/orders/history?storeId=${storeId}`),
   getSystemConfigs: async () => {
     const res = await request("/api/manager/configs/map");
     return res?.data || res || {};
   },
   updateUnitConversion: (id, newFactor) =>
-    request(`/api/manager/conversions/${id}?newFactor=${newFactor}`, { method: "PUT" }),
+    request(`/api/manager/conversions/${id}?newFactor=${newFactor}`, {
+      method: "PUT",
+    }),
   deleteUnitConversion: (id) =>
     request(`/api/manager/conversions/${id}`, { method: "DELETE" }),
   getConversionsByIngredient: (ingredientId) =>
@@ -1642,13 +1706,18 @@ const api = {
   getManagerRecipes: async () => {
     try {
       const res = await request("/api/formulas");
-      return Array.isArray(res) ? res : (res?.data || []);
-    } catch (e) { return []; }
+      return Array.isArray(res) ? res : res?.data || [];
+    } catch (e) {
+      return [];
+    }
   },
   getRecipeOfProduct: (pId) => request(`/api/formulas/${pId}`),
-  saveRecipe: (b) => request("/api/formulas", { method: "POST", body: JSON.stringify(b) }),
-  deleteRecipe: (productId) => request(`/api/formulas/${productId}`, { method: "DELETE" }),
-  getReportedShipments: async () => toArray(await request("/api/shipments/reported")),
+  saveRecipe: (b) =>
+    request("/api/formulas", { method: "POST", body: JSON.stringify(b) }),
+  deleteRecipe: (productId) =>
+    request(`/api/formulas/${productId}`, { method: "DELETE" }),
+  getReportedShipments: async () =>
+    toArray(await request("/api/shipments/reported")),
 
   /**
    * Cửa hàng: lô đã đến nơi, chờ xác nhận nhận hàng / báo sự cố.
@@ -1692,10 +1761,10 @@ const api = {
       const finalUrl = `${BASE_URL.replace(/\/$/, "")}/api/manager/analytics/export/csv${query ? `?${query}` : ""}`;
 
       const response = await fetch(finalUrl, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -1705,16 +1774,18 @@ const api = {
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
 
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = downloadUrl;
-      link.setAttribute('download', `Bao_Cao_Thong_Ke_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute(
+        "download",
+        `Bao_Cao_Thong_Ke_${new Date().toISOString().split("T")[0]}.csv`,
+      );
 
       document.body.appendChild(link);
       link.click();
 
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
-
     } catch (error) {
       console.error("Lỗi tải báo cáo CSV:", error);
       alert("Lỗi: " + error.message);
