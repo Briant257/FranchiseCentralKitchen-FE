@@ -1746,6 +1746,60 @@ const api = {
     });
   },
 
+  /** GET /api/notifications/unread-count — số thông báo chưa đọc (hỗ trợ số thuần hoặc object từ BE). */
+  async getNotificationsUnreadCount() {
+    try {
+      const res = await request("/api/notifications/unread-count");
+      if (typeof res === "number" && Number.isFinite(res)) {
+        return Math.max(0, Math.floor(res));
+      }
+      if (typeof res === "string" && /^\d+$/.test(res.trim())) {
+        return Math.max(0, parseInt(res.trim(), 10));
+      }
+      if (res && typeof res === "object") {
+        const n = res.unreadCount ?? res.count ?? res.total ?? res.data;
+        if (typeof n === "number" && Number.isFinite(n)) {
+          return Math.max(0, Math.floor(n));
+        }
+        if (typeof n === "string" && /^\d+$/.test(n)) {
+          return Math.max(0, parseInt(n, 10));
+        }
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  /** GET /api/notifications — danh sách, mới nhất trước (BE đã sắp xếp). */
+  async getNotifications() {
+    try {
+      const res = await request("/api/notifications");
+      return toArray(res);
+    } catch {
+      return [];
+    }
+  },
+
+  /** PUT /api/notifications/{id}/read */
+  markNotificationRead(notificationId) {
+    return request(
+      `/api/notifications/${encodeURIComponent(notificationId)}/read`,
+      {
+        method: "PUT",
+        body: JSON.stringify({}),
+      },
+    );
+  },
+
+  /** PUT /api/notifications/read-all */
+  markAllNotificationsRead() {
+    return request("/api/notifications/read-all", {
+      method: "PUT",
+      body: JSON.stringify({}),
+    });
+  },
+
   exportAnalyticsCSV: async (startDate, endDate) => {
     try {
       const token = storage.getToken();

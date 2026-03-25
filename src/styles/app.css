@@ -825,12 +825,13 @@ input.ck-border-gray-600:focus {
   }
 }
 
+/* Phải cao hơn .ck-grain (9999) để header + dropdown (chuông, menu user) không bị lớp noise phủ lên */
 .ck-header {
   background: linear-gradient(to right, #111827, #1f2937);
   border-bottom: 1px solid #1f2937;
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 10020;
 }
 
 /* Badge "Admin" — nổi bật, thể hiện đây là trang Admin */

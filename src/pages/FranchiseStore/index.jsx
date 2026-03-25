@@ -13,6 +13,7 @@ import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
+import NotificationBell from "../../components/common/NotificationBell";
 
 const PAGE_META = {
   cart: {
@@ -1210,6 +1211,7 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               <div className="tb-title">{meta.title}</div>
             </div>
             <div className="tb-actions">
+              <NotificationBell variant="light" />
               <HeaderSettingsMenu
                 userData={userData}
                 showProfile={true}

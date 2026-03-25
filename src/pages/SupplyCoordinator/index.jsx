@@ -10,6 +10,7 @@ import "../../styles/store-manager.css";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
+import NotificationBell from "../../components/common/NotificationBell";
 import api from "../../services/api";
 
 const TABS = {
@@ -84,12 +85,15 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
 
   const toggleOrderSelection = (orderId) => {
     setSelectedOrders((prev) =>
-      prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId],
+      prev.includes(orderId)
+        ? prev.filter((id) => id !== orderId)
+        : [...prev, orderId],
     );
   };
 
   const handleManualAllocate = async () => {
-    if (selectedOrders.length === 0) return alert("Vui lòng chọn ít nhất 1 đơn hàng để gom!");
+    if (selectedOrders.length === 0)
+      return alert("Vui lòng chọn ít nhất 1 đơn hàng để gom!");
     try {
       await api.manualAllocateRoutes(selectedOrders);
       alert("Gom xe bằng tay thành công!");
@@ -138,20 +142,31 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
 
   // THÊM HÀM NÀY VÀO ĐÂY: Dò tìm tên thật của tài xế dựa trên ID/Username
   const getDriverDisplayName = (shipment) => {
-    const rawValue = shipment.driverName || shipment.driver || shipment.driver_name || shipment.driverId || shipment.driver_id;
+    const rawValue =
+      shipment.driverName ||
+      shipment.driver ||
+      shipment.driver_name ||
+      shipment.driverId ||
+      shipment.driver_id;
     if (!rawValue) return "Đã phân công";
 
     // Tìm trong mảng drivers đã tải xem có ai khớp không
-    const matchedDriver = drivers.find(d => 
-      d.accountId === rawValue || 
-      d.id === rawValue || 
-      d.user_id === rawValue ||
-      d.username === rawValue
+    const matchedDriver = drivers.find(
+      (d) =>
+        d.accountId === rawValue ||
+        d.id === rawValue ||
+        d.user_id === rawValue ||
+        d.username === rawValue,
     );
 
     // Nếu tìm thấy, ưu tiên trả về tên đầy đủ. Nếu không, in ra rawValue (coord)
     if (matchedDriver) {
-      return matchedDriver.fullName || matchedDriver.name || matchedDriver.full_name || matchedDriver.username;
+      return (
+        matchedDriver.fullName ||
+        matchedDriver.name ||
+        matchedDriver.full_name ||
+        matchedDriver.username
+      );
     }
     return rawValue;
   };
@@ -176,7 +191,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
             justifyContent: "center",
           }}
         >
-          <p style={{ color: "var(--ink3)", fontWeight: 600 }}>Đang tải dữ liệu điều phối…</p>
+          <p style={{ color: "var(--ink3)", fontWeight: 600 }}>
+            Đang tải dữ liệu điều phối…
+          </p>
         </div>
       </div>
     );
@@ -209,7 +226,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
             <div className="sb-store-card">
               <div className="sb-store-label">Logistics</div>
               <div className="sb-store-name">Điều phối vận chuyển</div>
-              <div className="sb-store-role">{userData?.name ?? userData?.fullName ?? "—"}</div>
+              <div className="sb-store-role">
+                {userData?.name ?? userData?.fullName ?? "—"}
+              </div>
             </div>
           </div>
           <nav className="sb-nav">
@@ -221,7 +240,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
             >
               <FileText size={15} />
               Điều phối đơn
-              {readyOrders.length > 0 && <span className="ni-badge">{readyOrders.length}</span>}
+              {readyOrders.length > 0 && (
+                <span className="ni-badge">{readyOrders.length}</span>
+              )}
             </button>
             <button
               type="button"
@@ -254,6 +275,7 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
               <div className="tb-title">{meta.title}</div>
             </div>
             <div className="tb-actions">
+              <NotificationBell variant="light" />
               <HeaderSettingsMenu
                 userData={userData}
                 showProfile={true}
@@ -267,12 +289,18 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
           <div className="content">
             <div className="stats">
               <div className="sc">
-                <div className="sc-stripe" style={{ background: "var(--rust)" }} />
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--rust)" }}
+                />
                 <div className="sc-top">
                   <div>
                     <div className="sc-label">Đơn chờ bốc xếp</div>
                   </div>
-                  <div className="sc-icon" style={{ background: "var(--rust-bg)" }}>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--rust-bg)" }}
+                  >
                     <FileText size={14} style={{ color: "var(--rust)" }} />
                   </div>
                 </div>
@@ -281,12 +309,18 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
               </div>
               <div className="sc">
-                <div className="sc-stripe" style={{ background: "var(--amber)" }} />
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--amber)" }}
+                />
                 <div className="sc-top">
                   <div>
                     <div className="sc-label">Xe đang chạy</div>
                   </div>
-                  <div className="sc-icon" style={{ background: "var(--amber-bg)" }}>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--amber-bg)" }}
+                  >
                     <Package size={14} style={{ color: "var(--amber)" }} />
                   </div>
                 </div>
@@ -295,12 +329,18 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
               </div>
               <div className="sc">
-                <div className="sc-stripe" style={{ background: "var(--sage)" }} />
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--sage)" }}
+                />
                 <div className="sc-top">
                   <div>
                     <div className="sc-label">Tài xế</div>
                   </div>
-                  <div className="sc-icon" style={{ background: "var(--sage-bg)" }}>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--sage-bg)" }}
+                  >
                     <CheckCircle size={14} style={{ color: "var(--sage)" }} />
                   </div>
                 </div>
@@ -309,12 +349,18 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
               </div>
               <div className="sc">
-                <div className="sc-stripe" style={{ background: "var(--slate)" }} />
+                <div
+                  className="sc-stripe"
+                  style={{ background: "var(--slate)" }}
+                />
                 <div className="sc-top">
                   <div>
                     <div className="sc-label">Chuyến hoàn thành</div>
                   </div>
-                  <div className="sc-icon" style={{ background: "var(--slate-bg)" }}>
+                  <div
+                    className="sc-icon"
+                    style={{ background: "var(--slate-bg)" }}
+                  >
                     <Clock size={14} style={{ color: "var(--slate)" }} />
                   </div>
                 </div>
@@ -331,7 +377,13 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                   <div className="card-hd">
                     <div>
                       <div className="card-title">Đơn chờ bốc xếp</div>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--ink3)" }}>
+                      <p
+                        style={{
+                          margin: "4px 0 0",
+                          fontSize: 12,
+                          color: "var(--ink3)",
+                        }}
+                      >
                         Gom đơn lên xe bằng tay để xuất kho
                       </p>
                     </div>
@@ -340,7 +392,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                       className="btn btn-amber btn-elevated"
                       onClick={handleManualAllocate}
                       disabled={selectedOrders.length === 0}
-                      style={{ opacity: selectedOrders.length === 0 ? 0.55 : 1 }}
+                      style={{
+                        opacity: selectedOrders.length === 0 ? 0.55 : 1,
+                      }}
                     >
                       <FileText size={15} /> Gom tay ({selectedOrders.length})
                     </button>
@@ -349,9 +403,13 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ textAlign: "center", width: 56 }}>Chọn</th>
+                          <th style={{ textAlign: "center", width: 56 }}>
+                            Chọn
+                          </th>
                           <th style={{ textAlign: "center" }}>Mã đơn</th>
-                          <th style={{ textAlign: "center" }}>Giao đến cửa hàng</th>
+                          <th style={{ textAlign: "center" }}>
+                            Giao đến cửa hàng
+                          </th>
                           <th style={{ textAlign: "center" }}>Trạng thái</th>
                         </tr>
                       </thead>
@@ -359,7 +417,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                         {readyOrders.length === 0 ? (
                           <tr>
                             <td colSpan={4}>
-                              <div className="empty" style={{ padding: "36px 16px" }}>
+                              <div
+                                className="empty"
+                                style={{ padding: "36px 16px" }}
+                              >
                                 <p>Không có đơn hàng nào đang chờ</p>
                               </div>
                             </td>
@@ -377,7 +438,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                                     aria-label={`Chọn đơn ${id}`}
                                   />
                                 </td>
-                                <td style={{ textAlign: "center" }} className="mono">
+                                <td
+                                  style={{ textAlign: "center" }}
+                                  className="mono"
+                                >
                                   {id}
                                 </td>
                                 <td style={{ textAlign: "center" }}>
@@ -394,7 +458,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 <td style={{ textAlign: "center" }}>
                                   <span
                                     className="tag"
-                                    style={{ background: "var(--slate-bg)", color: "var(--slate)" }}
+                                    style={{
+                                      background: "var(--slate-bg)",
+                                      color: "var(--slate)",
+                                    }}
                                   >
                                     {o.status || "READY"}
                                   </span>
@@ -416,7 +483,14 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 {activeShipments.length === 0 ? (
                   <div className="card">
                     <div className="empty">
-                      <Package size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+                      <Package
+                        size={40}
+                        style={{
+                          opacity: 0.2,
+                          margin: "0 auto 12px",
+                          display: "block",
+                        }}
+                      />
                       <p>Không có chuyến hàng nào đang chạy.</p>
                     </div>
                   </div>
@@ -426,23 +500,40 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                       const id = sid(s);
                       const hasDriver = Boolean(
                         s.driverId ||
-                          s.driver_id ||
-                          s.driverName ||
-                          s.driver_name ||
-                          s.driver ||
-                          s.accountId,
+                        s.driver_id ||
+                        s.driverName ||
+                        s.driver_name ||
+                        s.driver ||
+                        s.accountId,
                       );
                       return (
-                        <div key={id} className="kitchen-run-card" style={{ minHeight: "auto" }}>
-                          <div className="kitchen-run-head" style={{ marginBottom: 12 }}>
+                        <div
+                          key={id}
+                          className="kitchen-run-card"
+                          style={{ minHeight: "auto" }}
+                        >
+                          <div
+                            className="kitchen-run-head"
+                            style={{ marginBottom: 12 }}
+                          >
                             <div
                               className="card-icon"
-                              style={{ background: "var(--amber-bg)", color: "var(--amber)" }}
+                              style={{
+                                background: "var(--amber-bg)",
+                                color: "var(--amber)",
+                              }}
                             >
                               <Package size={18} />
                             </div>
                           </div>
-                          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                          <h3
+                            style={{
+                              margin: "0 0 8px",
+                              fontSize: 15,
+                              fontWeight: 700,
+                              color: "var(--ink)",
+                            }}
+                          >
                             {s.storeName ||
                               s.store_name ||
                               s.name ||
@@ -458,7 +549,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                                   id={`drv-${id}`}
                                   value={selectedDrivers[id] || ""}
                                   onChange={(e) =>
-                                    setSelectedDrivers({ ...selectedDrivers, [id]: e.target.value })
+                                    setSelectedDrivers({
+                                      ...selectedDrivers,
+                                      [id]: e.target.value,
+                                    })
                                   }
                                 >
                                   <option value="">— Chọn tài xế —</option>
@@ -467,21 +561,37 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                                       key={d.accountId || d.id || d.user_id}
                                       value={d.accountId || d.id || d.user_id}
                                     >
-                                      {d.fullName || d.name || d.full_name || d.username}
+                                      {d.fullName ||
+                                        d.name ||
+                                        d.full_name ||
+                                        d.username}
                                     </option>
                                   ))}
                                 </select>
                               </div>
                             ) : (
-                              <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: 0 }}>
+                              <p
+                                style={{
+                                  fontSize: 12.5,
+                                  color: "var(--ink3)",
+                                  margin: 0,
+                                }}
+                              >
                                 Tài xế:{" "}
                                 <strong style={{ color: "var(--sage)" }}>
-  {getDriverDisplayName(s)}
-</strong>
+                                  {getDriverDisplayName(s)}
+                                </strong>
                               </p>
                             )}
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 8,
+                              marginTop: "auto",
+                            }}
+                          >
                             {!hasDriver && (
                               <button
                                 type="button"
@@ -523,7 +633,14 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 {historyShipments.length === 0 ? (
                   <div className="card">
                     <div className="empty">
-                      <CheckCircle size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+                      <CheckCircle
+                        size={40}
+                        style={{
+                          opacity: 0.2,
+                          margin: "0 auto 12px",
+                          display: "block",
+                        }}
+                      />
                       <p>Chưa có chuyến hàng nào hoàn thành.</p>
                     </div>
                   </div>
@@ -532,7 +649,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                     {historyShipments.map((s) => {
                       const id = sid(s);
                       const rawTime =
-                        s.delivered_at || s.deliveredAt || s.resolved_at || s.resolvedAt;
+                        s.delivered_at ||
+                        s.deliveredAt ||
+                        s.resolved_at ||
+                        s.resolvedAt;
                       let formattedTime = "Hoàn tất";
                       if (rawTime) {
                         const d = new Date(rawTime);
@@ -552,15 +672,28 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                           className="kitchen-run-card"
                           style={{ minHeight: "auto", opacity: 0.95 }}
                         >
-                          <div className="kitchen-run-head" style={{ marginBottom: 12 }}>
+                          <div
+                            className="kitchen-run-head"
+                            style={{ marginBottom: 12 }}
+                          >
                             <div
                               className="card-icon"
-                              style={{ background: "var(--sage-bg)", color: "var(--sage)" }}
+                              style={{
+                                background: "var(--sage-bg)",
+                                color: "var(--sage)",
+                              }}
                             >
                               <CheckCircle size={18} />
                             </div>
                           </div>
-                          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                          <h3
+                            style={{
+                              margin: "0 0 8px",
+                              fontSize: 15,
+                              fontWeight: 700,
+                              color: "var(--ink)",
+                            }}
+                          >
                             {s.storeName ||
                               s.store_name ||
                               s.name ||
@@ -568,13 +701,27 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                               s.destinationStore ||
                               "—"}
                           </h3>
-                          <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: "0 0 4px" }}>
+                          <p
+                            style={{
+                              fontSize: 12.5,
+                              color: "var(--ink3)",
+                              margin: "0 0 4px",
+                            }}
+                          >
                             Tài xế:{" "}
-                            <span style={{ fontWeight: 600, color: "var(--ink)" }}>
-  {getDriverDisplayName(s)}
-</span>
+                            <span
+                              style={{ fontWeight: 600, color: "var(--ink)" }}
+                            >
+                              {getDriverDisplayName(s)}
+                            </span>
                           </p>
-                          <p style={{ fontSize: 12.5, color: "var(--ink4)", margin: "0 0 12px" }}>
+                          <p
+                            style={{
+                              fontSize: 12.5,
+                              color: "var(--ink4)",
+                              margin: "0 0 12px",
+                            }}
+                          >
                             Hoàn tất: {formattedTime}
                           </p>
                           <button
@@ -598,8 +745,16 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
 
       {/* Chi tiết món trên xe */}
       {showDetailsModal && (
-        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="supply-detail-title">
-          <div className="sm-modal-box sm-modal-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="sm-dim"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="supply-detail-title"
+        >
+          <div
+            className="sm-modal-box sm-modal-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sm-modal-hd">
               <h2 id="supply-detail-title" className="sm-modal-title">
                 Chi tiết món trên xe
@@ -613,30 +768,70 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 ✕
               </button>
             </div>
-            <div className="sm-modal-bd" style={{ maxHeight: "min(60vh, 420px)" }}>
+            <div
+              className="sm-modal-bd"
+              style={{ maxHeight: "min(60vh, 420px)" }}
+            >
               {shipmentDetails ? (
                 Array.isArray(shipmentDetails) && shipmentDetails.length > 0 ? (
                   shipmentDetails.map((item, idx) => (
                     <div key={idx} className="sm-bom-row">
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
                         <span style={{ fontSize: 22 }}>📦</span>
                         <div>
                           <div style={{ fontWeight: 700, color: "var(--ink)" }}>
-                            {item.product_name || item.productName || "Sản phẩm"}
+                            {item.product_name ||
+                              item.productName ||
+                              "Sản phẩm"}
                           </div>
-                          <div style={{ fontSize: 11, color: "var(--ink4)" }}>Số lượng dự kiến giao</div>
+                          <div style={{ fontSize: 11, color: "var(--ink4)" }}>
+                            Số lượng dự kiến giao
+                          </div>
                         </div>
                       </div>
-                      <span className="mono" style={{ fontWeight: 800, color: "var(--amber)", fontSize: 16 }}>
-                        ×{item.expected_quantity || item.expectedQuantity || item.quantity || 0}
+                      <span
+                        className="mono"
+                        style={{
+                          fontWeight: 800,
+                          color: "var(--amber)",
+                          fontSize: 16,
+                        }}
+                      >
+                        ×
+                        {item.expected_quantity ||
+                          item.expectedQuantity ||
+                          item.quantity ||
+                          0}
                       </span>
                     </div>
                   ))
                 ) : (
-                  <p style={{ textAlign: "center", color: "var(--ink4)", margin: 0 }}>Không có dữ liệu món ăn</p>
+                  <p
+                    style={{
+                      textAlign: "center",
+                      color: "var(--ink4)",
+                      margin: 0,
+                    }}
+                  >
+                    Không có dữ liệu món ăn
+                  </p>
                 )
               ) : (
-                <p style={{ textAlign: "center", color: "var(--ink3)", margin: 0 }}>Đang tải…</p>
+                <p
+                  style={{
+                    textAlign: "center",
+                    color: "var(--ink3)",
+                    margin: 0,
+                  }}
+                >
+                  Đang tải…
+                </p>
               )}
             </div>
             <div className="sm-modal-ft">
