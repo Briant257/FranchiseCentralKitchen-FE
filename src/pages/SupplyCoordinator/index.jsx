@@ -96,11 +96,11 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
       return alert("Vui lòng chọn ít nhất 1 đơn hàng để gom!");
     try {
       await api.manualAllocateRoutes(selectedOrders);
-      alert("Gom xe bằng tay thành công!");
+      alert("Gom xe thành công!");
       setSelectedOrders([]);
       fetchAllData();
     } catch (error) {
-      alert(error.message || "Lỗi khi gom xe bằng tay");
+      alert(error.message || "Lỗi khi gom xe ");
     }
   };
 
@@ -371,111 +371,118 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
             </div>
 
             {/* Tab: Điều phối đơn */}
-            {activeTab === TABS.DISPATCH && (
-              <div className="kitchen-tab-body">
-                <div className="card">
-                  <div className="card-hd">
-                    <div>
-                      <div className="card-title">Đơn chờ bốc xếp</div>
-                      <p
+{activeTab === TABS.DISPATCH && (
+  <div className="kitchen-tab-body">
+    <div className="card">
+      <div className="card-hd">
+        <div>
+          <div className="card-title">Đơn chờ bốc xếp</div>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: 12,
+              color: "var(--ink3)",
+            }}
+          >
+            Gom đơn lên xe để xuất kho
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-amber btn-elevated"
+          onClick={handleManualAllocate}
+          disabled={selectedOrders.length === 0}
+          style={{
+            opacity: selectedOrders.length === 0 ? 0.55 : 1,
+          }}
+        >
+          <FileText size={15} /> Gom Đơn ({selectedOrders.length})
+        </button>
+      </div>
+      <div className="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "center", width: 56 }}>
+                Chọn
+              </th>
+              <th style={{ textAlign: "center" }}>Mã đơn</th>
+              <th style={{ textAlign: "center" }}>
+                Giao đến cửa hàng
+              </th>
+              <th style={{ textAlign: "center" }}>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {readyOrders.length === 0 ? (
+              <tr>
+                <td colSpan={4}>
+                  <div
+                    className="empty"
+                    style={{ padding: "36px 16px" }}
+                  >
+                    <p>Không có đơn hàng nào đang chờ</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              readyOrders.map((o) => {
+                const id = oid(o);
+                const isSelected = selectedOrders.includes(id);
+
+                return (
+                  <tr 
+                    key={id}
+                    onClick={() => toggleOrderSelection(id)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggleOrderSelection(id)}
+                        aria-label={`Chọn đơn ${id}`}
+                      />
+                    </td>
+                    <td
+                      style={{ textAlign: "center" }}
+                      className="mono"
+                    >
+                      {id}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <span className="tag tag-s">
+                        🏪{" "}
+                        {o.storeName ||
+                          o.store_name ||
+                          o.name ||
+                          o.store ||
+                          o.storeId ||
+                          "Chưa xác định"}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <span
+                        className="tag"
                         style={{
-                          margin: "4px 0 0",
-                          fontSize: 12,
-                          color: "var(--ink3)",
+                          background: "var(--slate-bg)",
+                          color: "var(--slate)",
                         }}
                       >
-                        Gom đơn lên xe bằng tay để xuất kho
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-amber btn-elevated"
-                      onClick={handleManualAllocate}
-                      disabled={selectedOrders.length === 0}
-                      style={{
-                        opacity: selectedOrders.length === 0 ? 0.55 : 1,
-                      }}
-                    >
-                      <FileText size={15} /> Gom tay ({selectedOrders.length})
-                    </button>
-                  </div>
-                  <div className="tbl-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th style={{ textAlign: "center", width: 56 }}>
-                            Chọn
-                          </th>
-                          <th style={{ textAlign: "center" }}>Mã đơn</th>
-                          <th style={{ textAlign: "center" }}>
-                            Giao đến cửa hàng
-                          </th>
-                          <th style={{ textAlign: "center" }}>Trạng thái</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {readyOrders.length === 0 ? (
-                          <tr>
-                            <td colSpan={4}>
-                              <div
-                                className="empty"
-                                style={{ padding: "36px 16px" }}
-                              >
-                                <p>Không có đơn hàng nào đang chờ</p>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          readyOrders.map((o) => {
-                            const id = oid(o);
-                            return (
-                              <tr key={id}>
-                                <td style={{ textAlign: "center" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedOrders.includes(id)}
-                                    onChange={() => toggleOrderSelection(id)}
-                                    aria-label={`Chọn đơn ${id}`}
-                                  />
-                                </td>
-                                <td
-                                  style={{ textAlign: "center" }}
-                                  className="mono"
-                                >
-                                  {id}
-                                </td>
-                                <td style={{ textAlign: "center" }}>
-                                  <span className="tag tag-s">
-                                    🏪{" "}
-                                    {o.storeName ||
-                                      o.store_name ||
-                                      o.name ||
-                                      o.store ||
-                                      o.storeId ||
-                                      "Chưa xác định"}
-                                  </span>
-                                </td>
-                                <td style={{ textAlign: "center" }}>
-                                  <span
-                                    className="tag"
-                                    style={{
-                                      background: "var(--slate-bg)",
-                                      color: "var(--slate)",
-                                    }}
-                                  >
-                                    {o.status || "READY"}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+                        {o.status || "READY"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
             )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+)}
 
             {/* Tab: Chuyến đang chạy */}
             {activeTab === TABS.ACTIVE && (
@@ -752,11 +759,12 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
           aria-labelledby="supply-detail-title"
         >
           <div
-            className="sm-modal-box sm-modal-xl"
+            className="sm-modal-box"
             onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '450px', width: '90%', margin: '0 auto' }} 
           >
             <div className="sm-modal-hd">
-              <h2 id="supply-detail-title" className="sm-modal-title">
+              <h2 id="supply-detail-title" className="sm-modal-title" style={{ fontSize: '18px' }}>
                 Chi tiết món trên xe
               </h2>
               <button
@@ -768,14 +776,15 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                 ✕
               </button>
             </div>
+            
             <div
-              className="sm-modal-bd"
-              style={{ maxHeight: "min(60vh, 420px)" }}
+              className="sm-modal-bd ck-scrollbar"
+              style={{ maxHeight: "min(60vh, 420px)", overflowY: "auto", paddingRight: "6px" }}
             >
               {shipmentDetails ? (
                 Array.isArray(shipmentDetails) && shipmentDetails.length > 0 ? (
                   shipmentDetails.map((item, idx) => (
-                    <div key={idx} className="sm-bom-row">
+                    <div key={idx} className="sm-bom-row" style={{ padding: '12px 16px', marginBottom: '8px' }}>
                       <div
                         style={{
                           display: "flex",
@@ -783,9 +792,9 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                           gap: 12,
                         }}
                       >
-                        <span style={{ fontSize: 22 }}>📦</span>
+                        <span style={{ fontSize: 20 }}>📦</span>
                         <div>
-                          <div style={{ fontWeight: 700, color: "var(--ink)" }}>
+                          <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: '14px' }}>
                             {item.product_name ||
                               item.productName ||
                               "Sản phẩm"}
@@ -816,7 +825,7 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                     style={{
                       textAlign: "center",
                       color: "var(--ink4)",
-                      margin: 0,
+                      margin: '20px 0',
                     }}
                   >
                     Không có dữ liệu món ăn
@@ -827,23 +836,31 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
                   style={{
                     textAlign: "center",
                     color: "var(--ink3)",
-                    margin: 0,
+                    margin: '20px 0',
                   }}
                 >
                   Đang tải…
                 </p>
               )}
             </div>
-            <div className="sm-modal-ft">
+
+            {/* NÚT ĐÓNG ĐÃ ĐƯỢC CĂN GIỮA VÀ BO GÓC */}
+            <div className="sm-modal-ft" style={{ display: 'flex', justifyContent: 'center', paddingTop: '12px' }}>
               <button
                 type="button"
                 className="btn btn-amber"
-                style={{ flex: 1 }}
+                style={{ 
+                  minWidth: '120px', 
+                  padding: '10px 24px', 
+                  fontWeight: 'bold',
+                  borderRadius: '8px'
+                }}
                 onClick={() => setShowDetailsModal(false)}
               >
                 Đóng
               </button>
             </div>
+            
           </div>
         </div>
       )}
