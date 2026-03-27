@@ -3,7 +3,6 @@ import {
   Eye,
   ChefHat,
   LayoutDashboard,
-  AlertTriangle,
   TrendingUp,
   Activity,
   CheckCircle,
@@ -28,13 +27,7 @@ const KITCHEN_PAGE_META = {
     crumb: "Mẻ nấu",
     iconBg: "#fdf3e0",
     iconStroke: "#d4860a",
-  },
-  "Sự Cố": {
-    title: "Sự cố & khiếu nại",
-    crumb: "Sự cố",
-    iconBg: "#fef2f2",
-    iconStroke: "#dc2626",
-  },
+  }
 };
 
 const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
@@ -55,78 +48,23 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [ingredients, setIngredients] = useState([]);
-
-  // STATE: TẠO MẺ CHỦ ĐỘNG
-  const [showManualCookModal, setShowManualCookModal] = useState(false);
-  const [manualCookData, setManualCookData] = useState({ productId: "", quantity: "", note: "" });
-
-  // STATE: SỰ CỐ & KHIẾU NẠI (GIAI ĐOẠN 4)
-  const [reportedShipments, setReportedShipments] = useState([]);
-
   // STATE: BÁO CÁO HAO HỤT
-  const [showWastageModal, setShowWastageModal] = useState(false);
-  const [wastageData, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
+  const [, setShowWastageModal] = useState(false);
+  const [, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
 
-  // HÀM: TẠO MẺ CHỦ ĐỘNG
-  const handleManualCook = async () => {
-    if (!manualCookData.productId || !manualCookData.quantity) {
-      return alert("Vui lòng chọn món và số lượng!");
-    }
-    try {
-      const payload = {
-        productId: manualCookData.productId,
-        quantity: Number(manualCookData.quantity),
-        note: manualCookData.note || "",
-        status: "PENDING" // Ép trạng thái ban đầu
-      };
-      await api.cook(payload);
-      setShowManualCookModal(false);
-      setManualCookData({ productId: "", quantity: "", note: "" });
-      loadData();
-      alert("✅ Đã tạo mẻ nấu chủ động thành công!");
-    } catch (err) {
-      console.error("Lỗi 400 chi tiết:", err);
-      alert("Thao tác thất bại: " + (err.message || "Kiểm tra lại kết nối"));
-    }
-  };
+  const [selectedAggItems, setSelectedAggItems] = useState([]);
 
-  // HÀM: BÁO CÁO HAO HỤT
-  const handleReportWastage = async () => {
-    if (!wastageData.wasteQty) return alert("Vui lòng nhập số lượng hao hụt!");
-    try {
-      await api.reportWastage(wastageData);
-      setShowWastageModal(false);
-      setWastageData({ runId: "", runName: "", wasteQty: "", reason: "" });
-      loadData();
-      alert("✅ Đã ghi nhận báo cáo hao hụt!");
-    } catch (err) {
-      alert("Lỗi báo cáo hao hụt!");
-    }
-  };
-
-  // HÀM: DUYỆT ĐỀN BÙ VÀ TẠO ĐƠN BÙ (COMP-xxx)
-  const handleResolveReplacement = async (shipId) => {
-    if (window.confirm(`Xác nhận duyệt đền bù cho chuyến xe ${shipId} và tự động lên mẻ nấu bù?`)) {
-      try {
-        await api.resolveReplacement(shipId);
-        alert("✅ Đã tạo đơn bù (COMP-xxx) thành công. Hãy qua Tab 'Đơn' để tiến hành nấu!");
-        loadData(); // Tải lại toàn bộ dữ liệu để cập nhật mẻ nấu mới và xóa sự cố khỏi danh sách
-      } catch (err) {
-        alert("❌ Lỗi duyệt đền bù: " + (err.message || "Vui lòng thử lại"));
-      }
-    }
-  };
+ 
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [runsData, catsData, prodsData, ingsData, reportedData] =
+      const [runsData, catsData, prodsData, ingsData] =
         await Promise.all([
           api.getProductionRuns().catch(() => []),
           api.getCategories().catch(() => []),
           api.getProducts().catch(() => []),
-          api.getIngredients().catch(() => []),
-          api.getReportedShipments().catch(() => [])
+          api.getIngredients().catch(() => [])
         ]);
 
       // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
@@ -165,8 +103,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
       setCategories(Array.isArray(catsData) ? catsData : []);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
-      // SET STATE CHO DANH SÁCH SỰ CỐ
-      setReportedShipments(Array.isArray(reportedData) ? reportedData : []);
 
       // Map dữ liệu thực tế từ Database cho Nguyên liệu
       const mappedIngredients = (Array.isArray(ingsData) ? ingsData : []).map(
@@ -236,18 +172,36 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
     try {
       const data = await api.getKitchenAggregation();
       setAggregationData(data);
+      if (Array.isArray(data)) {
+        setSelectedAggItems(data.map(item => item.productId));
+      } else {
+        setSelectedAggItems([]);
+      }
+      
       setShowAggModal(true);
     } catch (error) {
       setErrorModal({ show: true, message: "Lỗi tải dữ liệu gom đơn hoặc không có đơn mới!" });
     }
   };
+  const toggleAggItem = (productId) => {
+    setSelectedAggItems((prev) =>
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
+    );
+  };
 
   const handleConfirmAggregation = async () => {
+    if (selectedAggItems.length === 0) {
+      return alert("Vui lòng chọn ít nhất 1 món để gom!");
+    }
+    
     try {
-      await api.confirmAggregation({});
+      // Gửi mảng productId đã chọn xuống Backend
+      await api.confirmAggregation({ productIds: selectedAggItems });
       setShowAggModal(false);
       loadData();
-      alert("✅ Đã chốt gom đơn, xuất kho và chuyển trạng thái sẵn sàng giao thành công!");
+      alert("✅ Đã chốt gom đơn, xuất kho và chuyển trạng thái thành công!");
     } catch (err) {
       alert("❌ Lỗi chốt gom đơn, vui lòng thử lại sau!");
       setShowAggModal(false);
@@ -364,17 +318,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                 <span className="ni-badge">{productionRuns.length}</span>
               )}
             </button>
-            <button
-              type="button"
-              className={`ni ${activeKitchenTab === "Sự Cố" ? "on" : ""}`}
-              onClick={() => setActiveKitchenTab("Sự Cố")}
-            >
-              <AlertTriangle size={15} />
-              Sự cố
-              {reportedShipments.length > 0 && (
-                <span className="ni-badge">{reportedShipments.length}</span>
-              )}
-            </button>
           </nav>
         </aside>
 
@@ -393,12 +336,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                 )}
                 {activeKitchenTab === "Đơn" && (
                   <ChefHat size={16} style={{ color: meta.iconStroke }} />
-                )}
-                {activeKitchenTab === "Sự Cố" && (
-                  <AlertTriangle
-                    size={16}
-                    style={{ color: meta.iconStroke }}
-                  />
                 )}
               </div>
               <div className="tb-title">{meta.title}</div>
@@ -477,26 +414,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                   {stats.completed}
                 </div>
               </div>
-              <div className="sc">
-                <div
-                  className="sc-stripe"
-                  style={{ background: "#8b5cf6" }}
-                />
-                <div className="sc-top">
-                  <div>
-                    <div className="sc-label">Sự cố mở</div>
-                  </div>
-                  <div
-                    className="sc-icon"
-                    style={{ background: "#f5f3ff" }}
-                  >
-                    <AlertTriangle size={14} style={{ color: "#8b5cf6" }} />
-                  </div>
-                </div>
-                <div className="sc-val" style={{ color: "#8b5cf6" }}>
-                  {reportedShipments.length}
-                </div>
-              </div>
             </div>
 
             <div
@@ -533,29 +450,71 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
               <div className="kitchen-crud-layout">
                 <div className="card kitchen-table-card">
 
-                    {/* BẢNG DANH MỤC */}
+                    {/* BẢNG DANH MỤC (STYLE DẠNG GRID/CARD GIỐNG GIỎ HÀNG) */}
                     {kitchenSubTab === "categories" && (
                       <>
                         <div className="card-hd">
                           <div className="card-title">Danh mục sản phẩm</div>
                         </div>
-                        <div className="tbl-wrap">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>STT</th>
-                                <th>Tên danh mục</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {categories.map((cat, idx) => (
-                                <tr key={cat.id}>
-                                  <td style={{ color: "var(--ink3)" }}>{idx + 1}</td>
-                                  <td style={{ fontWeight: 600 }}>{cat.name}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        {/* Thay vì dùng tbl-wrap và table, ta dùng grid layout */}
+                        <div style={{ padding: "16px" }}>
+                          <div 
+                            className="prod-grid" 
+                            style={{ 
+                              display: "grid", 
+                              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", 
+                              gap: "12px" 
+                            }}
+                          >
+                            {categories.map((cat, idx) => (
+                              <div
+                                key={cat.id}
+                                className="ptile"
+                                style={{
+                                  cursor: "default", // Bỏ hiệu ứng click vì đây chỉ là danh sách
+                                  display: "flex",
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: "12px",
+                                  padding: "12px 16px",
+                                  minHeight: "unset"
+                                }}
+                              >
+                                {/* Cột STT được làm thành một huy hiệu nhỏ */}
+                                <div
+                                  className="pt-unit"
+                                  style={{
+                                    margin: 0,
+                                    width: "28px",
+                                    height: "28px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    background: "var(--slate-bg)",
+                                    color: "var(--slate)",
+                                    borderRadius: "6px",
+                                    fontWeight: "bold",
+                                    fontSize: "12px"
+                                  }}
+                                >
+                                  {idx + 1}
+                                </div>
+                                
+                                {/* Tên danh mục */}
+                                <div 
+                                  className="pt-name" 
+                                  style={{ 
+                                    margin: 0, 
+                                    fontSize: "14px", 
+                                    fontWeight: 600,
+                                    color: "var(--ink)"
+                                  }}
+                                >
+                                  {cat.name}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </>
                     )}
@@ -719,7 +678,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                   style={{ color: "var(--rust)" }}
                                   title="Báo cáo hao hụt (Hỏng/Cháy)"
                                 >
-                                  ⚠️
+                                  
                                 </button>
                               )}
                             </div>
@@ -752,17 +711,17 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
 
                         <div style={{ marginTop: 14 }}>
                           {run.status === "PENDING" && (
-                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COOKING")} className="btn btn-ghost" style={{ width: "100%" }}>
+                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COOKING")} className="btn btn-ghost" style={{ width: "100%", paddingLeft :75 }}>
                               🔥 Bắt đầu nấu
                             </button>
                           )}
                           {run.status === "COOKING" && (
-                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")} className="btn btn-amber" style={{ width: "100%" }}>
+                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")} className="btn btn-amber" style={{ width: "100%" ,  paddingLeft :75}}>
                               ✅ Hoàn thành mẻ
                             </button>
                           )}
                           {run.status === "COMPLETED" && (
-                            <button type="button" disabled className="btn btn-ghost" style={{ width: "100%", opacity: 0.55 }}>
+                            <button type="button" disabled className="btn btn-ghost" style={{ width: "100%", opacity: 0.55,  paddingLeft :75 }}>
                               Đã xong
                             </button>
                           )}
@@ -770,90 +729,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                       </div>
                     );
                   })}
-                </div>
-              )}
-            </div>
-          )}
-            </div>
-
-            <div
-              className={`kitchen-inner page ${activeKitchenTab === "Sự Cố" ? "on" : ""}`}
-              id="page-kitchen-incidents"
-            >
-          {/* ======================= TAB SỰ CỐ - XỬ LÝ KHIẾU NẠI ======================= */}
-          {activeKitchenTab === "Sự Cố" && (
-            <div className="kitchen-tab-body">
-              <div className="toolbar" style={{ justifyContent: "space-between", width: "100%", marginBottom: 0, flexWrap: "wrap" }}>
-                <div>
-                  <h2 className="kitchen-page-h2">Xử lý sự cố &amp; khiếu nại</h2>
-                  <p style={{ fontSize: 12.5, color: "var(--ink3)", marginTop: 4, maxWidth: 520 }}>
-                    Duyệt thiếu hàng từ cửa hàng báo về để lên đơn bù (COMP)
-                  </p>
-                </div>
-              </div>
-
-              {reportedShipments.length === 0 ? (
-                <div className="card">
-                  <div className="empty" style={{ padding: "40px 24px" }}>
-                    <span style={{ fontSize: 36, display: "block", marginBottom: 8 }}>🎉</span>
-                    <p style={{ color: "var(--sage)", fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Mọi thứ đang hoàn hảo!</p>
-                    <p style={{ fontSize: 13, color: "var(--ink4)" }}>Không có cửa hàng nào báo thiếu hàng hay sự cố giao nhận.</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="kitchen-runs-grid">
-                  {reportedShipments.map((issue, idx) => (
-                    <div key={issue.shipmentId || idx} className="kitchen-issue-card">
-                      <div className="kitchen-run-head">
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{issue.storeName}</h3>
-                          <p style={{ fontSize: 12.5, color: "var(--ink3)", marginTop: 4 }}>
-                            Mã chuyến:{" "}
-                            <span className="mono" style={{ color: "var(--slate)", fontWeight: 700 }}>{issue.shipmentId}</span>
-                          </p>
-                        </div>
-                        <span className="tag" style={{ background: "var(--rust-bg)", color: "var(--rust)" }}>
-                          {issue.status === "ISSUE_REPORTED" ? "⚠️ Thiếu hàng" : issue.status}
-                        </span>
-                      </div>
-
-                      <div className="kitchen-issue-list">
-                        <p style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px" }}>Chi tiết hàng thiếu</p>
-                        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                          {(issue.missingItems || []).map((item, i) => (
-                            <li
-                              key={i}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: 12,
-                                fontSize: 13,
-                                padding: "10px 0",
-                                borderBottom: i < (issue.missingItems || []).length - 1 ? "1px solid var(--border)" : "none",
-                              }}
-                            >
-                              <span style={{ color: "var(--ink2)" }}>
-                                {item.productName}
-                                {item.issueNote && (
-                                  <span style={{ display: "block", fontSize: 11, color: "var(--rust)", fontStyle: "italic", marginTop: 4 }}>
-                                    💬 &ldquo;{item.issueNote}&rdquo;
-                                  </span>
-                                )}
-                              </span>
-                              <span className="tag" style={{ background: "var(--rust-bg)", color: "var(--rust)", flexShrink: 0 }}>
-                                -{item.missingQuantity}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <button type="button" onClick={() => handleResolveReplacement(issue.shipmentId)} className="btn btn-rust" style={{ width: "100%" }}>
-                        🚀 Duyệt đền bù &amp; lên mẻ nấu
-                      </button>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
@@ -867,43 +742,138 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       {/* CÁC MODALS TRỢ NĂNG XUẤT HIỆN KHI CẦN                                  */}
       {/* ====================================================================== */}
 
-      {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU — layout sáng giống Store */}
+      {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU */}
       {showAggModal && (
         <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="agg-modal-title">
-          <div className="sm-modal-box">
+          <div className="sm-modal-box" style={{ maxWidth: '600px', width: '90%' }}>
             <div className="sm-modal-hd">
               <h2 id="agg-modal-title" className="sm-modal-title">Gom đơn chi nhánh</h2>
               <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowAggModal(false)} aria-label="Đóng">✕</button>
             </div>
-            <div className="sm-modal-bd">
-              <p style={{ margin: 0 }}>
-                Hệ thống đã quét các đơn hàng mới. Bạn có muốn chốt tổng hợp thành mẻ nấu không?
+            
+            <div className="sm-modal-bd" style={{ padding: '16px' }}>
+              <p style={{ margin: "0 0 16px 0", color: "var(--ink2)" }}>
+                Vui lòng chọn các món bạn muốn ưu tiên gom thành mẻ nấu trước:
               </p>
-              {aggregationData && (
-                <div className="sm-agg-stat">
-                  Có{" "}
-                  <strong>
-                    {Array.isArray(aggregationData) ? aggregationData.length : Object.keys(aggregationData).length}
-                  </strong>{" "}
-                  loại sản phẩm cần nấu.
-                </div>
-              )}
+              
+              {/* Vùng chứa bảng có thanh trượt */}
+              <div 
+                className="tbl-wrap ck-scrollbar" 
+                style={{ 
+                  maxHeight: '350px', 
+                  overflowY: 'auto', 
+                  overflowX: 'auto', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '8px' 
+                }}
+              >
+                <table style={{ margin: 0 }}>
+                  {/* Cố định tiêu đề bảng khi cuộn */}
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'white' }}>
+                    <tr>
+                      <th style={{ textAlign: "center", width: 50 }}>Chọn</th>
+                      <th>Tên món ăn</th>
+                      <th style={{ textAlign: "center", width: 100 }}>Số lượng</th>
+                      <th style={{ textAlign: "center", width: 130 }}>Loại đơn</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.isArray(aggregationData) && aggregationData.length > 0 ? (
+                      aggregationData.map((item) => {
+                        const isSelected = selectedAggItems.includes(item.productId);
+                        
+                        // 1. Lấy dữ liệu an toàn, ép kiểu về String và xóa khoảng trắng thừa
+                        const rawType = item.order_type || item.orderType || item.priority || item.type || "STANDARD";
+                        const typeStr = String(rawType).trim().toUpperCase();
+                        // 2. Phân loại màu sắc và nhãn (Dùng includes bắt từ khóa cho chắc chắn)
+let tagBg = "var(--sage-bg)";
+let tagColor = "var(--sage)";
+let displayType = "Đơn Thường"; // Mặc định
+
+if (typeStr.includes("URGENT") || typeStr.includes("KHẨN")) {
+  tagBg = "var(--rust-bg)";   // Nền đỏ
+  tagColor = "var(--rust)";   // Chữ đỏ
+  displayType = "Đơn Khẩn Cấp";
+} else if (typeStr.includes("COMPENSATION") || typeStr.includes("SỰ CỐ")) { // Đổi INCIDENT/ISSUE thành COMPENSATION
+  tagBg = "var(--amber-bg)";  // Nền vàng/cam
+  tagColor = "var(--amber)";  // Chữ vàng/cam
+  displayType = "Đơn Sự Cố";
+} else if (typeStr.includes("STANDARD") || typeStr.includes("THƯỜNG")) {
+  tagBg = "var(--sage-bg)";   // Nền xanh lá
+  tagColor = "var(--sage)";   // Chữ xanh lá
+  displayType = "Đơn Thường";
+} else {
+  // Lỡ Backend trả về mã lạ thì hiển thị luôn để dễ debug
+  tagBg = "var(--slate-bg)";
+  tagColor = "var(--slate)";
+  displayType = rawType;
+}
+
+                        return (
+                          <tr 
+                            key={item.productId} 
+                            onClick={() => toggleAggItem(item.productId)}
+                            style={{ cursor: 'pointer', background: isSelected ? 'var(--amber-bg)' : 'transparent' }}
+                          >
+                            <td style={{ textAlign: "center" }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isSelected} 
+                                onChange={() => toggleAggItem(item.productId)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {item.productName || item.product_name || "Món ăn"}
+                            </td>
+                            <td style={{ textAlign: "center", fontWeight: 700, color: "var(--amber)", fontSize: "16px" }}>
+                              {item.totalQuantity || item.total_quantity || 0}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <span className="tag tag-s" style={{ background: tagBg, color: tagColor, fontWeight: 600, width: '100%', display: 'inline-block' }}>
+                                {displayType}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--ink3)' }}>
+                          Không có dữ liệu gom đơn
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
+            
             <div className="sm-modal-ft">
               <button type="button" className="btn btn-ghost" onClick={() => setShowAggModal(false)}>Hủy</button>
-              <button type="button" className="btn btn-amber" onClick={handleConfirmAggregation}>
-                Chốt gom đơn &amp; xuất kho
+              <button 
+                type="button" 
+                className="btn btn-amber" 
+                onClick={handleConfirmAggregation}
+                disabled={selectedAggItems.length === 0}
+                style={{ opacity: selectedAggItems.length === 0 ? 0.6 : 1 }}
+              >
+                Gom {selectedAggItems.length} món &amp; Xuất kho
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. MODAL CÔNG THỨC / BOM — layout sáng */}
+      {/* 3. MODAL CÔNG THỨC / BOM — layout sáng (ĐÃ THÊM THANH CUỘN) */}
       {selectedRecipeRun && (
         <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="bom-modal-title">
-          <div className="sm-modal-box sm-modal-lg">
-            <div className="sm-modal-hd">
+          <div 
+            className="sm-modal-box sm-modal-lg"
+            /* Ép chiều cao tối đa và thiết lập Flexbox */
+            style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}
+          >
+            <div className="sm-modal-hd" style={{ flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div
                   className="card-icon"
@@ -918,7 +888,12 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
               </div>
               <button type="button" className="btn btn-ghost btn-xs" onClick={() => setSelectedRecipeRun(null)} aria-label="Đóng">✕</button>
             </div>
-            <div className="sm-modal-bd">
+
+            {/* VÙNG CUỘN NỘI DUNG: Thêm flex: 1 và overflowY: auto */}
+            <div 
+              className="sm-modal-bd ck-scrollbar" 
+              style={{ flex: 1, overflowY: 'auto', paddingRight: '6px' }}
+            >
               <div className="sm-highlight-box">
                 <div className="sm-hl-label">Tổng sản lượng cần nấu</div>
                 <div className="sm-hl-val">
@@ -946,8 +921,9 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                 <p style={{ fontSize: 12, color: "var(--ink4)", fontStyle: "italic", margin: 0 }}>Dữ liệu công thức đang được cập nhật...</p>
               )}
             </div>
-            <div className="sm-modal-ft">
-              <button type="button" className="btn btn-sage" style={{ flex: 1 }} onClick={() => setSelectedRecipeRun(null)}>
+
+            <div className="sm-modal-ft" style={{ flexShrink: 0 }}>
+              <button type="button" className="btn btn-sage" style={{ flex: 1, paddingLeft :175 }} onClick={() => setSelectedRecipeRun(null)}>
                 Xác nhận &amp; đóng
               </button>
             </div>
@@ -958,90 +934,38 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       {/* 4. MODAL BÁO LỖI */}
       {errorModal.show && (
         <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="err-modal-title">
-          <div className="sm-modal-box">
+          <div 
+            className="sm-modal-box"
+            style={{ maxWidth: "350px", width: "90%", margin: "0 auto" }} /* Thu nhỏ chiều rộng tối đa */
+          >
             <div className="sm-modal-hd">
-              <h2 id="err-modal-title" className="sm-modal-title" style={{ color: "var(--rust)" }}>Thao tác thất bại</h2>
-              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setErrorModal({ show: false, message: "" })} aria-label="Đóng">✕</button>
+              <h2 id="err-modal-title" className="sm-modal-title" style={{ color: "var(--rust)", fontSize: "16px" }}>
+                Thao tác thất bại
+              </h2>
+              <button 
+                type="button" 
+                className="btn btn-ghost btn-xs" 
+                onClick={() => setErrorModal({ show: false, message: "" })} 
+                aria-label="Đóng"
+              >
+                ✕
+              </button>
             </div>
-            <div className="sm-modal-bd" style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>❌</div>
-              <p style={{ margin: 0, color: "var(--ink2)" }}>{errorModal.message}</p>
+            <div className="sm-modal-bd" style={{ textAlign: "center", padding: "16px 20px" }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>❌</div>
+              <p style={{ margin: 0, color: "var(--ink2)", fontSize: "14px" }}>
+                {errorModal.message}
+              </p>
             </div>
-            <div className="sm-modal-ft">
-              <button type="button" className="btn btn-amber" style={{ flex: 1 }} onClick={() => setErrorModal({ show: false, message: "" })}>Đóng</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 5. MODAL TẠO MẺ NẤU CHỦ ĐỘNG */}
-      {showManualCookModal && (
-        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="manual-cook-title">
-          <div className="sm-modal-box">
-            <div className="sm-modal-hd">
-              <h2 id="manual-cook-title" className="sm-modal-title">Tạo mẻ nấu chủ động</h2>
-              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowManualCookModal(false)} aria-label="Đóng">✕</button>
-            </div>
-            <div className="sm-modal-bd">
-              <div className="fg">
-                <label htmlFor="manual-cook-product">Chọn món ăn *</label>
-                <select id="manual-cook-product" value={manualCookData.productId} onChange={(e) => setManualCookData({ ...manualCookData, productId: e.target.value })}>
-                  <option value="">— Chọn sản phẩm —</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.emoji} {p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="fg">
-                <label htmlFor="manual-cook-qty">Số lượng (phần) *</label>
-                <input id="manual-cook-qty" type="number" value={manualCookData.quantity} onChange={(e) => setManualCookData({ ...manualCookData, quantity: e.target.value })} placeholder="0" />
-              </div>
-              <div className="fg">
-                <label htmlFor="manual-cook-note">Ghi chú (nếu có)</label>
-                <input id="manual-cook-note" type="text" value={manualCookData.note} onChange={(e) => setManualCookData({ ...manualCookData, note: e.target.value })} placeholder="Ví dụ: Nấu dự phòng trưa…" />
-              </div>
-            </div>
-            <div className="sm-modal-ft">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowManualCookModal(false)}>Hủy</button>
-              <button type="button" className="btn btn-amber" onClick={handleManualCook}>🚀 Bắt đầu nấu</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. MODAL BÁO CÁO HAO HỤT */}
-      {showWastageModal && (
-        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="wastage-modal-title">
-          <div className="sm-modal-box">
-            <div className="sm-modal-hd">
-              <h2 id="wastage-modal-title" className="sm-modal-title" style={{ color: "var(--rust)" }}>Báo cáo hao hụt</h2>
-              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowWastageModal(false)} aria-label="Đóng">✕</button>
-            </div>
-            <div className="sm-modal-bd">
-              <div className="ibox danger" style={{ marginTop: 0 }}>
-                <span aria-hidden>⚠️</span>
-                <span>
-                  Mẻ nấu: <strong>{wastageData.runName}</strong>
-                </span>
-              </div>
-              <div className="fg">
-                <label htmlFor="wastage-qty">Số lượng hỏng/cháy (phần) *</label>
-                <input id="wastage-qty" type="number" value={wastageData.wasteQty} onChange={(e) => setWastageData({ ...wastageData, wasteQty: e.target.value })} placeholder="0" />
-              </div>
-              <div className="fg">
-                <label htmlFor="wastage-reason">Lý do</label>
-                <select id="wastage-reason" value={wastageData.reason} onChange={(e) => setWastageData({ ...wastageData, reason: e.target.value })}>
-                  <option value="">— Chọn lý do —</option>
-                  <option value="Cháy khét">Cháy khét</option>
-                  <option value="Rơi vãi">Rơi vãi</option>
-                  <option value="Nguyên liệu hỏng">Nguyên liệu hỏng</option>
-                  <option value="Khác">Lý do khác…</option>
-                </select>
-              </div>
-            </div>
-            <div className="sm-modal-ft">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowWastageModal(false)}>Hủy</button>
-              <button type="button" className="btn btn-amber" onClick={handleReportWastage}>Ghi nhận hao hụt</button>
+            <div className="sm-modal-ft" style={{ display: "flex", justifyContent: "center" }}>
+              <button 
+                type="button" 
+                className="btn btn-amber" 
+                style={{ minWidth: "100px", borderRadius: "8px", fontWeight: "bold", paddingLeft:135 }} 
+                onClick={() => setErrorModal({ show: false, message: "" })}
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

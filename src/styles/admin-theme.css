@@ -1233,3 +1233,27 @@
   min-width: auto;    /* Hủy bỏ min-width 140px của menu chính */
   padding: 8px 20px;  /* Trả lại padding chuẩn của nút Admin */
 }
+
+/* Class mới để tùy chỉnh nút Lưu quy đổi */
+.mgr-btn-save-conversion {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 10px !important;
+  cursor: pointer;
+  border: none;
+  /* Ép khoảng cách phía trên để không bị dính vào input */
+  margin-top: 15px !important; 
+  /* Tăng độ cao cho nút bự hơn */
+  padding-top:10px !important;
+  padding-bottom: 10px !important;
+}
+
+/* Đảm bảo container bọc input có khoảng cách */
+.conversion-input-group {
+  display: flex;
+  gap: 5px; /* Khoảng cách 5px giữa 2 ô input */
+  width: 100%;
+}

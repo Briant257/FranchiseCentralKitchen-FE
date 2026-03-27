@@ -439,6 +439,23 @@
 .manager-ui .mgr-row:last-child {
   margin-bottom: 0;
 }
+
+.ck-scrollbar::-webkit-scrollbar {
+  display: none; 
+}
+
+.ck-scrollbar {
+  -ms-overflow-style: none; 
+  scrollbar-width: none;  
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;  
+  scrollbar-width: none;     
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;            
+}
 .manager-ui .mgr-row:hover {
   transform: translateY(-1px);
   border-color: rgba(45, 212, 191, 0.35);
