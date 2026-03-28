@@ -33,7 +33,10 @@ const KITCHEN_PAGE_META = {
 const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
-
+  const ITEMS_PER_PAGE = 10;
+const [runsPage, setRunsPage] = useState(1);
+const [productsPage, setProductsPage] = useState(1);
+const [ingredientsPage, setIngredientsPage] = useState(1);
   // 1. STATE CHUNG
   const [activeKitchenTab, setActiveKitchenTab] = useState("Tổng Quan");
   const [aggregationData, setAggregationData] = useState(null);
@@ -48,6 +51,18 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [ingredients, setIngredients] = useState([]);
+  const [unitMasterData, setUnitMasterData] = useState([]);
+
+const getUnitLabel = useCallback(
+  (code) => {
+    if (!code) return code;
+    const found = unitMasterData.find(
+      (u) => u.value === String(code).toUpperCase()
+    );
+    return found ? found.label : code;
+  },
+  [unitMasterData]
+);
   // STATE: BÁO CÁO HAO HỤT
   const [, setShowWastageModal] = useState(false);
   const [, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
@@ -59,12 +74,13 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [runsData, catsData, prodsData, ingsData] =
+      const [runsData, catsData, prodsData, ingsData, units] =
         await Promise.all([
           api.getProductionRuns().catch(() => []),
           api.getCategories().catch(() => []),
           api.getProducts().catch(() => []),
-          api.getIngredients().catch(() => [])
+          api.getIngredients().catch(() => []),
+          api.getUnits().catch(() => []),
         ]);
 
       // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
@@ -127,6 +143,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
         }
       );
       setIngredients(mappedIngredients);
+      setUnitMasterData(Array.isArray(units) ? units : []);
       setLastUpdated(new Date());
     } catch (error) {
       console.error("Lỗi khi lấy dữ liệu:", error);
@@ -211,10 +228,15 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  useEffect(() => {
+  setRunsPage(1);
+}, [activeKitchenTab]);
 
   const handleTabChange = (tab) => {
-    setKitchenSubTab(tab);
-  };
+  setKitchenSubTab(tab);
+  setProductsPage(1);
+  setIngredientsPage(1);
+};
 
   const handleViewRecipe = async (run) => {
     setSelectedRecipeRun(run);
@@ -265,6 +287,34 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
       }
     }
   };
+
+  const renderPagination = (currentPage, totalItems, setPageFunc) => {
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 6, padding: "16px 0", borderTop: "1px solid var(--border)" }}>
+      <button type="button" onClick={() => setPageFunc(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+        style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: currentPage === 1 ? "transparent" : "var(--surface2)", color: currentPage === 1 ? "var(--ink4)" : "var(--ink)", cursor: currentPage === 1 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}>
+        ← Trước
+      </button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1)
+        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+        .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx-1] > 1) acc.push("..."); acc.push(p); return acc; }, [])
+        .map((item, idx) => item === "..." ? (
+          <span key={`d${idx}`} style={{ color: "var(--ink4)", fontSize: 13 }}>···</span>
+        ) : (
+          <button key={item} type="button" onClick={() => setPageFunc(item)}
+            style={{ width: 32, height: 32, borderRadius: 8, border: item === currentPage ? "2px solid var(--amber)" : "1px solid var(--border)", background: item === currentPage ? "var(--amber-bg)" : "transparent", color: item === currentPage ? "var(--amber)" : "var(--ink3)", fontWeight: item === currentPage ? 800 : 600, fontSize: 13, cursor: item === currentPage ? "default" : "pointer" }}>
+            {item}
+          </button>
+        ))}
+      <button type="button" onClick={() => setPageFunc(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+        style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: currentPage === totalPages ? "transparent" : "var(--surface2)", color: currentPage === totalPages ? "var(--ink4)" : "var(--ink)", cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}>
+        Sau →
+      </button>
+    </div>
+  );
+};
 
   return (
     <div className="sm-page">
@@ -536,8 +586,10 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {products.map((p) => (
-                                <tr key={p.id}>
+                              {products
+  .slice((productsPage - 1) * ITEMS_PER_PAGE, productsPage * ITEMS_PER_PAGE)
+  .map((p) => (
+  <tr key={p.id}>
                                   <td className="mono" style={{ color: "var(--ink3)" }}>{p.id}</td>
                                   <td style={{ fontWeight: 600 }}>
                                     {p.name}{" "}
@@ -561,6 +613,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                             </tbody>
                           </table>
                         </div>
+                        {renderPagination(productsPage, products.length, setProductsPage)}
                       </>
                     )}
 
@@ -582,15 +635,17 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {ingredients.map((ing) => (
-                                <tr key={ing.id}>
+                              {ingredients
+  .slice((ingredientsPage - 1) * ITEMS_PER_PAGE, ingredientsPage * ITEMS_PER_PAGE)
+  .map((ing) => (
+  <tr key={ing.id}>
                                   <td style={{ fontWeight: 600 }}>{ing.name}</td>
                                   <td style={{ fontWeight: 700, color: "var(--slate)" }}>{ing.unitCost.toLocaleString()}₫</td>
                                   <td style={{ color: "var(--ink3)" }}>
-                                    {ing.minThreshold} <span className="lowercase">{ing.unit}</span>
+                                    {ing.minThreshold} <span className="lowercase">{getUnitLabel(ing.unit)}</span>
                                   </td>
                                   <td style={{ fontWeight: 700 }}>
-                                    {ing.stock} <span className="lowercase">{ing.unit}</span>
+                                    {ing.stock} <span className="lowercase">{getUnitLabel(ing.unit)}</span>
                                   </td>
                                   <td>
                                     <span
@@ -611,6 +666,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                             </tbody>
                           </table>
                         </div>
+                         {renderPagination(ingredientsPage, ingredients.length, setIngredientsPage)}
                       </>
                     )}
                 </div>
@@ -625,114 +681,147 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
             >
           {/* ======================= TAB ĐƠN - XEM CÔNG THỨC & NẤU ======================= */}
           {activeKitchenTab === "Đơn" && (
-            <div className="kitchen-tab-body">
-              <div className="toolbar" style={{ justifyContent: "space-between", width: "100%", marginBottom: 0, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <span className="kitchen-inline-h2">Phiếu yêu cầu nấu</span>
-                  <span className="tag tag-s">Cập nhật: {lastUpdated.toLocaleTimeString()}</span>
-                </div>
-                <div className="toolbar" style={{ marginBottom: 0 }}>
-                  <button type="button" onClick={handleOpenAggregation} className="btn btn-amber btn-sm">
-                    📦 Gom đơn
-                  </button>
-                  <button type="button" onClick={handleBulkComplete} className="btn btn-sage btn-sm">
-                    ✅ Chốt tất cả mẻ đang nấu
-                  </button>
-                </div>
-              </div>
+  <div className="kitchen-tab-body">
+    <div className="toolbar" style={{ justifyContent: "space-between", width: "100%", marginBottom: 0, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span className="kitchen-inline-h2">Phiếu yêu cầu nấu</span>
+        <span className="tag tag-s">Cập nhật: {lastUpdated.toLocaleTimeString()}</span>
+      </div>
+      <div className="toolbar" style={{ marginBottom: 0 }}>
+        <button type="button" onClick={handleOpenAggregation} className="btn btn-amber btn-sm">
+          📦 Gom đơn
+        </button>
+        <button type="button" onClick={handleBulkComplete} className="btn btn-sage btn-sm">
+          Chốt tất cả mẻ đang nấu  {/* ← bỏ ✅ */}
+        </button>
+      </div>
+    </div>
 
-              {productionRuns.length === 0 ? (
-                <div className="card">
-                  <div className="empty">
-                    <ChefHat size={40} style={{ opacity: 0.25, margin: "0 auto 12px", display: "block" }} />
-                    <p>Không có đơn cần nấu.</p>
+    {productionRuns.length === 0 ? (
+      <div className="card">
+        <div className="empty">
+          <ChefHat size={40} style={{ opacity: 0.25, margin: "0 auto 12px", display: "block" }} />
+          <p>Không có đơn cần nấu.</p>
+        </div>
+      </div>
+    ) : (
+      <>
+        <div className="kitchen-runs-grid">
+          {productionRuns
+            .slice((runsPage - 1) * ITEMS_PER_PAGE, runsPage * ITEMS_PER_PAGE)
+            .map((run) => {
+              const progressPercent = Math.round((run.cookedQty / run.totalQty) * 100) || 0;
+              const statusStyle =
+                run.status === "PENDING"
+                  ? { background: "var(--slate-bg)", color: "var(--slate)", border: "1px solid var(--border)" }
+                  : run.status === "COOKING"
+                  ? { background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)" }
+                  : { background: "var(--sage-bg)", color: "var(--sage)", border: "1px solid var(--sage)" };
+              return (
+                <div key={run.id} className="kitchen-run-card">
+                  <div>
+                    <div className="kitchen-run-head">
+                      <div className="kitchen-run-title-row">
+                        <h3>{run.name}</h3>
+                        <button type="button" onClick={() => handleViewRecipe(run)} className="btn btn-ghost btn-xs" title="Xem công thức">
+                          <Eye size={16} />
+                        </button>
+                        {run.status === "COOKING" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWastageData({ runId: run.id, runName: run.name, wasteQty: "", reason: "" });
+                              setShowWastageModal(true);
+                            }}
+                            className="btn btn-ghost btn-xs"
+                            style={{ color: "var(--rust)" }}
+                            title="Báo cáo hao hụt"
+                          />
+                        )}
+                      </div>
+                      <span className="kitchen-status-pill" style={statusStyle}>
+                        {run.status === "PENDING" ? "Chờ nấu" : run.status === "COOKING" ? "Đang nấu" : "Xong"}
+                      </span>
+                    </div>
+
+                    <div className="kitchen-run-qty">
+                      {run.totalQty}
+                      <span>phần ăn</span>
+                    </div>
+
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        <span>Tiến độ nấu</span>
+                        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{run.cookedQty}/{run.totalQty}</span>
+                      </div>
+                      <div className="kitchen-run-progress-track">
+                        <div
+                          className="kitchen-run-progress-fill"
+                          style={{
+                            width: `${progressPercent}%`,
+                            background: progressPercent === 100 ? "var(--sage)" : "var(--amber)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 14 }}>
+                    {run.status === "PENDING" && (
+  <button
+    type="button"
+    onClick={() => handleUpdateRunStatus(run.id, "COOKING")}
+    className="btn btn-ghost"
+    style={{ width: "100%", paddingLeft: 85 }}
+    onMouseEnter={e => {
+      e.currentTarget.style.background = "var(--amber-bg)";
+      e.currentTarget.style.color = "var(--amber)";
+      e.currentTarget.style.borderColor = "var(--amber)";
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.background = "";
+      e.currentTarget.style.color = "";
+      e.currentTarget.style.borderColor = "";
+    }}
+  >
+    Bắt đầu nấu
+  </button>
+)}
+                    {run.status === "COOKING" && (
+  <button
+    type="button"
+    onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")}
+    className="btn btn-amber"
+    style={{ width: "100%", paddingLeft: 85 }}
+    onMouseEnter={e => {
+      e.currentTarget.style.background = "var(--sage)";
+      e.currentTarget.style.color = "#ffffff";
+      e.currentTarget.style.borderColor = "var(--sage)";
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.background = "";
+      e.currentTarget.style.color = "";
+      e.currentTarget.style.borderColor = "";
+    }}
+  >
+    Hoàn thành mẻ
+  </button>
+)}
+                    {run.status === "COMPLETED" && (
+                      <button type="button" disabled className="btn btn-ghost" style={{ width: "100%", opacity: 0.55, paddingLeft: 75 }}>
+                        Đã xong
+                      </button>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="kitchen-runs-grid">
-                  {productionRuns.map((run) => {
-                    const progressPercent = Math.round((run.cookedQty / run.totalQty) * 100) || 0;
-                    const statusStyle =
-                      run.status === "PENDING"
-                        ? { background: "var(--slate-bg)", color: "var(--slate)", border: "1px solid var(--border)" }
-                        : run.status === "COOKING"
-                        ? { background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)" }
-                        : { background: "var(--sage-bg)", color: "var(--sage)", border: "1px solid var(--sage)" };
-                    return (
-                      <div key={run.id} className="kitchen-run-card">
-                        <div>
-                          <div className="kitchen-run-head">
-                            <div className="kitchen-run-title-row">
-                              <h3>{run.name}</h3>
-                              <button type="button" onClick={() => handleViewRecipe(run)} className="btn btn-ghost btn-xs" title="Xem công thức">
-                                <Eye size={16} />
-                              </button>
-                              {run.status === "COOKING" && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setWastageData({ runId: run.id, runName: run.name, wasteQty: "", reason: "" });
-                                    setShowWastageModal(true);
-                                  }}
-                                  className="btn btn-ghost btn-xs"
-                                  style={{ color: "var(--rust)" }}
-                                  title="Báo cáo hao hụt (Hỏng/Cháy)"
-                                >
-                                  
-                                </button>
-                              )}
-                            </div>
-                            <span className="kitchen-status-pill" style={statusStyle}>
-                              {run.status === "PENDING" ? "Chờ nấu" : run.status === "COOKING" ? "Đang nấu" : "Xong"}
-                            </span>
-                          </div>
-
-                          <div className="kitchen-run-qty">
-                            {run.totalQty}
-                            <span>phần ăn</span>
-                          </div>
-
-                          <div style={{ marginTop: 12 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                              <span>Tiến độ nấu</span>
-                              <span style={{ fontWeight: 700, color: "var(--ink)" }}>{run.cookedQty}/{run.totalQty}</span>
-                            </div>
-                            <div className="kitchen-run-progress-track">
-                              <div
-                                className="kitchen-run-progress-fill"
-                                style={{
-                                  width: `${progressPercent}%`,
-                                  background: progressPercent === 100 ? "var(--sage)" : "var(--amber)",
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ marginTop: 14 }}>
-                          {run.status === "PENDING" && (
-                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COOKING")} className="btn btn-ghost" style={{ width: "100%", paddingLeft :75 }}>
-                              🔥 Bắt đầu nấu
-                            </button>
-                          )}
-                          {run.status === "COOKING" && (
-                            <button type="button" onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")} className="btn btn-amber" style={{ width: "100%" ,  paddingLeft :75}}>
-                              ✅ Hoàn thành mẻ
-                            </button>
-                          )}
-                          {run.status === "COMPLETED" && (
-                            <button type="button" disabled className="btn btn-ghost" style={{ width: "100%", opacity: 0.55,  paddingLeft :75 }}>
-                              Đã xong
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+              );
+            })}
+        </div>
+        
+      </>
+    )}
+  </div>
+)}
             </div>
           </div>
         </main>
@@ -910,10 +999,14 @@ if (typeStr.includes("URGENT") || typeStr.includes("KHẨN")) {
                   return (
                     <div key={i} className="sm-bom-row">
                       <span style={{ color: "var(--ink)", fontWeight: 600 }}>{ing.name}</span>
-                      <div style={{ textAlign: "right" }}>
-                        <span className="mono" style={{ fontSize: 15, fontWeight: 800, color: "var(--slate)" }}>{totalNeeded}</span>
-                        <span style={{ fontSize: 10, color: "var(--ink4)", marginLeft: 4, textTransform: "uppercase" }}>{ing.unit}</span>
-                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: '6px' }}>
+  <span className="mono" style={{ fontSize: 15, fontWeight: 800, color: "var(--slate)" }}>
+    {totalNeeded}
+  </span>
+  <span style={{ fontSize: 10, color: "var(--ink4)", textTransform: "uppercase", minWidth: '52px', textAlign: 'left' }}>
+    {getUnitLabel(ing.unit)}
+  </span>
+</div>
                     </div>
                   );
                 })

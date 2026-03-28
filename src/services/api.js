@@ -831,7 +831,7 @@ const kitchenApi = {
 
 // --- API object thống nhất (tương thích code cũ) ---
 const api = {
-  init() {},
+  init() { },
 
   isAuthenticated: () => auth.isAuthenticated(),
   login: (username, password) => auth.login(username, password),
@@ -992,6 +992,15 @@ const api = {
     });
   },
 
+  // 1. Lấy danh sách lịch sử kiểm kê
+  getStocktakeHistory: async () => {
+    return request("/api/inventory/stocktake/history", { method: "GET" });
+  },
+
+  // 2. Lấy chi tiết đợt kiểm kê
+  getStocktakeHistoryDetail: async (sessionCode) => {
+    return request(`/api/inventory/stocktake/history/${sessionCode}`, { method: "GET" });
+  },
   checkoutStoreCart(body) {
     return request("/api/store/cart/checkout", {
       method: "POST",
@@ -1029,8 +1038,8 @@ const api = {
       const res = await request("/api/store/settings/profile");
       const body =
         res?.data != null &&
-        typeof res.data === "object" &&
-        !Array.isArray(res.data)
+          typeof res.data === "object" &&
+          !Array.isArray(res.data)
           ? res.data
           : res;
       return body && typeof body === "object" ? body : {};
@@ -1306,6 +1315,16 @@ const api = {
       `/api/admin/accounts/${encodeURIComponent(id)}/store?storeId=${encodeURIComponent(sid)}`,
       { method: "PATCH" },
     );
+  },
+
+  // Lấy toàn bộ Master Data đơn vị tính
+  getUnits: async () => {
+    try {
+      const res = await request("/api/units");
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
   },
 
   async updateAccountRole(accountId, roleName, storeId, replacementAccountId) {

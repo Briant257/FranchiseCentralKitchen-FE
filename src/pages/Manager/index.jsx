@@ -41,6 +41,17 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [kpiStats, setKpiStats] = useState([]);
   const [selectedStore, setSelectedStore] = useState(null);
   const [stores, setStores] = useState([]);
+  const [unitMasterData, setUnitMasterData] = useState([]);
+const getUnitLabel = useCallback(
+  (code) => {
+    if (!code) return code;
+    const found = unitMasterData.find(
+      (u) => u.value === String(code).toUpperCase()
+    );
+    return found ? found.label : code;
+  },
+  [unitMasterData]
+);
   const [allOrders, setAllOrders] = useState([]);
 
   const [systemConfigs, setSystemConfigs] = useState({});
@@ -50,6 +61,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
 
+// STATE CHO BIỂU ĐỒ (Không liên quan đến API lọc ở trên)
+  const [tempChartMode, setTempChartMode] = useState("day"); // Lưu tạm lúc chọn Dropdown
+  const [appliedChartMode, setAppliedChartMode] = useState("day"); // Mode chính thức vẽ biểu đồ
   // --- STATE CHI TIẾT ĐƠN HÀNG FRANCHISE ---
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
@@ -71,7 +85,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [importSubmitting, setImportSubmitting] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
 
-  
+//state quản lý 
+  const [showForceConfirmModal, setShowForceConfirmModal] = useState(false);
+const [forceConfirmChecked, setForceConfirmChecked] = useState(false);
+const [backendWarningMsg, setBackendWarningMsg] = useState("");
+
 
   // --- STATE QUẢN LÝ SẢN PHẨM & DANH MỤC ---
   const [productSubTab, setProductSubTab] = useState("products");
@@ -103,6 +121,39 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     fromDate: "",
     toDate: "",
   });
+  // --- STATE LỊCH SỬ KIỂM KÊ ---
+
+  const [stocktakeHistory, setStocktakeHistory] = useState([]);
+  const [historyDetails, setHistoryDetails] = useState([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedSessionCode, setSelectedSessionCode] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Mở popup và lấy danh sách
+  const handleOpenHistory = async () => {
+    setShowHistoryModal(true);
+    setSelectedSessionCode(""); // Reset lại về màn danh sách
+    setIsLoadingHistory(true);
+    try {
+      const res = await api.getStocktakeHistory();
+      setStocktakeHistory(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error("Lỗi:", err);
+    }
+    setIsLoadingHistory(false);
+  };
+
+  // Xem chi tiết 1 phiên
+  const handleViewHistoryDetail = async (sessionCode) => {
+    setSelectedSessionCode(sessionCode);
+    setHistoryDetails([]);
+    try {
+      const res = await api.getStocktakeHistoryDetail(sessionCode);
+      setHistoryDetails(Array.isArray(res) ? res : []);
+    } catch (err) {
+      alert("Lỗi tải chi tiết: " + err.message);
+    }
+  };
 
   // --- BỔ SUNG STATE QUY ĐỔI ĐƠN VỊ ---
   const [conversions, setConversions] = useState([]);
@@ -114,10 +165,198 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [testData, setTestData] = useState({ unit: "", qty: "" });
   const [testResult, setTestResult] = useState(null);
 
+  // --- STATE PHÂN TRANG (PAGINATION) ---
+  const ITEMS_PER_PAGE = 15;
+  const [productPage, setProductPage] = useState(1);
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const [stocktakePage, setStocktakePage] = useState(1);
+  const [recipePage, setRecipePage] = useState(1);
+  const [franchiseOrderPage, setFranchiseOrderPage] = useState(1);
+  const [franchiseStorePage, setFranchiseStorePage] = useState(1);
+
+  const renderPagination = (currentPage, totalItems, setPageFunc) => {
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  if (totalPages <= 1) return null;
+
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '16px 0',
+      borderTop: '1px solid #1f2937'
+    }}>
+      {/* NÚT TRƯỚC */}
+      <button
+        type="button"
+        onClick={() => setPageFunc((p) => Math.max(1, p - 1))}
+        disabled={currentPage === 1}
+        style={{
+          padding: '8px 18px',
+          borderRadius: '10px',
+          fontWeight: '700',
+          fontSize: '13px',
+          border: 'none',
+          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+          background: currentPage === 1 ? '#1f2937' : '#374151',
+          color: currentPage === 1 ? '#4b5563' : '#e5e7eb',
+          transition: 'all 0.2s ease',
+          transform: 'translateY(0)',
+          opacity: currentPage === 1 ? 0.5 : 1,
+        }}
+        onMouseEnter={e => {
+          if (currentPage !== 1) {
+            e.currentTarget.style.transform = 'translateY(-3px)';
+            e.currentTarget.style.background = '#4b5563';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+          }
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.background = currentPage === 1 ? '#1f2937' : '#374151';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+      >
+        ← Trước
+      </button>
+
+      {/* SỐ TRANG */}
+      {Array.from({ length: totalPages }, (_, i) => i + 1)
+        .filter(page => {
+          // Hiện: trang đầu, trang cuối, trang hiện tại và 1 trang kề 2 bên
+          return (
+            page === 1 ||
+            page === totalPages ||
+            Math.abs(page - currentPage) <= 1
+          );
+        })
+        .reduce((acc, page, idx, arr) => {
+          // Thêm dấu "..." nếu bị nhảy cóc
+          if (idx > 0 && page - arr[idx - 1] > 1) {
+            acc.push('...');
+          }
+          acc.push(page);
+          return acc;
+        }, [])
+        .map((item, idx) =>
+          item === '...' ? (
+            <span
+              key={`dot-${idx}`}
+              style={{ color: '#4b5563', fontSize: '13px', padding: '0 4px', userSelect: 'none' }}
+            >
+              ···
+            </span>
+          ) : (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setPageFunc(item)}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                fontWeight: item === currentPage ? '800' : '600',
+                fontSize: '13px',
+                border: item === currentPage ? '2px solid #14b8a6' : '1px solid #374151',
+                cursor: item === currentPage ? 'default' : 'pointer',
+                background: item === currentPage ? 'rgba(20,184,166,0.15)' : '#1f2937',
+                color: item === currentPage ? '#2dd4bf' : '#9ca3af',
+                transition: 'all 0.2s ease',
+                transform: 'translateY(0)',
+              }}
+              onMouseEnter={e => {
+                if (item !== currentPage) {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.background = '#374151';
+                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                }
+              }}
+              onMouseLeave={e => {
+                if (item !== currentPage) {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.background = '#1f2937';
+                  e.currentTarget.style.color = '#9ca3af';
+                  e.currentTarget.style.boxShadow = 'none';
+                }
+              }}
+            >
+              {item}
+            </button>
+          )
+        )}
+
+      {/* NÚT SAU */}
+      <button
+        type="button"
+        onClick={() => setPageFunc((p) => Math.min(totalPages, p + 1))}
+        disabled={currentPage === totalPages}
+        style={{
+          padding: '8px 18px',
+          borderRadius: '10px',
+          fontWeight: '700',
+          fontSize: '13px',
+          border: 'none',
+          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+          background: currentPage === totalPages ? '#1f2937' : '#374151',
+          color: currentPage === totalPages ? '#4b5563' : '#e5e7eb',
+          transition: 'all 0.2s ease',
+          transform: 'translateY(0)',
+          opacity: currentPage === totalPages ? 0.5 : 1,
+        }}
+        onMouseEnter={e => {
+          if (currentPage !== totalPages) {
+            e.currentTarget.style.transform = 'translateY(-3px)';
+            e.currentTarget.style.background = '#4b5563';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+          }
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.background = currentPage === totalPages ? '#1f2937' : '#374151';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+      >
+        Sau →
+      </button>
+    </div>
+  );
+};
+const getMinChartMode = useCallback((start, end) => {
+  if (!start || !end) return "day";
+  const s = new Date(start);
+  const e = new Date(end);
+  const diffDays = Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24)) + 1;
+  if (diffDays > 365) return "year";      // > 12 tháng → năm
+  if (diffDays > 56)  return "month";     // > 8 tuần   → tháng
+  if (diffDays > 14)  return "week";      // > 14 ngày  → tuần
+  return "day";
+}, []);
+
+const CHART_MODE_LEVELS = { day: 0, week: 1, month: 2, year: 3 };
+
+const CHART_MODE_OPTIONS = [
+  { value: "day",   label: "Từng Ngày" },
+  { value: "week",  label: "Theo Tuần" },
+  { value: "month", label: "Theo Tháng" },
+  { value: "year",  label: "Theo Năm" },
+];
+
+// Thêm state này
+const [appliedDateRange, setAppliedDateRange] = useState({ start: "", end: "" });
+
+// Tính minMode chỉ từ khoảng ngày ĐÃ LỌC (không phải đang chọn trên picker)
+const minChartMode = useMemo(() => 
+  getMinChartMode(appliedDateRange.start, appliedDateRange.end),
+  [appliedDateRange, getMinChartMode]
+);
+
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [prods, reps, invs, kpis, sts, cfgs, dashFull, cats, reportedData] =
+      const [prods, reps, invs, kpis, sts, cfgs, dashFull, cats, reportedData, units] =
         await Promise.all([
           api.getMasterProducts().catch(() => []),
           api.getReports().catch(() => []),
@@ -127,7 +366,8 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           api.getSystemConfigs?.().catch(() => ({})),
           api.getManagerAnalytics().catch(() => null),
           api.getCategories().catch(() => []),
-          api.getReportedShipments().catch(() => [])
+          api.getReportedShipments().catch(() => []),
+          api.getUnits().catch(() => []),
         ]);
 
       setMasterProducts(prods);
@@ -139,6 +379,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       setSystemConfigs(cfgs || {});
       setDashboardData(dashFull || {});
       setReportedShipments(Array.isArray(reportedData) ? reportedData : []);
+      setUnitMasterData(Array.isArray(units) ? units : []);
     } catch (error) {
       console.error("Lỗi tải dữ liệu Manager:", error);
     } finally {
@@ -162,6 +403,8 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       },
     }));
   };
+ // HÀM XỬ LÝ KHI BẤM NÚT XÁC NHẬN Ở DROPDOWN
+  
   // ==========================================
   // HÀM XỬ LÝ SỰ CỐ (ĐỀN BÙ)
   // ==========================================
@@ -177,43 +420,58 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  const handleSubmitStocktake = async () => {
-    const payloadItems = Object.entries(stocktakeForm)
-      .filter(
-        ([id, data]) => data.actualQty !== "" && data.actualQty !== undefined,
-      )
-      .map(([id, data]) => ({
-        ingredientId: id,
-        actualQty: Number(data.actualQty),
-        note: data.note || "",
-      }));
+  const handleSubmitStocktake = async (isForce = false) => {
+  const payloadItems = Object.entries(stocktakeForm)
+    .filter(([id, data]) => data.actualQty !== "" && data.actualQty !== undefined)
+    .map(([id, data]) => ({
+      ingredientId: id,
+      actualQty: Number(data.actualQty),
+      forceConfirm: isForce, // Gắn cờ ghi đè (mặc định false)
+      note: data.note || "",
+    }));
 
-    if (payloadItems.length === 0) {
-      return alert("Bạn chưa nhập số lượng kiểm kê cho nguyên liệu nào!");
+  if (payloadItems.length === 0) {
+    return alert("Bạn chưa nhập số lượng kiểm kê cho nguyên liệu nào!");
+  }
+
+  // Chỉ hỏi confirm nếu là bấm lần 1 (chưa mở popup)
+  if (!isForce && !window.confirm(`Xác nhận kiểm kê ${payloadItems.length} nguyên liệu?`)) {
+    return;
+  }
+
+  setIsSubmittingStocktake(true);
+
+  try {
+    const response = await api.submitStocktake({ items: payloadItems });
+    
+    alert("✅ " + (response?.message || "Đã hoàn tất quá trình đối soát và kiểm kê kho!"));
+    
+    // Thành công thì reset hết
+    setShowForceConfirmModal(false);
+    setForceConfirmChecked(false);
+    setStocktakeForm({});
+    loadData();
+
+  }  catch (err) {
+    // Lúc này err chỉ có mỗi cái message do api.js đã "bọc" lại
+    const beMessage = err.response?.data?.message || err.message || "Lỗi không xác định";
+
+    // 💡 CHIÊU MỚI: Dò tìm từ khóa trong câu báo lỗi của Backend
+    const isOverLimitError = beMessage.includes("Xác nhận hao hụt bất thường") || beMessage.includes("chênh lệch");
+
+    if (isOverLimitError) {
+      // Nếu câu lỗi có chứa chữ cảnh báo hao hụt -> MỞ POPUP NGAY!
+      setBackendWarningMsg(beMessage.replace("Error: ", "")); // Cắt chữ Error: cho đẹp
+      setShowForceConfirmModal(true);
+      setForceConfirmChecked(false); 
+    } else {
+      // Nếu là các lỗi khác (lỗi mạng, sai token...) thì báo bình thường
+      alert("❌ " + beMessage);
     }
-
-    if (
-      window.confirm(`Xác nhận kiểm kê ${payloadItems.length} nguyên liệu?`)
-    ) {
-      setIsSubmittingStocktake(true);
-      try {
-        const response = await api.submitStocktake({ items: payloadItems });
-        alert(
-          "✅ " +
-            (response?.message ||
-              "Đã hoàn tất quá trình đối soát và kiểm kê kho!"),
-        );
-        setStocktakeForm({});
-        loadData();
-      } catch (err) {
-        const beMessage = err.response?.data?.message || err.message;
-        alert("❌ " + beMessage);
-      } finally {
-        setIsSubmittingStocktake(false);
-      }
-    }
-  };
-
+  } finally {
+    setIsSubmittingStocktake(false);
+  }
+};
   // ==========================================
   // HÀM XỬ LÝ SẢN PHẨM & DANH MỤC
   // ==========================================
@@ -291,7 +549,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  const handleToggleMasterProductStatus = async (prod) => {
+ const handleToggleMasterProductStatus = async (prod) => {
     const productId = prod.product_id || prod.productId;
     const isCurrentlySelling =
       prod.isActive === true ||
@@ -302,12 +560,14 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     const newStatus = !isCurrentlySelling;
 
     const confirmMsg = newStatus
-      ? "Bạn có chắc muốn chuyển SP này sang trạng thái ĐANG BÁN lại không?"
+      ? "Bạn có chắc muốn chuyển SP này sang trạng thái ĐANG BÁN không?"
       : "Bạn có chắc muốn chuyển SP này sang trạng thái NGỪNG BÁN không?";
 
     if (window.confirm(confirmMsg)) {
       try {
         await api.updateProductStatus(productId, newStatus);
+        
+        // Thành công thì cập nhật state
         setMasterProducts((prevProducts) =>
           prevProducts.map((p) =>
             (p.product_id || p.productId) === productId
@@ -321,10 +581,19 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           ),
         );
       } catch (error) {
-        alert("Lỗi cập nhật trạng thái!");
+        // HỨNG LỖI TỪ BACKEND Ở ĐÂY
+        const errMsg = error.message || error.response?.data?.message || "";
+        
+        // Dò từ khóa lỗi thiếu BOM từ Backend
+        if (errMsg.includes("Không thể mở bán") || errMsg.includes("BOM") || errMsg.includes("công thức")) {
+          alert("❌ Không thể mở bán! Sản phẩm này chưa có định lượng nguyên liệu. Vui lòng chuyển sang tab [Quản lý công thức] để thiết lập BOM trước khi tung ra thị trường.");
+        } else {
+          alert("Lỗi cập nhật trạng thái: " + errMsg);
+        }
       }
     }
   };
+  
 
   // ==========================================
   // HÀM XỬ LÝ KHÁC
@@ -480,68 +749,146 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  // GOM CỤM DỮ LIỆU BIỂU ĐỒ KPI
+ // GOM CỤM DỮ LIỆU BIỂU ĐỒ - ĐỒNG BỘ VỚI BỘ LỌC DỮ LIỆU
   const chartData = React.useMemo(() => {
     const raw = dashboardData?.exportTrend || [];
-    if (raw.length === 0) return [];
+    
+    // ✅ Dùng appliedDateRange thay vì filterStart/filterEnd
+  let start = appliedDateRange.start ? new Date(appliedDateRange.start) : null;
+  let end = appliedDateRange.end ? new Date(appliedDateRange.end) : new Date();
 
-    const normalized = raw.map((d) => ({
-      date: d.date || d.timeLabel || "",
-      val: Number(d.revenue || d.exportValue || d.totalValue || 0),
-      count: Number(d.orderCount || d.totalOrders || 0),
-    }));
+  if (!start && raw.length > 0) {
+    start = new Date(raw[0].date || raw[0].timeLabel);
+  } else if (!start) {
+    start = new Date();
+    start.setDate(end.getDate() - 6);
+  }
+    
+    // Chuẩn hóa giờ để không bị lệch ngày
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
 
-    const len = normalized.length;
+    // Đảo lại nếu lỡ chọn ngày bắt đầu lớn hơn ngày kết thúc
+    if (start > end) {
+      const temp = start;
+      start = end;
+      end = temp;
+    }
 
-    if (len <= 14) {
-      return normalized.map((d) => ({
-        label: d.date.split("-").slice(1).reverse().join("/"),
-        val: d.val,
-        count: d.count,
-        tooltipTitle: `Ngày: ${d.date.split("-").reverse().join("/")}`,
-      }));
-    } else if (len <= 60) {
-      const grouped = [];
-      for (let i = 0; i < len; i += 7) {
-        const chunk = normalized.slice(i, i + 7);
-        const sumVal = chunk.reduce((acc, curr) => acc + curr.val, 0);
-        const sumCount = chunk.reduce((acc, curr) => acc + curr.count, 0);
-        const start = chunk[0].date.split("-").slice(1).reverse().join("/");
-        const end = chunk[chunk.length - 1].date
-          .split("-")
-          .slice(1)
-          .reverse()
-          .join("/");
+    const getIsoDate = (dObj) => {
+      return `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, "0")}-${String(dObj.getDate()).padStart(2, "0")}`;
+    };
 
-        grouped.push({
-          label: `${start} - ${end}`,
+    const result = [];
+
+    // 2. VẼ BIỂU ĐỒ DỰA TRÊN KHOẢNG THỜI GIAN ĐÃ LỌC
+    if (appliedChartMode === "day") {
+      let curr = new Date(start);
+      while (curr <= end) {
+        const dateStr = getIsoDate(curr);
+        const match = raw.find((x) => (x.date || x.timeLabel) === dateStr) || {};
+        
+        result.push({
+          label: `${String(curr.getDate()).padStart(2, "0")}/${String(curr.getMonth() + 1).padStart(2, "0")}`,
+          val: Number(match.revenue || match.exportValue || match.totalValue || 0),
+          count: Number(match.orderCount || match.totalOrders || 0),
+          tooltipTitle: `Ngày: ${dateStr}`,
+        });
+        curr.setDate(curr.getDate() + 1); // Tăng lên 1 ngày
+      }
+    } 
+    else if (appliedChartMode === "week") {
+      let curr = new Date(start);
+      // Lùi về Thứ 2 của tuần chứa ngày start
+      const dayOfWeek = curr.getDay() === 0 ? 6 : curr.getDay() - 1;
+      curr.setDate(curr.getDate() - dayOfWeek);
+
+      while (curr <= end) {
+        const startWeek = new Date(curr);
+        const endWeek = new Date(curr);
+        endWeek.setDate(curr.getDate() + 6);
+
+        let sumVal = 0, sumCount = 0;
+        for (let j = 0; j < 7; j++) {
+          const tempDay = new Date(startWeek);
+          tempDay.setDate(startWeek.getDate() + j);
+          const match = raw.find((x) => (x.date || x.timeLabel) === getIsoDate(tempDay));
+          if (match) {
+            sumVal += Number(match.revenue || match.exportValue || match.totalValue || 0);
+            sumCount += Number(match.orderCount || match.totalOrders || 0);
+          }
+        }
+
+        const startLabel = `${String(startWeek.getDate()).padStart(2, "0")}/${String(startWeek.getMonth() + 1).padStart(2, "0")}`;
+        const endLabel = `${String(endWeek.getDate()).padStart(2, "0")}/${String(endWeek.getMonth() + 1).padStart(2, "0")}`;
+
+        result.push({
+          label: `${startLabel} - ${endLabel}`, // Vẫn giữ label từ ngày mấy đến ngày mấy nhé
           val: sumVal,
           count: sumCount,
-          tooltipTitle: `Từ ${start} đến ${end}`,
+          tooltipTitle: `Từ ${getIsoDate(startWeek)} đến ${getIsoDate(endWeek)}`,
         });
-      }
-      return grouped;
-    } else {
-      const monthMap = {};
-      normalized.forEach((d) => {
-        const parts = d.date.split("-");
-        let monthKey = "Khác";
-        if (parts.length >= 2) monthKey = `${parts[1]}/${parts[0]}`;
 
-        if (!monthMap[monthKey]) {
-          monthMap[monthKey] = {
-            label: `T${parts[1]}`,
-            val: 0,
-            count: 0,
-            tooltipTitle: `Tháng ${monthKey}`,
-          };
+        curr.setDate(curr.getDate() + 7); // Tăng lên 1 tuần
+      }
+    } 
+    else if (appliedChartMode === "month") {
+      let curr = new Date(start.getFullYear(), start.getMonth(), 1);
+      const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+      while (curr <= endMonth) {
+        const monthPrefix = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, "0")}`;
+        let sumVal = 0, sumCount = 0;
+        
+        raw.forEach((match) => {
+          if ((match.date || match.timeLabel || "").startsWith(monthPrefix)) {
+            sumVal += Number(match.revenue || match.exportValue || match.totalValue || 0);
+            sumCount += Number(match.orderCount || match.totalOrders || 0);
+          }
+        });
+
+        result.push({
+          label: `Tháng ${curr.getMonth() + 1}`,
+          val: sumVal,
+          count: sumCount,
+          tooltipTitle: `Tháng ${curr.getMonth() + 1}/${curr.getFullYear()}`,
+        });
+        curr.setMonth(curr.getMonth() + 1); // Tăng lên 1 tháng
+      }
+    } 
+    else if (appliedChartMode === "year") {
+      let currYear = start.getFullYear();
+      const endYear = end.getFullYear();
+
+      while (currYear <= endYear) {
+        let sumVal = 0, sumCount = 0;
+        
+        // Tạo một biến const (hằng số) để "chốt" cái năm lại, ESLint sẽ không kêu ca nữa
+        const targetYearStr = currYear.toString(); 
+
+        // Đổi từ raw.forEach(...) sang for...of để không tạo ra function trong vòng lặp
+        for (const match of raw) {
+          if ((match.date || match.timeLabel || "").startsWith(targetYearStr)) {
+            sumVal += Number(match.revenue || match.exportValue || match.totalValue || 0);
+            sumCount += Number(match.orderCount || match.totalOrders || 0);
+          }
         }
-        monthMap[monthKey].val += d.val;
-        monthMap[monthKey].count += d.count;
-      });
-      return Object.values(monthMap);
+
+        result.push({
+          label: `Năm ${currYear}`,
+          val: sumVal,
+          count: sumCount,
+          tooltipTitle: `Năm ${currYear}`,
+        });
+        currYear++;
+      }
     }
-  }, [dashboardData?.exportTrend]);
+    return result;
+  },  [dashboardData?.exportTrend, appliedChartMode, appliedDateRange.start, appliedDateRange.end]);
+  useEffect(() => setProductPage(1), [productAppliedSearch, filterProductCategory]);
+  useEffect(() => setInventoryPage(1), [inventoryAppliedSearch, filterInventoryStatus]);
+  useEffect(() => setRecipePage(1), [recipeAppliedSearch]);
+  useEffect(() => setFranchiseOrderPage(1), [selectedStore]);
 
   return (
     <div className="ck-root ck-min-h-screen ck-bg-black">
@@ -652,31 +999,39 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                         onChange={(e) => setFilterEnd(e.target.value)}
                         className="mgr-input-date"
                       />
-                      <button
-                        type="button"
-                        className="mgr-btn mgr-btn--green"
-                        onClick={async () => {
-                          setIsLoading(true);
-                          try {
-                            const kpis = await api.getKPIStats(
-                              filterStart,
-                              filterEnd,
-                            );
-                            const dash = await api.getManagerAnalytics(
-                              filterStart,
-                              filterEnd,
-                            );
-                            setKpiStats(kpis);
-                            setDashboardData(dash);
-                          } catch (e) {
-                            console.error(e);
-                          }
-                          setIsLoading(false);
-                        }}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? "Đang tải…" : "Lọc dữ liệu"}
-                      </button>
+                     <button
+  type="button"
+  className="mgr-btn mgr-btn--green"
+  onClick={async () => {
+     setAppliedDateRange({ start: filterStart, end: filterEnd });
+    setIsLoading(true);
+
+    // Tính mode tối thiểu dựa trên khoảng ngày
+    const autoMode = getMinChartMode(filterStart, filterEnd);
+    const autoLevel = CHART_MODE_LEVELS[autoMode];
+    
+    // Nếu mode đang chọn thấp hơn mức tối thiểu → ép về autoMode
+    const currentLevel = CHART_MODE_LEVELS[tempChartMode];
+    const resolvedMode = currentLevel >= autoLevel ? tempChartMode : autoMode;
+    
+    setTempChartMode(resolvedMode);
+    setAppliedChartMode(resolvedMode);
+
+    try {
+      const kpis = await api.getKPIStats(filterStart, filterEnd);
+      const dash = await api.getManagerAnalytics(filterStart, filterEnd);
+      setKpiStats(kpis);
+      setDashboardData(dash);
+    } catch (e) {
+      console.error(e);
+    }
+    setIsLoading(false);
+  }}
+  disabled={isLoading}
+>
+  {isLoading ? "Đang tải…" : "Lọc dữ liệu"}
+  
+</button>
                     </div>
                     <button
                       type="button"
@@ -719,24 +1074,67 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
                 <div className="mgr-kpi-layout">
                   <div className="mgr-panel" style={{ minHeight: 360 }}>
-                    <div className="mgr-panel__head">
-                      <div>
-                        <h3 className="mgr-panel__title">
-                          Giá trị xuất kho theo thời gian
-                        </h3>
-                      </div>
-                    </div>
+                   <div className="mgr-panel__head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+  <div>
+    <h3 className="mgr-panel__title">
+      Giá trị xuất kho theo thời gian
+    </h3>
+  </div>
+  
+  <div className="ck-flex ck-items-center ck-gap-2">
+  <span className="ck-text-sm ck-text-gray-400">Gộp theo:</span>
+  <select
+    className="mgr-select ck-bg-gray-800 ck-text-white ck-border ck-border-gray-700 ck-rounded-lg ck-px-3 ck-py-1.5 ck-text-sm ck-outline-none focus:ck-border-teal-500"
+    value={tempChartMode}
+    onChange={(e) => setTempChartMode(e.target.value)}
+  >
+    {CHART_MODE_OPTIONS.map((opt) => {
+  const isDisabled = CHART_MODE_LEVELS[opt.value] < CHART_MODE_LEVELS[minChartMode];
+  return (
+    <option
+      key={opt.value}
+      value={opt.value}
+      disabled={isDisabled}
+      style={{ color: isDisabled ? "#4b5563" : undefined }}
+    >
+      {opt.label}{isDisabled ? " (không khả dụng)" : ""}
+    </option>
+  );
+})}
+  </select>
+
+  <button
+    type="button"
+    className="mgr-btn mgr-btn--primary"
+    style={{ padding: "6px 16px", fontSize: "13px", borderRadius: "6px" }}
+    onClick={() => {
+      // Kiểm tra lần cuối trước khi apply
+      const minMode = minChartMode;
+      const minLevel = CHART_MODE_LEVELS[minMode];
+      const selectedLevel = CHART_MODE_LEVELS[tempChartMode];
+      if (selectedLevel < minLevel) {
+        // Không cho apply, hiện thông báo
+        alert(`Khoảng thời gian đang chọn yêu cầu gộp tối thiểu theo "${
+          CHART_MODE_OPTIONS.find(o => o.value === minMode)?.label
+        }"`);
+        return;
+      }
+      setAppliedChartMode(tempChartMode);
+    }}
+  >
+    Xác nhận
+  </button>
+</div>
+</div>
                     <div className="mgr-panel__body">
                       <div
-                        className="mgr-chart ck-flex ck-items-end ck-justify-between ck-w-full ck-px-2"
-                        style={{ minHeight: 280, paddingTop: 20 }}
-                      >
-                        {chartData.length > 0 ? (
-                          chartData.map((item, i) => {
-                            const maxVal =
-                              Math.max(...chartData.map((d) => d.val)) || 1;
-                            const heightPercent =
-                              item.val > 0 ? (item.val / maxVal) * 100 : 1;
+  className="mgr-chart ck-flex ck-items-end ck-w-full ck-px-2 ck-overflow-x-auto ck-scrollbar"
+  style={{ minHeight: 280, paddingTop: 20, gap: '8px' }} // Thêm gap để các cột cách đều nhau
+>
+  {chartData.length > 0 ? (
+    chartData.map((item, i) => {
+      const maxVal = Math.max(...chartData.map((d) => d.val)) || 1;
+      const heightPercent = item.val > 0 ? (item.val / maxVal) * 100 : 1;
                             return (
                               <div
                                 key={i}
@@ -891,604 +1289,542 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
             )}
 
             {/* ================== 2. TAB QUẢN LÝ SẢN PHẨM & DANH MỤC ================== */}
-            {activeManagementTab === "Quản lý sản phẩm & Danh mục" && (
-              <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full mgr-section ck-animate-fade-in">
-                <div className="ck-flex ck-justify-between ck-items-center">
-                  <div>
-                    <div
-                      className="mgr-section-head__eyebrow"
-                      style={{ marginBottom: "4px" }}
-                    >
-                      Thực đơn & Công thức
-                    </div>
-                    <h2
-                      className="mgr-section-head__title"
-                      style={{ margin: 0 }}
-                    >
-                      Quản lý sản phẩm
-                    </h2>
+{activeManagementTab === "Quản lý sản phẩm & Danh mục" && (
+  <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full mgr-section ck-animate-fade-in">
+    <div className="ck-flex ck-justify-between ck-items-center">
+      <div>
+        <div
+          className="mgr-section-head__eyebrow"
+          style={{ marginBottom: "4px" }}
+        >
+          Thực đơn & Công thức
+        </div>
+        <h2
+          className="mgr-section-head__title"
+          style={{ margin: 0 }}
+        >
+          Quản lý sản phẩm
+        </h2>
+      </div>
+      <div className="ck-flex ck-gap-3">
+        <button
+          type="button"
+          className="btn btn-outline-teal"
+          onClick={() => {
+            setShowAddCategory(true);
+            setShowAddProduct(false);
+            setEditingProduct(null);
+            setNewCategoryName("");
+            setNewCategoryDescription("");
+          }}
+        >
+          <Plus size={16} />
+          Thêm danh mục
+        </button>
+        <button
+          type="button"
+          className="mgr-btn mgr-btn--primary"
+          onClick={() => {
+            setShowAddProduct(true);
+            setShowAddCategory(false);
+            setEditingProduct(null);
+            setNewProduct({
+              productId: "",
+              productName: "",
+              categoryId: categoriesList[0]?.id ?? "",
+              sellingPrice: "",
+              baseUnit: "PHAN",
+              isActive: false,
+              ingredients: [],
+            });
+          }}
+        >
+          <Plus size={16} />
+          Thêm sản phẩm
+        </button>
+      </div>
+    </div>
+    <div className="tabs sub-tabs" style={{ marginBottom: 24 }}>
+      <button
+        type="button"
+        className={`tab ${productSubTab === "products" ? "active" : ""}`}
+        onClick={() => {
+          setProductSubTab("products");
+          setShowAddCategory(false);
+        }}
+      >
+        Sản phẩm
+      </button>
+      <button
+        type="button"
+        className={`tab ${productSubTab === "categories" ? "active" : ""}`}
+        onClick={() => {
+          setProductSubTab("categories");
+          setShowAddProduct(false);
+        }}
+      >
+        Danh mục
+      </button>
+    </div>
+    <div className="mgr-stat-grid">
+      <div className="mgr-stat-card mgr-stat-card--0">
+        <div className="mgr-stat-card__label">Tổng sản phẩm</div>
+        <div className="mgr-stat-card__value">
+          {productStats.total}
+        </div>
+        <div className="mgr-stat-card__foot">đang bán</div>
+      </div>
+      <div className="mgr-stat-card mgr-stat-card--1">
+        <div className="mgr-stat-card__label">Danh mục</div>
+        <div
+          className="mgr-stat-card__value"
+          style={{ color: "#a78bfa" }}
+        >
+          {productStats.categoriesCount}
+        </div>
+        <div className="mgr-stat-card__foot">phân loại</div>
+      </div>
+      <div className="mgr-stat-card mgr-stat-card--2">
+        <div className="mgr-stat-card__label">Có công thức</div>
+        <div
+          className="mgr-stat-card__value"
+          style={{ color: "#2dd4bf" }}
+        >
+          {productStats.withFormula}
+        </div>
+        <div className="mgr-stat-card__foot">đã cấu hình</div>
+      </div>
+      <div className="mgr-stat-card mgr-stat-card--3">
+        <div className="mgr-stat-card__label">Giá trung bình</div>
+        <div
+          className="mgr-stat-card__value"
+          style={{ color: "#4ade80" }}
+        >
+          {productStats.avgPrice >= 1000
+            ? `${(productStats.avgPrice / 1000).toFixed(0)}k`
+            : productStats.avgPrice}
+        </div>
+        <div className="mgr-stat-card__foot">mỗi món</div>
+      </div>
+    </div>
+
+    {/* === SUBTAB SẢN PHẨM === */}
+    {productSubTab === "products" && (
+      <>
+        <div className="mgr-search-row">
+          <div className="mgr-search-bar mgr-search-bar--rose">
+            <input
+              type="text"
+              placeholder="Tìm theo mã sản phẩm hoặc tên sản phẩm…"
+              defaultValue={productSearchText}
+              onChange={(e) => setProductSearchText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter")
+                  setProductAppliedSearch(productSearchText);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setProductAppliedSearch(productSearchText)
+              }
+            >
+              Tìm
+            </button>
+          </div>
+          <select
+            value={filterProductCategory}
+            onChange={(e) =>
+              setFilterProductCategory(e.target.value)
+            }
+            className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer"
+          >
+            <option value="Tất cả danh mục">Tất cả danh mục</option>
+            {categoriesList.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mgr-split">
+          <div
+            className="mgr-split__main mgr-table-wrap ck-transition-all ck-duration-300"
+            style={{ flexBasis: "100%", maxWidth: "100%" }}
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã món</th>
+                  <th>Sản phẩm</th>
+                  <th>Danh mục</th>
+                  <th>Giá franchise</th>
+                  <th style={{ textAlign: "center" }}>
+                    Trạng thái
+                  </th>
+                  <th style={{ textAlign: "center" }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const rows = masterProducts.filter((prod) => {
+                    let matchText = true;
+                    if (productAppliedSearch)
+                      matchText =
+                        (prod.product_id || prod.productId || "").toLowerCase().includes(productAppliedSearch.toLowerCase()) ||
+                        (prod.product_name || prod.name || "").toLowerCase().includes(productAppliedSearch.toLowerCase());
+                    const matchCat = filterProductCategory === "Tất cả danh mục" || prod.category === filterProductCategory;
+                    return matchText && matchCat;
+                  });
+
+                  // CẮT DỮ LIỆU ĐỂ PHÂN TRANG
+                  const currentRows = rows.slice((productPage - 1) * ITEMS_PER_PAGE, productPage * ITEMS_PER_PAGE);
+
+                  if (rows.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={6} style={{ padding: 0, border: "none" }}>
+                          <div className="mgr-empty" style={{ margin: 16 }}>
+                            <div className="mgr-empty__icon">🍽️</div>
+                            <p className="mgr-empty__title">Không có sản phẩm phù hợp</p>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  
+                  return (
+                    <>
+                      {currentRows.map((prod, idx) => {
+                        const isSelling = prod.isActive === true || prod.active === true || prod.is_active === true || prod.is_active === 1 || String(prod.is_active) === "true";
+                        const createdDate = prod.createdAt || prod.created_at ? new Date(prod.createdAt || prod.created_at) : new Date();
+                        const daysSinceCreation = Math.floor((new Date() - createdDate) / (1000 * 60 * 60 * 24));
+
+                        return (
+                          /* ... (TOÀN BỘ NỘI DUNG THẺ <tr> HIỂN THỊ CỦA BẠN GIỮ NGUYÊN Ở ĐÂY) ... */
+                          <tr key={idx}>
+                             <td className="mgr-mono-muted">{prod.product_id || prod.productId}</td>
+                             <td className="mgr-cell-strong">{prod.product_name || prod.name}</td>
+                             {/* ... Các cột còn lại giữ nguyên ... */}
+                             <td style={{ color: "var(--text2, #d1d5db)" }}>{prod.category}</td>
+                             <td className="mgr-mono-muted" style={{ color: "#86efac" }}>{Number(prod.selling_price || prod.sellingPrice || prod.price || 0).toLocaleString("vi-VN")} ₫</td>
+                             {/* Cột trạng thái và Cột Thao tác */}
+                             <td style={{ textAlign: "center" }}>
+                               {isSelling ? <span className="mgr-pill mgr-pill--ok">🟢 Đang bán</span> : daysSinceCreation <= 7 ? <span className="mgr-pill" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>🟠 Bản nháp (Chưa có BOM)</span> : <span className="mgr-pill" style={{ background: 'rgba(75, 85, 99, 0.2)', color: '#9ca3af' }}>⚫ Ngừng bán</span>}
+                             </td>
+                             <td style={{ textAlign: "center" }}>
+                               <div className="mgr-action-group" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                                <button
+  type="button"
+  title="Chỉnh sửa"
+  onClick={() => {
+    // 1. Tìm ID danh mục (để đổ vào dropdown trong modal)
+    let catId = prod.categoryId || prod.category_id;
+    if (!catId) {
+      const foundCat = categoriesList.find((c) => c.name === prod.category);
+      catId = foundCat ? foundCat.id : (categoriesList[0]?.id ?? "");
+    }
+
+    // 2. Gán SP đang sửa vào state để Modal biết đường hiển thị
+    setEditingProduct(prod);
+
+    // 3. Đổ dữ liệu cũ vào Form
+    setNewProduct({
+      productId: prod.product_id || prod.productId || "",
+      productName: prod.product_name || prod.name || "",
+      categoryId: catId,
+      sellingPrice: prod.selling_price || prod.sellingPrice || prod.price || "",
+      baseUnit: prod.baseUnit || "PHAN",
+      isActive: isSelling,
+      ingredients: prod.ingredients || [],
+    });
+
+    // 4. Mở Modal lên
+    setShowAddProduct(true);
+  }}
+  className="mgr-icon-btn"
+  style={{ padding: '6px 12px' }}
+>
+  Sửa
+</button>
+                                 <button type="button" onClick={() => handleToggleMasterProductStatus(prod)} className="mgr-icon-btn" style={{ color: isSelling ? "" : "#4ade80", fontSize: "14px", padding: '6px 12px', minWidth: '60px' }}>{isSelling ? "Đóng" : "Mở"}</button>
+                               </div>
+                             </td>
+                          </tr>
+                        );
+                      })}
+                      {/* DÒNG NÀY SẼ HIỆN NÚT PHÂN TRANG Ở CUỐI BẢNG */}
+                      <tr>
+                        <td colSpan={6} style={{ padding: 0, border: "none" }}>
+                          {renderPagination(productPage, rows.length, setProductPage)}
+                        </td>
+                      </tr>
+                    </>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>
+    )}
+
+    {/* === SUBTAB DANH MỤC === */}
+    {productSubTab === "categories" && (
+      <div className="ck-flex ck-gap-6 ck-items-start">
+        <div
+          className="cat-grid ck-transition-all ck-duration-300 ck-w-full"
+          style={{ flexBasis: "100%", maxWidth: "100%" }}
+        >
+          {categoriesList.length === 0 ? (
+            <div
+              className="empty-state"
+              style={{ gridColumn: "1 / -1" }}
+            >
+              Chưa có danh mục. Bấm "Thêm danh mục" để tạo.
+            </div>
+          ) : (
+            categoriesList.map((cat) => {
+              const count = masterProducts.filter(
+                (p) =>
+                  p.category === cat.name ||
+                  String(p.categoryId) === String(cat.id),
+              ).length;
+              return (
+                <div key={cat.id} className="cat-card">
+                  <div className="cat-icon">
+                    {cat.name &&
+                      (cat.name.toLowerCase().includes("cơm")
+                        ? "🍚"
+                        : cat.name.toLowerCase().includes("nước") ||
+                            cat.name.toLowerCase().includes("nuoc")
+                          ? "🍜"
+                          : cat.name
+                                .toLowerCase()
+                                .includes("uống") ||
+                              cat.name
+                                .toLowerCase()
+                                .includes("uong")
+                            ? "🧋"
+                            : cat.name
+                                  .toLowerCase()
+                                  .includes("tráng") ||
+                                cat.name
+                                  .toLowerCase()
+                                  .includes("trang")
+                              ? "🍮"
+                              : "🍽")}
                   </div>
-                  <div className="ck-flex ck-gap-3">
-                    <button
-                      type="button"
-                      className="mgr-btn mgr-btn--ghost"
-                      onClick={() => {
-                        setShowAddCategory(true);
-                        setShowAddProduct(false);
-                        setEditingProduct(null);
-                        setNewCategoryName("");
-                        setNewCategoryDescription("");
-                      }}
-                    >
-                      <Plus size={16} />
-                      Thêm danh mục
-                    </button>
-                    <button
-                      type="button"
-                      className="mgr-btn mgr-btn--primary"
-                      onClick={() => {
-                        setShowAddProduct(true);
-                        setShowAddCategory(false);
-                        setEditingProduct(null);
-                        setNewProduct({
-                          productId: "",
-                          productName: "",
-                          categoryId: categoriesList[0]?.id ?? "",
-                          sellingPrice: "",
-                          baseUnit: "PHAN",
-                          isActive: true,
-                          ingredients: [],
-                        });
-                      }}
-                    >
-                      <Plus size={16} />
-                      Thêm sản phẩm
-                    </button>
+                  <div className="cat-name">{cat.name}</div>
+                  <div className="cat-desc">
+                    {cat.description || "Chưa có mô tả"}
+                  </div>
+                  <div className="cat-meta">
+                    <span className="cat-id">ID: {cat.id}</span>
+                    <span className="cat-count">{count} món</span>
                   </div>
                 </div>
-                <div className="tabs sub-tabs" style={{ marginBottom: 24 }}>
-                  <button
-                    type="button"
-                    className={`tab ${productSubTab === "products" ? "active" : ""}`}
-                    onClick={() => {
-                      setProductSubTab("products");
-                      setShowAddCategory(false);
-                    }}
-                  >
-                    Sản phẩm
-                  </button>
-                  <button
-                    type="button"
-                    className={`tab ${productSubTab === "categories" ? "active" : ""}`}
-                    onClick={() => {
-                      setProductSubTab("categories");
-                      setShowAddProduct(false);
-                    }}
-                  >
-                    Danh mục
-                  </button>
-                </div>
-                <div className="mgr-stat-grid">
-                  <div className="mgr-stat-card mgr-stat-card--0">
-                    <div className="mgr-stat-card__label">Tổng sản phẩm</div>
-                    <div className="mgr-stat-card__value">
-                      {productStats.total}
-                    </div>
-                    <div className="mgr-stat-card__foot">đang bán</div>
-                  </div>
-                  <div className="mgr-stat-card mgr-stat-card--1">
-                    <div className="mgr-stat-card__label">Danh mục</div>
-                    <div
-                      className="mgr-stat-card__value"
-                      style={{ color: "#a78bfa" }}
-                    >
-                      {productStats.categoriesCount}
-                    </div>
-                    <div className="mgr-stat-card__foot">phân loại</div>
-                  </div>
-                  <div className="mgr-stat-card mgr-stat-card--2">
-                    <div className="mgr-stat-card__label">Có công thức</div>
-                    <div
-                      className="mgr-stat-card__value"
-                      style={{ color: "#2dd4bf" }}
-                    >
-                      {productStats.withFormula}
-                    </div>
-                    <div className="mgr-stat-card__foot">đã cấu hình</div>
-                  </div>
-                  <div className="mgr-stat-card mgr-stat-card--3">
-                    <div className="mgr-stat-card__label">Giá trung bình</div>
-                    <div
-                      className="mgr-stat-card__value"
-                      style={{ color: "#4ade80" }}
-                    >
-                      {productStats.avgPrice >= 1000
-                        ? `${(productStats.avgPrice / 1000).toFixed(0)}k`
-                        : productStats.avgPrice}
-                    </div>
-                    <div className="mgr-stat-card__foot">mỗi món</div>
-                  </div>
-                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    )}
 
-                {/* === SUBTAB SẢN PHẨM === */}
-                {productSubTab === "products" && (
-                  <>
-                    <div className="mgr-search-row">
-                      <div className="mgr-search-bar mgr-search-bar--rose">
-                        <input
-                          type="text"
-                          placeholder="Tìm theo mã sản phẩm hoặc tên sản phẩm…"
-                          defaultValue={productSearchText}
-                          onChange={(e) => setProductSearchText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter")
-                              setProductAppliedSearch(productSearchText);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setProductAppliedSearch(productSearchText)
-                          }
-                        >
-                          Tìm
-                        </button>
-                      </div>
-                      <select
-                        value={filterProductCategory}
-                        onChange={(e) =>
-                          setFilterProductCategory(e.target.value)
-                        }
-                        className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer"
-                      >
-                        <option value="Tất cả danh mục">Tất cả danh mục</option>
-                        {categoriesList.map((cat) => (
-                          <option key={cat.id} value={cat.name}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+    {/* ========================================================= */}
+    {/* MODAL ĐƯỢC CHUYỂN RA NGOÀI ĐÂY ĐỂ LUÔN GỌI ĐƯỢC */}
+    {/* ========================================================= */}
 
-                    <div className="mgr-split">
-                      <div
-                        className="mgr-split__main mgr-table-wrap ck-transition-all ck-duration-300"
-                        style={{
-                          flexBasis: showAddProduct ? "64%" : "100%",
-                          maxWidth: showAddProduct ? "64%" : "100%",
-                        }}
-                      >
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Mã món</th>
-                              <th>Sản phẩm</th>
-                              <th>Danh mục</th>
-                              <th>Giá franchise</th>
-                              <th style={{ textAlign: "center" }}>
-                                Trạng thái
-                              </th>
-                              <th style={{ textAlign: "center" }}>Thao tác</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const rows = masterProducts.filter((prod) => {
-                                let matchText = true;
-                                if (productAppliedSearch)
-                                  matchText =
-                                    (prod.product_id || prod.productId || "")
-                                      .toLowerCase()
-                                      .includes(
-                                        productAppliedSearch.toLowerCase(),
-                                      ) ||
-                                    (prod.product_name || prod.name || "")
-                                      .toLowerCase()
-                                      .includes(
-                                        productAppliedSearch.toLowerCase(),
-                                      );
-                                const matchCat =
-                                  filterProductCategory === "Tất cả danh mục" ||
-                                  prod.category === filterProductCategory;
-                                return matchText && matchCat;
-                              });
-                              if (rows.length === 0) {
-                                return (
-                                  <tr>
-                                    <td
-                                      colSpan={6}
-                                      style={{ padding: 0, border: "none" }}
-                                    >
-                                      <div
-                                        className="mgr-empty"
-                                        style={{ margin: 16 }}
-                                      >
-                                        <div className="mgr-empty__icon">
-                                          🍽️
-                                        </div>
-                                        <p className="mgr-empty__title">
-                                          Không có sản phẩm phù hợp
-                                        </p>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              }
-                              return rows.map((prod, idx) => {
-                                const isSelling =
-                                  prod.isActive === true ||
-                                  prod.active === true ||
-                                  prod.is_active === true ||
-                                  prod.is_active === 1 ||
-                                  String(prod.is_active) === "true";
-                                return (
-                                  <tr key={idx}>
-                                    <td className="mgr-mono-muted">
-                                      {prod.product_id || prod.productId}
-                                    </td>
-                                    <td className="mgr-cell-strong">
-                                      {prod.product_name || prod.name}
-                                    </td>
-                                    <td
-                                      style={{ color: "var(--text2, #d1d5db)" }}
-                                    >
-                                      {prod.category}
-                                    </td>
-                                    <td
-                                      className="mgr-mono-muted"
-                                      style={{ color: "#86efac" }}
-                                    >
-                                      {Number(
-                                        prod.selling_price ||
-                                          prod.sellingPrice ||
-                                          prod.price ||
-                                          0,
-                                      ).toLocaleString("vi-VN")}{" "}
-                                      ₫
-                                    </td>
-                                    <td style={{ textAlign: "center" }}>
-                                      <span
-                                        className={`mgr-pill ${isSelling ? "mgr-pill--ok" : "mgr-pill--danger"}`}
-                                      >
-                                        {isSelling ? "Đang bán" : "Ngừng bán"}
-                                      </span>
-                                    </td>
-                                    <td style={{ textAlign: "center" }}>
-                                      <button
-                                        type="button"
-                                        title="Chỉnh sửa"
-                                        onClick={() => {
-                                          let catId = prod.categoryId;
-                                          if (!catId) {
-                                            const foundCat =
-                                              categoriesList.find(
-                                                (c) => c.name === prod.category,
-                                              );
-                                            catId = foundCat
-                                              ? foundCat.id
-                                              : (categoriesList[0]?.id ?? "");
-                                          }
+    {/* MODAL THÊM / SỬA SẢN PHẨM */}
+    {showAddProduct && (
+      <div 
+        className="ck-fixed ck-inset-0 ck-z-50 ck-flex ck-items-center ck-justify-center ck-animate-fade-in"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }} 
+      >
+        <div 
+          className="mgr-aside ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-shadow-2xl"
+          style={{ width: "400px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto", margin: 0 }}
+        >
+          <div className="mgr-aside__head">
+            <div>
+              <h3 className="mgr-aside__title">
+                {editingProduct
+                  ? "Chi tiết sản phẩm"
+                  : "Thêm sản phẩm mới"}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddProduct(false)}
+              className="mgr-icon-btn"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="ck-space-y-4 ck-text-sm ck-px-1">
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Mã Sản Phẩm
+              </label>
+              <input
+                type="text"
+                readOnly={!!editingProduct}
+                value={newProduct.productId}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    productId: e.target.value,
+                  })
+                }
+                className={`ck-w-full ck-bg-gray-800 ${editingProduct ? "ck-text-gray-500" : "ck-text-white"} ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none`}
+                placeholder={
+                  editingProduct
+                    ? ""
+                    : "Tự động tạo hoặc nhập mã"
+                }
+              />
+            </div>
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Tên sản phẩm *
+              </label>
+              <input
+                type="text"
+                value={newProduct.productName}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    productName: e.target.value,
+                  })
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
+              />
+            </div>
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Danh mục
+              </label>
+              <select
+                value={newProduct.categoryId}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    categoryId: e.target.value,
+                  })
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
+              >
+                <option value="">-- Chọn danh mục --</option>
+                {categoriesList.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="ck-mt-4">
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Giá Bán (₫)
+              </label>
+              <input
+                type="number"
+                value={newProduct.sellingPrice}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    sellingPrice: e.target.value,
+                  })
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none"
+              />
+            </div>
+            <div className="ck-mt-4 ck-flex ck-items-center ck-gap-2">             
+            </div>
+          </div>
+          <div className="ck-mt-6">
+            <button
+              type="button"
+              onClick={handleSaveProduct}
+              className="mgr-btn mgr-btn--primary ck-w-full"
+              style={{ justifyContent: "center" }}
+            >
+              {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
-                                          setEditingProduct(prod);
-                                          setNewProduct({
-                                            productId:
-                                              prod.product_id ||
-                                              prod.productId ||
-                                              "",
-                                            productName:
-                                              prod.product_name ||
-                                              prod.name ||
-                                              "",
-                                            categoryId: catId,
-                                            sellingPrice:
-                                              prod.selling_price ||
-                                              prod.sellingPrice ||
-                                              prod.price ||
-                                              "",
-                                            baseUnit: "PHAN", // Mặc định cứng
-                                            isActive: isSelling,
-                                            ingredients: prod.ingredients || [],
-                                          });
-                                          setShowAddProduct(true);
-                                        }}
-                                        className="mgr-icon-btn"
-                                        style={{ marginRight: 8 }}
-                                      >
-                                        ✏️
-                                      </button>
-                                      <button
-                                        type="button"
-                                        title={
-                                          isSelling ? "Ngừng bán" : "Mở bán lại"
-                                        }
-                                        onClick={() =>
-                                          handleToggleMasterProductStatus(prod)
-                                        }
-                                        className="mgr-icon-btn"
-                                        style={{
-                                          color: isSelling
-                                            ? "#ef4444"
-                                            : "#4ade80",
-                                          fontWeight: "bold",
-                                          fontSize: "16px",
-                                        }}
-                                      >
-                                        {isSelling ? "➖" : "✅"}
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              });
-                            })()}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {showAddProduct && (
-                        <div
-                          className="mgr-aside ck-animate-fade-in"
-                          style={{ flex: "0 0 32%", minWidth: 280 }}
-                        >
-                          <div className="mgr-aside__head">
-                            <div>
-                              <h3 className="mgr-aside__title">
-                                {editingProduct
-                                  ? "Chi tiết sản phẩm"
-                                  : "Thêm sản phẩm mới"}
-                              </h3>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowAddProduct(false)}
-                              className="mgr-icon-btn"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <div className="ck-space-y-4 ck-text-sm">
-                            <div>
-                              <label className="ck-block ck-text-gray-400 ck-mb-1">
-                                Mã Sản Phẩm
-                              </label>
-                              <input
-                                type="text"
-                                readOnly={!!editingProduct}
-                                value={newProduct.productId}
-                                onChange={(e) =>
-                                  setNewProduct({
-                                    ...newProduct,
-                                    productId: e.target.value,
-                                  })
-                                }
-                                className={`ck-w-full ck-bg-gray-800 ${editingProduct ? "ck-text-gray-500" : "ck-text-white"} ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none`}
-                                placeholder={
-                                  editingProduct
-                                    ? ""
-                                    : "Tự động tạo hoặc nhập mã"
-                                }
-                              />
-                            </div>
-                            <div>
-                              <label className="ck-block ck-text-gray-400 ck-mb-1">
-                                Tên sản phẩm *
-                              </label>
-                              <input
-                                type="text"
-                                value={newProduct.productName}
-                                onChange={(e) =>
-                                  setNewProduct({
-                                    ...newProduct,
-                                    productName: e.target.value,
-                                  })
-                                }
-                                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="ck-block ck-text-gray-400 ck-mb-1">
-                                Danh mục
-                              </label>
-                              <select
-                                value={newProduct.categoryId}
-                                onChange={(e) =>
-                                  setNewProduct({
-                                    ...newProduct,
-                                    categoryId: e.target.value,
-                                  })
-                                }
-                                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
-                              >
-                                <option value="">-- Chọn danh mục --</option>
-                                {categoriesList.map((cat) => (
-                                  <option key={cat.id} value={cat.id}>
-                                    {cat.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="ck-mt-4">
-                              <label className="ck-block ck-text-gray-400 ck-mb-1">
-                                Giá Bán (₫)
-                              </label>
-                              <input
-                                type="number"
-                                value={newProduct.sellingPrice}
-                                onChange={(e) =>
-                                  setNewProduct({
-                                    ...newProduct,
-                                    sellingPrice: e.target.value,
-                                  })
-                                }
-                                className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none"
-                              />
-                            </div>
-                            <div className="ck-mt-4 ck-flex ck-items-center ck-gap-2">
-                              <input
-                                type="checkbox"
-                                checked={newProduct.isActive}
-                                onChange={(e) =>
-                                  setNewProduct({
-                                    ...newProduct,
-                                    isActive: e.target.checked,
-                                  })
-                                }
-                                id="product-active-checkbox"
-                                className="ck-w-4 ck-h-4 ck-cursor-pointer"
-                              />
-                              <label
-                                htmlFor="product-active-checkbox"
-                                className="ck-text-gray-300 ck-cursor-pointer"
-                              >
-                                Cho phép bán ngay
-                              </label>
-                            </div>
-                          </div>
-                          <div className="ck-mt-6">
-                            <button
-                              type="button"
-                              onClick={handleSaveProduct}
-                              className="mgr-btn mgr-btn--primary ck-w-full"
-                              style={{ justifyContent: "center" }}
-                            >
-                              {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* === SUBTAB DANH MỤC === */}
-                {productSubTab === "categories" && (
-                  <div className="ck-flex ck-gap-6 ck-items-start">
-                    {/* DANH SÁCH DANH MỤC */}
-                    <div
-                      className="cat-grid ck-transition-all ck-duration-300"
-                      style={{
-                        flexBasis: showAddCategory ? "64%" : "100%",
-                        maxWidth: showAddCategory ? "64%" : "100%",
-                      }}
-                    >
-                      {categoriesList.length === 0 ? (
-                        <div
-                          className="empty-state"
-                          style={{ gridColumn: "1 / -1" }}
-                        >
-                          Chưa có danh mục. Bấm "Thêm danh mục" để tạo.
-                        </div>
-                      ) : (
-                        categoriesList.map((cat) => {
-                          const count = masterProducts.filter(
-                            (p) =>
-                              p.category === cat.name ||
-                              String(p.categoryId) === String(cat.id),
-                          ).length;
-                          return (
-                            <div key={cat.id} className="cat-card">
-                              <div className="cat-icon">
-                                {cat.name &&
-                                  (cat.name.toLowerCase().includes("cơm")
-                                    ? "🍚"
-                                    : cat.name.toLowerCase().includes("nước") ||
-                                        cat.name.toLowerCase().includes("nuoc")
-                                      ? "🍜"
-                                      : cat.name
-                                            .toLowerCase()
-                                            .includes("uống") ||
-                                          cat.name
-                                            .toLowerCase()
-                                            .includes("uong")
-                                        ? "🧋"
-                                        : cat.name
-                                              .toLowerCase()
-                                              .includes("tráng") ||
-                                            cat.name
-                                              .toLowerCase()
-                                              .includes("trang")
-                                          ? "🍮"
-                                          : "🍽")}
-                              </div>
-                              <div className="cat-name">{cat.name}</div>
-                              <div className="cat-desc">
-                                {cat.description || "Chưa có mô tả"}
-                              </div>
-                              <div className="cat-meta">
-                                <span className="cat-id">ID: {cat.id}</span>
-                                <span className="cat-count">{count} món</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* Sidebar Thêm Danh mục */}
-                    {showAddCategory && (
-                      <div
-                        className="mgr-aside ck-animate-fade-in"
-                        style={{ flex: "0 0 32%", minWidth: 280 }}
-                      >
-                        <div className="mgr-aside__head">
-                          <div>
-                            <h3 className="mgr-aside__title">
-                              Thêm danh mục mới
-                            </h3>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowAddCategory(false)}
-                            className="mgr-icon-btn"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <div className="ck-space-y-4 ck-text-sm">
-                          <div>
-                            <label className="ck-block ck-text-gray-400 ck-mb-1">
-                              Tên danh mục *
-                            </label>
-                            <input
-                              type="text"
-                              value={newCategoryName}
-                              onChange={(e) =>
-                                setNewCategoryName(e.target.value)
-                              }
-                              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
-                              placeholder="VD: Đồ uống"
-                            />
-                          </div>
-                          <div>
-                            <label className="ck-block ck-text-gray-400 ck-mb-1">
-                              Mô tả
-                            </label>
-                            <textarea
-                              value={newCategoryDescription}
-                              onChange={(e) =>
-                                setNewCategoryDescription(e.target.value)
-                              }
-                              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none ck-resize-none"
-                              rows={3}
-                              placeholder="Mô tả về nhóm sản phẩm này..."
-                            />
-                          </div>
-                        </div>
-                        <div className="ck-mt-6">
-                          <button
-                            type="button"
-                            onClick={handleSaveCategory}
-                            className="mgr-btn mgr-btn--primary ck-w-full"
-                            style={{ justifyContent: "center" }}
-                          >
-                            Lưu danh mục
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+    {/* MODAL THÊM DANH MỤC */}
+    {showAddCategory && (
+      <div 
+        className="ck-fixed ck-inset-0 ck-z-50 ck-flex ck-items-center ck-justify-center ck-animate-fade-in"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }} 
+      >
+        <div 
+          className="mgr-aside ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-shadow-2xl"
+          style={{ width: "400px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto", margin: 0 }}
+        >
+          <div className="mgr-aside__head">
+            <div>
+              <h3 className="mgr-aside__title">
+                Thêm danh mục mới
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddCategory(false)}
+              className="mgr-icon-btn"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="ck-space-y-4 ck-text-sm ck-px-1">
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Tên danh mục *
+              </label>
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) =>
+                  setNewCategoryName(e.target.value)
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
+                placeholder="VD: Đồ uống"
+              />
+            </div>
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Mô tả
+              </label>
+              <textarea
+                value={newCategoryDescription}
+                onChange={(e) =>
+                  setNewCategoryDescription(e.target.value)
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none ck-resize-none"
+                rows={3}
+                placeholder="Mô tả về nhóm sản phẩm này..."
+              />
+            </div>
+          </div>
+          <div className="ck-mt-6">
+            <button
+              type="button"
+              onClick={handleSaveCategory}
+              className="mgr-btn mgr-btn--primary ck-w-full"
+              style={{ justifyContent: "center", marginTop:8 }}
+            >
+              Lưu danh mục
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
             {/* ================== 3. TAB TỔNG QUAN TỒN KHO ================== */}
             {activeManagementTab === "Tổng quan tồn kho" && (
@@ -1567,9 +1903,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                       });
                       setShowImportModal(true);
                     }}
-                    className="mgr-btn mgr-btn--green"
+                    className="mgr-btn mgr-btn--primary"
                   >
-                    📦 Nhập kho
+                     Nhập kho
                   </button>
                 </div>
 
@@ -1586,88 +1922,77 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                         <tr>
                           <th>Mã hàng</th>
                           <th>Nguyên liệu</th>
-                          <th style={{ textAlign: "right" }}>Tồn</th>
+                          <th style={{ textAlign: "left", paddingLeft: '' }}>Tồn</th>
                           <th style={{ textAlign: "right" }}>Đơn giá</th>
                           <th style={{ textAlign: "center" }}>Tình trạng</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredInventory.length > 0 ? (
-                          filteredInventory.map((item, idx) => {
-                            const isOutOfStock = item.stock <= 0;
-                            const minTh = Number(
-                              item.minThreshold ?? item.min ?? 10,
-                            );
-                            const isLowStock =
-                              !isOutOfStock && item.stock <= minTh;
-                            const isActive =
-                              selectedInventoryItem &&
-                              (selectedInventoryItem.ingredientId ||
-                                selectedInventoryItem.sku) ===
-                                (item.ingredientId || item.sku);
+                        {(() => {
+                          const currentInventoryRows = filteredInventory.slice((inventoryPage - 1) * ITEMS_PER_PAGE, inventoryPage * ITEMS_PER_PAGE);
+                          
+                          if (filteredInventory.length === 0) {
                             return (
-                              <tr
-                                key={idx}
-                                role="button"
-                                onClick={() => setSelectedInventoryItem(item)}
-                                className={`ck-cursor-pointer ${isActive ? "mgr-tr--active" : ""}`}
-                              >
-                                <td className="mgr-mono-muted">
-                                  {item.ingredientId || item.sku}
-                                </td>
-                                <td className="mgr-cell-strong">
-                                  {item.ingredientName || item.name}
-                                </td>
-                                <td
-                                  className="mgr-mono-muted"
-                                  style={{
-                                    textAlign: "right",
-                                    color: isOutOfStock
-                                      ? "#f87171"
-                                      : isLowStock
-                                        ? "#fcd34d"
-                                        : "#fff",
-                                  }}
-                                >
-                                  {Number(item.stock || 0).toLocaleString(
-                                    "vi-VN",
-                                  )}{" "}
-                                  <span style={{ opacity: 0.75 }}>
-                                    {item.unit}
-                                  </span>
-                                </td>
-                                <td className="mgr-mono-muted" style={{ textAlign: "right" }}>
-                                  {Number(item.unitCost || 0).toLocaleString("vi-VN")}đ
-                                </td>
-                                <td style={{ textAlign: "center" }}>
-                                  {isOutOfStock ? (
-                                    <span className="mgr-pill mgr-pill--danger">
-                                      Hết hàng
-                                    </span>
-                                  ) : isLowStock ? (
-                                    <span className="mgr-pill mgr-pill--warn">
-                                      Sắp hết
-                                    </span>
-                                  ) : (
-                                    <span className="mgr-pill mgr-pill--ok">
-                                      An toàn
-                                    </span>
-                                  )}
+                              <tr>
+                                <td colSpan={5}>
+                                  <div className="mgr-empty">
+                                    <p className="mgr-empty__title">Không có dòng phù hợp</p>
+                                  </div>
                                 </td>
                               </tr>
                             );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan={5}>
-                              <div className="mgr-empty">
-                                <p className="mgr-empty__title">
-                                  Không có dòng phù hợp
-                                </p>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
+                          }
+
+                          return (
+                            <>
+                              {currentInventoryRows.map((item, idx) => {
+  const isOutOfStock = item.stock <= 0;
+  const minTh = Number(item.minThreshold ?? item.min ?? 10);
+  const isLowStock = !isOutOfStock && item.stock <= minTh;
+  const isActive = selectedInventoryItem && (selectedInventoryItem.ingredientId || selectedInventoryItem.sku) === (item.ingredientId || item.sku);
+  
+  return (
+    <tr
+      key={idx}
+      role="button"
+      onClick={() => setSelectedInventoryItem(item)}
+      className={`ck-cursor-pointer ${isActive ? "mgr-tr--active" : ""}`}
+    >
+      <td className="mgr-mono-muted">{item.ingredientId || item.sku}</td>
+      <td className="mgr-cell-strong">{item.ingredientName || item.name}</td>
+     <td className="mgr-mono-muted" style={{ color: isOutOfStock ? "#f87171" : isLowStock ? "#fcd34d" : "#fff" }}>
+  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-start', gap: '8px' }}>
+  <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '15px',  }}>
+    {Number(item.stock || 0).toLocaleString("vi-VN")}
+  </span>
+  <span style={{ fontSize: '11px', color: 'var(--ink3, #9ca3af)', minWidth: '56px', textAlign: 'left', fontWeight: '400' }}>
+    {getUnitLabel(item.unit)}
+  </span>
+</div>
+      </td>
+      <td className="mgr-mono-muted" style={{ textAlign: "right" }}>
+        {Number(item.unitCost || 0).toLocaleString("vi-VN")}đ
+      </td>
+      <td style={{ textAlign: "center" }}>
+        {isOutOfStock ? (
+          <span className="mgr-pill mgr-pill--danger">Hết hàng</span>
+        ) : isLowStock ? (
+          <span className="mgr-pill mgr-pill--warn">Sắp hết</span>
+        ) : (
+          <span className="mgr-pill mgr-pill--ok">An toàn</span>
+        )}
+      </td>
+    </tr>
+  );
+})}
+                              <tr>
+                                <td colSpan={5} style={{ padding: 0, border: "none" }}>
+                                  {renderPagination(inventoryPage, filteredInventory.length, setInventoryPage)}
+                                </td>
+                              </tr>
+                            </>
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -1706,7 +2031,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           className="ck-text-xs ck-font-bold ck-mb-3"
           style={{ color: "#c4b5fd" }}
         >
-          Đơn vị gốc: {selectedInventoryItem.unit}
+          Đơn vị gốc: {getUnitLabel(selectedInventoryItem.unit)}
         </p>
 
         <div className="ck-flex ck-justify-between ck-items-end mt-4">
@@ -1719,7 +2044,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                 selectedInventoryItem.stock || 0,
               ).toLocaleString("vi-VN")}{" "}
               <span className="ck-text-sm ck-text-gray-500 ck-font-normal">
-                {selectedInventoryItem.unit}
+              {getUnitLabel(selectedInventoryItem.unit)}
               </span>
             </p>
           </div>
@@ -1730,7 +2055,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       <div className="ck-mt-6 ck-pt-6 ck-border-t ck-border-gray-700">
         <div className="ck-flex ck-justify-between ck-items-center ck-mb-4">
           <h4 className="ck-text-sm ck-font-bold ck-text-white">
-            Quy đổi đơn vị (Gốc: {selectedInventoryItem.unit})
+           Quy đổi đơn vị (Gốc: {getUnitLabel(selectedInventoryItem.unit)})
           </h4>
           <button
             onClick={() => setShowAddConversion(!showAddConversion)}
@@ -1745,52 +2070,17 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
             {/* Group 2 ô Input chia đều 50/50 */}
             <div className="conversion-input-group ck-flex ck-gap-2 ck-w-full">
               <select
-                value={newConversion.unitName}
-                onChange={(e) =>
-                  setNewConversion({
-                    ...newConversion,
-                    unitName: e.target.value,
-                  })
-                }
-                className="ck-flex-1 ck-min-w-0 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
-              >
-                <option value="">-- Chọn đơn vị --</option>
-                
-                <optgroup label="--- Trọng lượng ---">
-                  <option value="KG">KG - Kilogram</option>
-                  <option value="G">G - Gram</option>
-                  <option value="MG">MG - Milligram</option>
-                </optgroup>
-
-                <optgroup label="--- Thể tích ---">
-                  <option value="L">L - Lít</option>
-                  <option value="ML">ML - Millilit</option>
-                </optgroup>
-
-                <optgroup label="--- Đóng gói ---">
-                  <option value="LON">LON - Lon</option>
-                  <option value="HOP">HOP - Hộp</option>
-                  <option value="CHAI">CHAI - Chai</option>
-                  <option value="GOI">GOI - Gói</option>
-                  <option value="VI">VI - Vỉ</option>
-                  <option value="THUNG">THUNG - Thùng</option>
-                  <option value="BAO">BAO - Bao</option>
-                </optgroup>
-
-                <optgroup label="--- Đơn vị đếm ---">
-                  <option value="CAI">CAI - Cái</option>
-                  <option value="TRAI">TRAI - Trái</option>
-                  <option value="CU">CU - Củ</option>
-                </optgroup>
-
-                <optgroup label="--- Đơn vị bán ---">
-                  <option value="TO">TO - Tô</option>
-                  <option value="DIA">DIA - Dĩa</option>
-                  <option value="LY">LY - Ly</option>
-                  <option value="PHAN">PHAN - Phần</option>
-                  <option value="COMBO">COMBO - Combo</option>
-                </optgroup>
-              </select>
+  value={newConversion.unitName}
+  onChange={(e) => setNewConversion({ ...newConversion, unitName: e.target.value })}
+  className="ck-flex-1 ck-min-w-0 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
+>
+  <option value="">-- Chọn đơn vị --</option>
+  {unitMasterData.map((u) => (
+    <option key={u.value} value={u.value}>
+      {u.label}
+    </option>
+  ))}
+</select>
 
               <input
                 type="number"
@@ -1806,9 +2096,57 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
               />
             </div>
 
+         
+{newConversion.unitName && newConversion.conversionFactor && (
+  <div
+    className="ck-animate-fade-in"
+    style={{
+      marginTop: 10,
+      marginBottom: 10,
+      padding: "10px 12px",
+      borderRadius: 10,
+      background: "rgba(15, 23, 42, 0.6)",        // ← tối hơn
+      border: "1px dashed rgba(71, 85, 105, 0.5)", // ← viền xám tối
+      display: "flex",
+      gap: 8,
+      alignItems: "flex-start",
+    }}
+  >
+    <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>💡</span>
+    <p style={{ margin: 0, fontSize: 11.5, color: "#94a3b8", lineHeight: 1.6 }}> {/* ← chữ xám */}
+      <strong style={{ color: "#cbd5e1" }}>Chú thích: </strong>
+      Khi tạo Phiếu Nhập Kho{" "}
+      <strong style={{ color: "#e2e8f0" }}>
+  1 {getUnitLabel(newConversion.unitName)}
+</strong>
+      {selectedInventoryItem.ingredientName || selectedInventoryItem.name},{" "}
+      hệ thống sẽ tự động cộng{" "}
+      <strong style={{ color: "#4ade80" }}>
+  {newConversion.conversionFactor} {getUnitLabel(selectedInventoryItem.unit)}
+</strong>
+      vào tồn kho vật lý.
+    </p>
+  </div>
+)}
+
             <button
               type="button"
-              className="mgr-pill mgr-pill--ok mgr-btn-save-conversion ck-mt-3"
+  className="mgr-pill mgr-pill--ok mgr-btn-save-conversion ck-mt-3"
+  style={{
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    transform: "translateY(0)",
+  }}
+  onMouseEnter={e => {
+    e.currentTarget.style.transform = "translateY(-3px)";
+    e.currentTarget.style.filter = "brightness(1.15)";
+    e.currentTarget.style.boxShadow = "0 6px 16px rgba(20, 184, 166, 0.3)";
+  }}
+  onMouseLeave={e => {
+    e.currentTarget.style.transform = "translateY(0)";
+    e.currentTarget.style.filter = "brightness(1)";
+    e.currentTarget.style.boxShadow = "none";
+  }}
               onClick={async () => {
                 if (!newConversion.unitName || !newConversion.conversionFactor) {
                   return alert("Vui lòng nhập đủ thông tin (Tên đơn vị và Tỉ lệ)!");
@@ -1841,108 +2179,103 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           </div>
         )}
         <div className="ck-space-y-2 ck-max-h-40 ck-overflow-y-auto ck-scrollbar pr-1">
-          {conversions.length > 0 ? (
-            conversions.map((conv, idx) => (
-              <div
-                key={idx}
-                className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800 ck-p-2 ck-rounded-lg ck-border ck-border-gray-700"
-              >
-                <div className="ck-text-xs ck-text-gray-300">
-                  1 <strong className="ck-text-white ck-font-mono">
-                    {conv.unitName || conv.unit_name || conv.name || conv.unit || "ĐƠN_VỊ"}
-                  </strong>{" "}
-                  ={" "}
-                  {conv.conversionFactor || conv.conversion_factor}{" "}
-                  {selectedInventoryItem.unit}
-                </div>
-
-                <div className="ck-flex ck-items-center">
-                  {/* Nút sửa (cây bút) sử dụng chuẩn mgr-icon-btn */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const currentFactor =
-                        conv.conversionFactor || conv.conversion_factor;
-                      const unit = conv.unitName || conv.unit_name;
-                      const newFactor = window.prompt(
-                        `Nhập tỉ lệ quy đổi mới cho ${unit} (Gốc: ${selectedInventoryItem.unit}):`,
-                        currentFactor,
-                      );
-
-                      if (
-                        newFactor &&
-                        newFactor !== String(currentFactor) &&
-                        !isNaN(newFactor)
-                      ) {
-                        try {
-                          await api.updateUnitConversion(
-                            conv.id,
-                            Number(newFactor),
-                          );
-                          setConversions(
-                            conversions.map((c) =>
-                              c.id === conv.id
-                                ? {
-                                    ...c,
-                                    conversionFactor: Number(newFactor),
-                                    conversion_factor: Number(newFactor),
-                                  }
-                                : c,
-                            ),
-                          );
-                          alert(
-                            `✅ Đã cập nhật tỉ lệ ${unit} = ${newFactor} ${selectedInventoryItem.unit}`,
-                          );
-                        } catch (e) {
-                          alert("❌ Lỗi cập nhật: " + e.message);
-                        }
-                      }
-                    }}
-                    className="mgr-icon-btn"
-                    style={{ marginRight: 8 }}
-                    title="Sửa tỉ lệ"
-                  >
-                    ✏️
-                  </button>
-                  
-                  {/* Nút xóa (dấu trừ) sử dụng chuẩn mgr-icon-btn và style màu đỏ */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (
-                        window.confirm(
-                          `Bạn muốn xóa quy đổi ${conv.unitName || conv.unit_name}?`,
-                        )
-                      ) {
-                        try {
-                          await api.deleteUnitConversion(conv.id);
-                          setConversions(
-                            conversions.filter((c) => c.id !== conv.id),
-                          );
-                        } catch (e) {
-                          alert("Lỗi xóa: " + e.message);
-                        }
-                      }
-                    }}
-                    className="mgr-icon-btn"
-                    style={{
-                      color: "#ef4444",
-                      fontWeight: "bold",
-                      fontSize: "16px",
-                    }}
-                    title="Xóa quy đổi"
-                  >
-                    ➖
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="ck-text-xs ck-text-gray-500 ck-italic ck-text-center ck-py-2">
-              Chưa có quy đổi nào được thiết lập.
-            </p>
-          )}
+  {conversions.length > 0 ? (
+    conversions.map((conv, idx) => (
+      <div
+        key={idx}
+        className="ck-flex ck-justify-between ck-items-center ck-bg-gray-800 ck-p-2 ck-rounded-lg ck-border ck-border-gray-700"
+        style={{ position: "relative" }}
+        onMouseEnter={e => {
+          e.currentTarget.querySelectorAll(".conv-action-btn")
+            .forEach(b => b.style.opacity = "1");
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.querySelectorAll(".conv-action-btn")
+            .forEach(b => b.style.opacity = "0");
+        }}
+      >
+        {/* Nội dung quy đổi */}
+        <div className="ck-text-xs ck-text-gray-300">
+          1{" "}
+<strong className="ck-text-white ck-font-mono">
+  {getUnitLabel(conv.unitName || conv.unit_name || conv.name || conv.unit)}
+</strong>
+{" "}={" "}
+{conv.conversionFactor || conv.conversion_factor}{" "}
+{getUnitLabel(selectedInventoryItem.unit)}
         </div>
+
+        {/* Nhóm nút hành động */}
+        <div className="ck-flex ck-items-center" style={{ gap: 4 }}>
+          {/* Nút sửa */}
+          <button
+            type="button"
+            className="conv-action-btn mgr-icon-btn"
+            title="Sửa tỉ lệ"
+            style={{
+              opacity: 0,
+              transition: "opacity 0.2s ease",
+              marginRight: 4,
+            }}
+            onClick={async () => {
+              const currentFactor = conv.conversionFactor || conv.conversion_factor;
+              const unit = conv.unitName || conv.unit_name;
+              const newFactor = window.prompt(
+                `Nhập tỉ lệ quy đổi mới cho ${unit} (Gốc: ${selectedInventoryItem.unit}):`,
+                currentFactor,
+              );
+              if (newFactor && newFactor !== String(currentFactor) && !isNaN(newFactor)) {
+                try {
+                  await api.updateUnitConversion(conv.id, Number(newFactor));
+                  setConversions(conversions.map((c) =>
+                    c.id === conv.id
+                      ? { ...c, conversionFactor: Number(newFactor), conversion_factor: Number(newFactor) }
+                      : c,
+                  ));
+                  alert(`✅ Đã cập nhật tỉ lệ ${unit} = ${newFactor} ${selectedInventoryItem.unit}`);
+                } catch (e) {
+                  alert("❌ Lỗi cập nhật: " + e.message);
+                }
+              }
+            }}
+          >
+            Sửa
+          </button>
+
+          {/* Nút xóa */}
+          <button
+            type="button"
+            className="conv-action-btn mgr-icon-btn"
+            title="Xóa quy đổi"
+            style={{
+              opacity: 0,
+              transition: "opacity 0.2s ease",
+              color: "",
+              
+              fontSize: 16,
+            }}
+            onClick={async () => {
+              if (window.confirm(`Bạn muốn xóa quy đổi ${conv.unitName || conv.unit_name}?`)) {
+                try {
+                  await api.deleteUnitConversion(conv.id);
+                  setConversions(conversions.filter((c) => c.id !== conv.id));
+                } catch (e) {
+                  alert("Lỗi xóa: " + e.message);
+                }
+              }
+            }}
+          >
+            Xóa
+          </button>
+        </div>
+      </div>
+    ))
+  ) : (
+    <p className="ck-text-xs ck-text-gray-500 ck-italic ck-text-center ck-py-2">
+      Chưa có quy đổi nào được thiết lập.
+    </p>
+  )}
+</div>
 
         {conversions.length > 0 && (
           <div className="ck-mt-4 ck-pt-4 ck-border-t ck-border-gray-700 border-dashed">
@@ -1970,21 +2303,21 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                   Chọn ĐV
                 </option>
                 {conversions.map((c, i) => {
-                  const unitLabel =
-                    typeof c === "string"
-                      ? c
-                      : c.unitName ||
-                        c.unit_name ||
-                        c.name ||
-                        c.unit ||
-                        c.unit_type ||
-                        "Lỗi_Tên";
-                  return (
-                    <option key={i} value={unitLabel}>
-                      {unitLabel}
-                    </option>
-                  );
-                })}
+  const unitCode =
+    typeof c === "string"
+      ? c
+      : c.unitName ||
+        c.unit_name ||
+        c.name ||
+        c.unit ||
+        c.unit_type ||
+        "";
+  return (
+    <option key={i} value={unitCode}>
+      {getUnitLabel(unitCode)}
+    </option>
+  );
+})}
               </select>
               
               <button
@@ -2010,14 +2343,29 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                     alert("Lỗi tính toán: " + e.message);
                   }
                 }}
-                className="mgr-pill mgr-pill--ok ck-px-5 ck-py-2 ck-border-none ck-cursor-pointer hover:ck-opacity-80 ck-transition-opacity ck-text-sm ck-font-bold"
-              >
+               className="mgr-pill mgr-pill--ok ck-px-5 ck-py-2 ck-border-none ck-text-sm ck-font-bold"
+  style={{
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    transform: "translateY(0)",
+  }}
+  onMouseEnter={e => {
+    e.currentTarget.style.transform = "translateY(-3px)";
+    e.currentTarget.style.filter = "brightness(1.15)";
+    e.currentTarget.style.boxShadow = "0 6px 16px rgba(20, 184, 166, 0.3)";
+  }}
+  onMouseLeave={e => {
+    e.currentTarget.style.transform = "translateY(0)";
+    e.currentTarget.style.filter = "brightness(1)";
+    e.currentTarget.style.boxShadow = "none";
+  }}
+>
                 Tính
               </button>
             </div>
             {testResult !== null && typeof testResult !== "object" && (
               <p className="ck-text-base ck-mt-3 ck-text-green-400 ck-font-black ck-text-right">
-                = {testResult} {selectedInventoryItem.unit}
+              = {testResult} {getUnitLabel(selectedInventoryItem.unit)}
               </p>
             )}
           </div>
@@ -2028,177 +2376,193 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   </div>
 )}
                 </div>
-
-                {/* ========================================================= */}
-{/* MODAL NHẬP KHO NGUYÊN LIỆU (ĐÃ PHỤC HỒI MÀU NÚT) */}
-{/* ========================================================= */}
 {showImportModal && (
   <div
     className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in manager-ui"
-    onClick={() => setShowImportModal(false)}
+    onClick={() => !importSubmitting && setShowImportModal(false)}
     role="presentation"
     style={{ zIndex: 9999 }}
   >
     <div
-      className="ck-modal-box ingredient-form-box ck-max-w-2xl ck-w-full"
+      className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
       onClick={(e) => e.stopPropagation()}
       role="presentation"
-      style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        maxHeight: '85vh',
+        width: '500px' 
+      }}
     >
+      {/* HEADER */}
       <div className="form-header" style={{ flexShrink: 0 }}>
         <div>
-          <h3>Nhập kho nguyên liệu</h3>
+          <h3>Tạo phiếu nhập kho</h3>
         </div>
         <button
           type="button"
           className="btn-close"
+          disabled={importSubmitting}
           onClick={() => setShowImportModal(false)}
-          aria-label="Đóng"
         >
           ✕
         </button>
       </div>
 
       <form 
-        onSubmit={handleSubmitImport}
+        onSubmit={handleSubmitImport} 
         style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
       >
         <div 
           className="form-body ck-scrollbar"
-          style={{ flex: 1, overflowY: 'auto', paddingRight: '6px' }}
+          style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
         >
-          <div className="field ck-mb-6">
-            <label className="ck-mb-2 ck-block ck-text-sm ck-font-medium ck-text-gray-400">
-              Ghi chú nhập kho
+          {/* GHI CHÚ */}
+          <div className="field ck-mb-4">
+            <label className="ck-mb-1.5 ck-block ck-text-xs ck-font-medium ck-text-gray-400">
+              Ghi chú phiếu nhập
             </label>
             <textarea
-              className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-4 ck-py-3 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-transition-all"
-              placeholder="Nhập nội dung ghi chú tại đây..."
-              rows={2}
+              className="ck-input ck-w-full ck-min-h-[64px] ck-py-2.5 ck-px-3 ck-rounded-xl ck-resize-none ck-bg-gray-900 ck-text-white ck-border-gray-700"
+              placeholder="VD: Nhập hàng thịt đợt 1..."
               value={importForm.note}
               onChange={(e) =>
-                setImportForm({
-                  ...importForm,
-                  note: e.target.value,
-                })
+                setImportForm((prev) => ({ ...prev, note: e.target.value }))
               }
             />
           </div>
 
-          <div className="ck-flex ck-items-center ck-justify-between ck-mb-4">
-            <div className="section-label ck-mb-0">DANH SÁCH NGUYÊN LIỆU NHẬP</div>
-            <button
-              type="button"
-              onClick={handleAddImportRow}
-              className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-teal-500/40 ck-bg-teal-500/10 hover:ck-bg-teal-500/20 ck-text-teal-400 ck-transition-all"
-              title="Thêm dòng nguyên liệu"
-            >
-              ➕
-            </button>
-          </div>
-
-          <div className="ck-flex ck-flex-col ck-gap-4">
-            {importForm.items.map((row, index) => (
+          {/* DANH SÁCH NGUYÊN LIỆU */}
+          <div className="field">
+            <label className="ck-mb-2 ck-block ck-text-xs ck-font-medium ck-text-gray-400">
+              Danh sách nguyên liệu nhập ({importForm.items.length} dòng)
+            </label>
+            <div className="ck-rounded-xl ck-border ck-border-gray-700 ck-overflow-hidden ck-bg-gray-900/40">
+              {/* Header bảng */}
               <div
-                key={index}
-                className="ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-4 ck-border ck-border-gray-700 ck-rounded-xl"
+                className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-text-[10px] ck-font-bold ck-text-gray-500 ck-border-b ck-border-gray-700 ck-uppercase"
+                style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
               >
-                <div className="ck-flex ck-items-center ck-gap-3 ck-flex-1">
-                  <div className="ck-flex ck-items-center ck-justify-center ck-w-10 ck-h-10 ck-rounded-full ck-border ck-border-teal-500/40 ck-bg-teal-500/10 ck-text-teal-400">
-                    📦
-                  </div>
+                <span>Nguyên liệu</span>
+                <span>Số lượng</span>
+                <span>Đơn giá (đ)</span>
+                <span />
+              </div>
+
+              {/* Danh sách dòng */}
+              {importForm.items.map((row, index) => (
+                <div
+                  key={index}
+                  className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-border-b ck-border-gray-700/50 last:ck-border-b-0 hover:ck-bg-gray-800/40"
+                  style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
+                >
                   <select
-                    className="ck-w-full ck-max-w-[220px] ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none"
+                    className="ck-select ck-w-full ck-px-3 ck-py-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-lg ck-text-xs"
                     value={row.ingredientId}
                     onChange={(e) =>
                       handleImportRowChange(index, "ingredientId", e.target.value)
                     }
                   >
-                    <option value="">-- Chọn nguyên liệu --</option>
+                    <option value="">-- Chọn --</option>
                     {inventory.map((ing) => (
                       <option key={ing.id} value={ing.ingredientId ?? ing.id}>
-                        {ing.name ?? ing.ingredientName}
+                        {ing.name ?? ing.ingredientName} ({getUnitLabel(ing.unit) ?? "KG"})
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className="ck-flex ck-flex-row ck-items-center ck-gap-3">
                   <input
                     type="number"
-                    placeholder="Số lượng"
-                    className="ck-w-24 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-text-right"
+                    min="0"
+                    step="0.01"
+                    className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-xs ck-bg-gray-950 ck-text-right"
                     value={row.quantity}
                     onChange={(e) =>
                       handleImportRowChange(index, "quantity", e.target.value)
                     }
+                    placeholder="0"
                   />
-                  
                   <input
                     type="number"
-                    placeholder="Giá nhập"
-                    className="ck-w-28 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-text-right"
+                    min="0"
+                    className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-xs ck-bg-gray-950 ck-text-right"
                     value={row.importPrice}
                     onChange={(e) =>
                       handleImportRowChange(index, "importPrice", e.target.value)
                     }
+                    placeholder="0"
                   />
-
                   <button
-                    type="button"
-                    onClick={() => handleRemoveImportRow(index)}
-                    className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-red-500/20 ck-text-red-400 ck-transition-all"
-                    title="Xóa dòng"
-                  >
-                    ➖
-                  </button>
+  type="button"
+  onClick={() => handleRemoveImportRow(index)}
+  className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-full ck-text-gray-500 hover:ck-bg-red-500/10 hover:ck-text-red-500 ck-transition-all"
+  style={{ 
+    background: 'transparent', 
+    border: 'none',           
+    cursor: 'pointer',
+    fontSize: '15px'           
+  }}
+  title="Xóa dòng"
+>
+  ➖
+</button>
                 </div>
-              </div>
-            ))}
-            {importForm.items.length === 0 && (
-              <div className="ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-6 ck-text-gray-500">
-                <span>Chưa có nguyên liệu. Hãy nhấn ➕ để thêm.</span>
-              </div>
-            )}
+              ))}
+
+              {/* Nút thêm dòng - CSS Admin + Icon + */}
+              <button
+                type="button"
+                className="import-add-row-btn ck-w-full ck-py-2.5 ck-px-3 ck-text-xs ck-flex ck-items-center ck-justify-center ck-gap-2 ck-transition-colors hover:ck-bg-gray-800 ck-text-gray-400"
+                onClick={handleAddImportRow}
+                style={{ borderTop: '1px solid #374151', background: 'transparent' }}
+              >
+                <span style={{ fontSize: '14px' }}>➕</span>
+                Thêm dòng nguyên liệu
+              </button>
+            </div>
           </div>
         </div>
 
-       <div 
-          className="form-actions ck-flex ck-gap-4 ck-pt-5 ck-border-t ck-border-gray-700/50"
-          style={{ 
-            flexShrink: 0, 
-            padding: '16px',
-            marginTop: 'auto',
-            background: 'transparent' /* Xóa nền trắng nếu có */
-          }}
-        >
-          <button
-            type="submit"
-            className="btn-submit ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all"
-            disabled={importSubmitting}
-            style={{ 
-              background: '#14b8a6',  /* ÉP MÀU XANH TEAL */
-              color: '#ffffff',       /* CHỮ MÀU TRẮNG */
-              border: 'none',
-              boxShadow: 'none'
-            }}
-          >
-            {importSubmitting ? "Đang xử lý..." : "Xác nhận nhập kho"}
-          </button>
-          <button
-            type="button"
-            className="btn-cancel ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all"
-            onClick={() => setShowImportModal(false)}
-            style={{ 
-              background: '#4b5563',  /* ÉP MÀU XÁM ĐẬM */
-              color: '#ffffff',       /* CHỮ MÀU TRẮNG */
-              border: 'none',
-              boxShadow: 'none'
-            }}
-          >
-            Hủy bỏ
-          </button>
-        </div>
+       {/* Nút bấm kiểu Lưu công thức */}
+        {/* Nút bấm kiểu Lưu công thức */}
+<div className="form-actions" style={{ padding: '20px', borderTop: '1px solid #374151', display: 'flex', gap: '12px' }}>
+  <button
+    type="button"
+    className="btn-cancel ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold"
+    onClick={() => !importSubmitting && setShowImportModal(false)}
+    style={{ 
+      background: '#4b5563', 
+      color: '#fff', 
+      border: 'none',
+      cursor: 'pointer', // Biến thành hình bàn tay
+      transition: 'all 0.2s ease', // Tạo độ mượt khi nhảy
+    }}
+    // Hiệu ứng nhảy nhẹ khi hover
+    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-3px)'}
+    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+  >
+    Hủy bỏ
+  </button>
+  
+  <button
+    type="submit"
+    className="btn-submit ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold"
+    disabled={importSubmitting}
+    style={{ 
+      background: '#14b8a6', 
+      color: '#fff', 
+      border: 'none',
+      cursor: importSubmitting ? 'not-allowed' : 'pointer', // Chỉ hiện bàn tay khi không bị disabled
+      transition: 'all 0.2s ease',
+    }}
+    // Hiệu ứng nhảy nhẹ khi hover
+    onMouseEnter={(e) => {
+      if(!importSubmitting) e.currentTarget.style.transform = 'translateY(-3px)';
+    }}
+    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+  >
+    {importSubmitting ? "Đang xử lý..." : "Tạo phiếu nhập"}
+  </button>
+</div>
       </form>
     </div>
   </div>
@@ -2207,168 +2571,268 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
             )}
 
             {/* ================== KIỂM KÊ KHO ================== */}
-            {activeManagementTab === "Kiểm kê kho" &&
-              (() => {
-                const hasValidationError = Object.entries(stocktakeForm).some(
-                  ([id, data]) => {
-                    if (data.actualQty === "" || data.actualQty === undefined)
-                      return false;
-                    const item = inventory.find(
-                      (i) => (i.ingredientId || i.id || i.sku) === id,
-                    );
-                    if (!item) return false;
-                    const sysStock = Number(item.stock || 0);
-                    const actual = Number(data.actualQty);
-                    if (sysStock === 0) return actual > 0;
-                    return Math.abs(actual - sysStock) / sysStock > 0.5;
-                  },
-                );
+{activeManagementTab === "Kiểm kê kho" && (() => {
+  const hasInput = Object.keys(stocktakeForm).length > 0;
 
+  return (
+    <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in mgr-section">
+      
+      {/* HERO HEADER */}
+      <div className="mgr-hero">
+        <div>
+          <h2 className="mgr-hero__title">Kiểm kê định kỳ</h2>
+          <p className="mgr-hero__sub">
+            Nhập <strong>đếm thực tế</strong> cho từng dòng cần đối soát.
+          </p>
+        </div>
+        <div className="ck-flex ck-items-center ck-gap-3">
+          <button
+            type="button"
+            onClick={handleOpenHistory}
+            className="mgr-btn"
+            style={{ background: '#1f2937', color: '#9ca3af', border: '1px solid #374151', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span style={{ fontSize: '15px' }}>🗂️</span> Lịch sử kiểm kê
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSubmitStocktake(false)}
+            disabled={isSubmittingStocktake || !hasInput}
+            className="mgr-btn mgr-btn--primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '12px' }}
+          >
+            <span style={{ fontSize: '15px' }}>✅</span>
+            {isSubmittingStocktake ? "Đang xử lý…" : "Xác nhận kiểm kê"}
+          </button>
+        </div>
+      </div>
+
+      {/* TABLE */}
+      <div className="mgr-table-wrap" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #1f2937' }}>
+        <div className="ck-max-h-[580px] ck-overflow-y-auto ck-scrollbar">
+          <table style={{ position: "relative", width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ position: "sticky", top: 0, zIndex: 2, background: '#111827' }}>
+              <tr>
+                <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '35%' }}>
+                  Tên nguyên liệu
+                </th>
+                <th style={{ padding: '14px 18px', textAlign: '', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '15%' }}>
+                  Tồn sổ
+                </th>
+                <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '20%' }}>
+                  Thực tế
+                </th>
+                <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Ghi chú hiện trường
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const currentStocktakeRows = inventory.slice((stocktakePage - 1) * ITEMS_PER_PAGE, stocktakePage * ITEMS_PER_PAGE);
                 return (
-                  <div className="ck-flex ck-flex-col ck-gap-6 ck-h-full ck-animate-fade-in mgr-section">
-                    <div className="mgr-hero">
-                      <div>
-                        <h2 className="mgr-hero__title">Kiểm kê định kỳ</h2>
-                        <p className="mgr-hero__sub">
-                          Nhập <strong>đếm thực tế</strong> cho từng dòng cần
-                          đối soát.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleSubmitStocktake}
-                        disabled={isSubmittingStocktake || hasValidationError}
-                        className={`mgr-btn ${hasValidationError && !isSubmittingStocktake ? "mgr-btn--ghost" : "mgr-btn--primary"}`}
-                      >
-                        {isSubmittingStocktake
-                          ? "Đang xử lý…"
-                          : hasValidationError
-                            ? "Sửa dòng lệch > 50%"
-                            : "Xác nhận kiểm kê"}
-                      </button>
-                    </div>
+                  <>
+                    {currentStocktakeRows.map((item, idx) => {
+                      const ingId = item.ingredientId || item.id || item.sku;
+                      const sysStock = Number(item.stock || 0);
+                      const actualInput = stocktakeForm[ingId]?.actualQty;
+                      let isOverLimit = false;
+                      let diff = 0;
+                      if (actualInput !== undefined && actualInput !== "") {
+                        const actual = Number(actualInput);
+                        diff = actual - sysStock;
+                        const diffPercent = sysStock > 0 ? (Math.abs(diff) / sysStock) * 100 : actual > 0 ? 100 : 0;
+                        isOverLimit = diffPercent > 50;
+                      }
 
-                    <div className="mgr-table-wrap">
-                      <div className="ck-max-h-[600px] ck-overflow-y-auto ck-scrollbar">
-                        <table>
-                          <thead
-                            style={{ position: "sticky", top: 0, zIndex: 2 }}
-                          >
-                            <tr>
-                              <th>Tên nguyên liệu</th>
-                              <th style={{ textAlign: "center" }}>Tồn sổ</th>
-                              <th>Đếm thực tế</th>
-                              <th>Ghi chú hiện trường</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {inventory.map((item, idx) => {
-                              const ingId =
-                                item.ingredientId || item.id || item.sku;
-                              const sysStock = Number(item.stock || 0);
-                              const actualInput =
-                                stocktakeForm[ingId]?.actualQty;
+                      return (
+                        <tr
+                          key={idx}
+                          style={{
+                            borderBottom: '1px solid #1f2937',
+                            background: isOverLimit ? 'rgba(239,68,68,0.06)' : 'transparent',
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseEnter={e => { if (!isOverLimit) e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = isOverLimit ? 'rgba(239,68,68,0.06)' : 'transparent' }}
+                        >
+                          {/* TÊN NGUYÊN LIỆU */}
+                          <td style={{ padding: '12px 18px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {isOverLimit && (
+                                <span style={{ fontSize: '14px', flexShrink: 0 }}>🔴</span>
+                              )}
+                              <span style={{ fontWeight: '600', color: isOverLimit ? '#fca5a5' : '#e5e7eb', fontSize: '14px' }}>
+                                {item.ingredientName || item.name}
+                              </span>
+                            </div>
+                          </td>
 
-                              let isOverLimit = false;
-                              let diff = 0;
+                          {/* TỒN SỔ */}
+                          <td style={{ padding: '12px 18px' }}>
+  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-start', gap: '8px' }}>
+  <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#e5e7eb', fontSize: '15px', }}>
+    {sysStock}
+  </span>
+  <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '400', minWidth: '52px', textAlign: 'left' }}>
+    {getUnitLabel(item.unit)}
+  </span>
+</div>
+                          </td>
 
-                              if (
-                                actualInput !== undefined &&
-                                actualInput !== ""
-                              ) {
-                                const actual = Number(actualInput);
-                                diff = actual - sysStock;
-                                const diffPercent =
-                                  sysStock > 0
-                                    ? (Math.abs(diff) / sysStock) * 100
-                                    : actual > 0
-                                      ? 100
-                                      : 0;
-                                isOverLimit = diffPercent > 50;
-                              }
+                          {/* ĐẾM THỰC TẾ */}
+<td style={{ padding: '10px 18px' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      placeholder="Nhập SL..."
+      value={stocktakeForm[ingId]?.actualQty ?? ""}
+      onChange={(e) => handleStocktakeChange(ingId, "actualQty", e.target.value)}
+      style={{
+        width: '130px',                                           // ← dài hơn
+        background: 'rgba(15, 23, 42, 0.6)',                     // ← mềm hơn
+        color: isOverLimit ? '#f87171' : '#e2e8f0',
+        border: `1px solid ${isOverLimit ? 'rgba(239,68,68,0.5)' : 'rgba(55,65,81,0.8)'}`,
+        borderRadius: '10px',                                     // ← bo tròn hơn
+        padding: '8px 12px',                                      // ← padding thoáng hơn
+        fontSize: '13px',
+        fontWeight: '600',
+        outline: 'none',
+        transition: 'all 0.2s ease',
+        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
+      }}
+      onFocus={e => {
+        e.currentTarget.style.border = `1px solid ${isOverLimit ? 'rgba(239,68,68,0.8)' : 'rgba(45,212,191,0.5)'}`;
+        e.currentTarget.style.boxShadow = `0 0 0 3px ${isOverLimit ? 'rgba(239,68,68,0.1)' : 'rgba(45,212,191,0.1)'}`;
+      }}
+      onBlur={e => {
+        e.currentTarget.style.border = `1px solid ${isOverLimit ? 'rgba(239,68,68,0.5)' : 'rgba(55,65,81,0.8)'}`;
+        e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
+      }}
+    />
+    {actualInput !== undefined && actualInput !== "" && (
+      <div style={{ fontSize: '11px', fontWeight: '600' }} className="ck-animate-fade-in">
+        {diff === 0 ? (
+          <span style={{ color: '#4ade80' }}>✅ Khớp</span>
+        ) : diff > 0 ? (
+          <span style={{ color: '#60a5fa' }}>↗ Dư {diff}</span>
+        ) : (
+          <span style={{ color: '#f87171' }}>↘ Hao {Math.abs(diff)}</span>
+        )}
+      </div>
+    )}
+  </div>
+</td>
 
-                              return (
-                                <tr
-                                  key={idx}
-                                  className={`ck-border-t ck-border-gray-700 hover:ck-bg-gray-800 ck-transition-colors ${isOverLimit ? "ck-bg-red-500/5" : ""}`}
-                                >
-                                  <td className="ck-py-4 ck-px-4 ck-font-bold">
-                                    {item.ingredientName || item.name}
-                                  </td>
-                                  <td className="ck-py-4 ck-px-4 ck-text-center ck-font-mono ck-text-gray-400">
-                                    {sysStock}{" "}
-                                    <span className="ck-text-xs">
-                                      {item.unit}
-                                    </span>
-                                  </td>
-                                  <td className="ck-py-3 ck-px-4">
-                                    <div className="ck-flex ck-flex-col ck-items-start">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        placeholder="Nhập SL..."
-                                        value={
-                                          stocktakeForm[ingId]?.actualQty ?? ""
-                                        }
-                                        onChange={(e) =>
-                                          handleStocktakeChange(
-                                            ingId,
-                                            "actualQty",
-                                            e.target.value,
-                                          )
-                                        }
-                                        className={`ck-w-full ck-max-w-[150px] ck-bg-gray-900 ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-outline-none ck-font-bold ck-transition-colors ${
-                                          isOverLimit
-                                            ? "ck-text-red-400 ck-border-red-500"
-                                            : "ck-text-white ck-border-gray-600"
-                                        }`}
-                                      />
-                                      {actualInput !== undefined &&
-                                        actualInput !== "" && (
-                                          <div className="ck-mt-1.5 ck-text-xs ck-font-medium ck-animate-fade-in">
-                                            {diff === 0 ? (
-                                              <span className="ck-text-green-400">
-                                                ✅ Khớp
-                                              </span>
-                                            ) : diff > 0 ? (
-                                              <span className="ck-text-blue-400">
-                                                ↗ Dư {diff}
-                                              </span>
-                                            ) : (
-                                              <span className="ck-text-red-400">
-                                                ↘ Hao hụt {Math.abs(diff)}
-                                              </span>
-                                            )}
-                                          </div>
-                                        )}
-                                    </div>
-                                  </td>
-                                  <td className="ck-py-3 ck-px-4">
-                                    <input
-                                      type="text"
-                                      placeholder="VD: Đổ vỡ..."
-                                      value={stocktakeForm[ingId]?.note ?? ""}
-                                      onChange={(e) =>
-                                        handleStocktakeChange(
-                                          ingId,
-                                          "note",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-600 ck-outline-none"
-                                    />
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
+{/* GHI CHÚ */}
+<td style={{ padding: '10px 18px' }}>
+  <input
+    type="text"
+    placeholder="VD: Đổ vỡ, rò rỉ..."
+    value={stocktakeForm[ingId]?.note ?? ""}
+    onChange={(e) => handleStocktakeChange(ingId, "note", e.target.value)}
+    style={{
+      width: '100%',
+      background: 'rgba(15, 23, 42, 0.6)',
+      color: '#d1d5db',
+      border: '1px solid rgba(55,65,81,0.8)',
+      borderRadius: '10px',
+      padding: '8px 12px',
+      fontSize: '13px',
+      outline: 'none',
+      transition: 'all 0.2s ease',
+      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
+    }}
+    onFocus={e => {
+      e.currentTarget.style.border = '1px solid rgba(45,212,191,0.5)';
+      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(45,212,191,0.1)';
+    }}
+    onBlur={e => {
+      e.currentTarget.style.border = '1px solid rgba(55,65,81,0.8)';
+      e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
+    }}
+  />
+</td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* PHÂN TRANG ĐẸP */}
+                    <tr>
+                      <td colSpan={4} style={{ padding: '16px 18px', border: 'none', background: '#0d1117' }}>
+                        {renderPagination(stocktakePage, inventory.length, setStocktakePage)}
+                      </td>
+                    </tr>
+                  </>
                 );
               })()}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* POPUP CẢNH BÁO ĐỎ — GIỮ NGUYÊN LOGIC */}
+      {showForceConfirmModal && (
+        <div
+          className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in manager-ui"
+          style={{ zIndex: 9999, backgroundColor: "rgba(0,0,0,0.85)", display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            className="ck-modal-box ingredient-form-box"
+            style={{ width: "480px", maxWidth: "95vw", background: '#1a1d23', border: '1px solid #333', borderRadius: '20px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+          >
+            <div className="form-header" style={{ borderBottom: '1px solid #333', padding: '20px 24px', flexShrink: 0 }}>
+              <div>
+                <h3 style={{ color: '#ff4d4f', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '22px' }}>⚠️</span>
+                  Xác nhận hao hụt bất thường
+                </h3>
+                <p style={{ fontSize: '12px', color: '#999', marginTop: '6px' }}>
+                  Phát hiện chênh lệch lớn so với tồn kho hệ thống
+                </p>
+              </div>
+              <button type="button" className="btn-close" style={{ background: '#333', color: '#fff', borderRadius: '50%', width: '30px', height: '30px' }} onClick={() => setShowForceConfirmModal(false)}>✕</button>
+            </div>
+
+            <div className="form-body" style={{ padding: '24px', flex: 1 }}>
+              <div style={{ background: '#242933', border: '1px solid #451a1a', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
+                <label style={{ color: '#ff4d4f', fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>
+                  Thông báo từ hệ thống
+                </label>
+                <p style={{ color: '#eee', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
+                  {backendWarningMsg || "Dữ liệu kiểm kê có sự chênh lệch nghiêm trọng vượt mức cho phép."}
+                </p>
+              </div>
+              <div className="ck-flex ck-items-start ck-gap-3 ck-p-4" style={{ background: '#1a1d23', borderRadius: '12px', border: '1px dashed #444' }}>
+                <input type="checkbox" id="force-confirm-check" checked={forceConfirmChecked} onChange={(e) => setForceConfirmChecked(e.target.checked)} className="ck-mt-1 ck-w-5 ck-h-5 ck-cursor-pointer" style={{ accentColor: "#ff4d4f" }} />
+                <label htmlFor="force-confirm-check" style={{ fontSize: '13px', cursor: 'pointer', userSelect: 'none', lineHeight: '1.5', color: forceConfirmChecked ? "#ff4d4f" : "#888", transition: 'all 0.3s' }}>
+                  Tôi xác nhận sự hao hụt nghiêm trọng này là thực tế tại hiện trường và chịu trách nhiệm với số liệu kiểm đếm.
+                </label>
+              </div>
+            </div>
+
+            <div className="form-actions" style={{ padding: '20px 24px', borderTop: '1px solid #333', display: 'flex', gap: '12px' }}>
+              <button type="button" onClick={() => setShowForceConfirmModal(false)} className="btn-cancel ck-flex-1" style={{ height: '45px', background: 'transparent', color: '#999', border: '1px solid #444', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Hủy bỏ & Kiểm lại
+              </button>
+              <button
+                type="button"
+                disabled={!forceConfirmChecked || isSubmittingStocktake}
+                onClick={() => handleSubmitStocktake(true)}
+                style={{ flex: 1.5, height: '45px', justifyContent: 'center', background: forceConfirmChecked ? '#1a1d23' : '#14161a', color: forceConfirmChecked ? '#ff4d4f' : '#444', border: forceConfirmChecked ? '2px solid #ff4d4f' : '2px solid #333', borderRadius: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', cursor: forceConfirmChecked ? 'pointer' : 'not-allowed', transition: 'all 0.3s ease', opacity: forceConfirmChecked ? 1 : 0.5 }}
+              >
+                {isSubmittingStocktake ? "Đang xử lý..." : "Xác nhận & Lưu hệ thống"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+})()}
 
            {/* ================== 6. TAB QUẢN LÝ CÔNG THỨC ================== */}
 {activeManagementTab === "Quản lý công thức" && (
@@ -2415,83 +2879,74 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
       </div>
     </div>
 
-    {/* LƯỚI CARD SẢN PHẨM (THAY THẾ CHO TABLE) */}
-<div className="product-grid" style={{ paddingBottom: "40px" }}>
-  {masterProducts
-    .filter((prod) => {
-      let matchText = true;
-      if (recipeAppliedSearch) {
-        matchText =
-          (prod.product_id || prod.productId || "")
-            .toLowerCase()
-            .includes(recipeAppliedSearch.toLowerCase()) ||
-          (prod.product_name || prod.name || "")
-            .toLowerCase()
-            .includes(recipeAppliedSearch.toLowerCase());
-      }
-      return matchText;
-    })
-        .map((prod, idx) => {
-          const pId = prod.product_id || prod.productId || prod.id;
-          const pName = prod.product_name || prod.name;
-          // Lấy tạm tên danh mục hoặc gán mặc định nếu API manager không trả về
-          const catName = prod.categoryName || prod.category || "Sản phẩm";
-          const isSelected = selectedRecipe?.productId === pId || selectedRecipe?.product_id === pId;
+    <div className="product-grid" style={{ paddingBottom: "40px" }}>
+      {(() => {
+        const filteredRecipes = masterProducts.filter((prod) => {
+          let matchText = true;
+          if (recipeAppliedSearch) {
+            matchText =
+              (prod.product_id || prod.productId || "").toLowerCase().includes(recipeAppliedSearch.toLowerCase()) ||
+              (prod.product_name || prod.name || "").toLowerCase().includes(recipeAppliedSearch.toLowerCase());
+          }
+          return matchText;
+        });
 
+        const currentRecipeRows = filteredRecipes.slice((recipePage - 1) * ITEMS_PER_PAGE, recipePage * ITEMS_PER_PAGE);
+
+        if (filteredRecipes.length === 0) {
           return (
-            <div
-              key={idx}
-              className="product-card"
-              style={{
-                border: isSelected ? "1px solid #fb923c" : undefined, // Highlight nhẹ nếu đang chọn
-                cursor: "pointer"
-              }}
-              role="button"
-              tabIndex={0}
-              onClick={async () => {
-                // LOGIC GỌI API VÀ SET DATA ĐƯỢC GIỮ NGUYÊN HOÀN TOÀN
-                setSelectedRecipe(prod);
-                try {
-                  const res = await api.getRecipeOfProduct(pId);
-                  if (res && res.ingredients) {
-                    setEditingRecipeIngredients(
-                      res.ingredients.map((ing) => ({
-                        ingredientId: ing.ingredientId || ing.id,
-                        name: ing.name || ing.ingredientName,
-                        amountNeeded: Number(ing.qty || ing.amountNeeded || 0),
-                        unit: ing.unit || "N/A",
-                      }))
-                    );
-                  }
-                } catch (e) {
-                  setEditingRecipeIngredients([]);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  e.currentTarget.click();
-                }
-              }}
-            >
-              <div className={`pc-cat pc-cat-other`}>{catName}</div>
-              <div className="pc-name">{pName}</div>
-              <div className="pc-id">{pId}</div>
-              <div className="pc-footer" style={{ marginTop: '12px' }}>
-                {/* Thay vì hiển thị giá như bên Admin, ta hiển thị tag "Cấu hình định mức" cho phù hợp ngữ cảnh Manager */}
-                <div className="pc-price" style={{ color: '#fb923c', fontSize: '13px' }}>Định mức</div>
-                <span className="mgr-pill mgr-pill--warn" style={{ fontSize: '11px', padding: '2px 8px', margin: 0 }}>
-                  Mở BOM →
-                </span>
-              </div>
+            <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
+              Không có dữ liệu sản phẩm.
             </div>
           );
-        })}
-        {masterProducts.length === 0 && (
-          <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
-            Không có dữ liệu sản phẩm.
-          </div>
-        )}
+        }
+
+        return (
+          <>
+            {currentRecipeRows.map((prod, idx) => {
+              const pId = prod.product_id || prod.productId || prod.id;
+              const pName = prod.product_name || prod.name;
+              const catName = prod.categoryName || prod.category || "Sản phẩm";
+              const isSelected = selectedRecipe?.productId === pId || selectedRecipe?.product_id === pId;
+
+              return (
+                 /* ... TOÀN BỘ DIV CARD SẢN PHẨM GIỮ NGUYÊN ... */
+                <div
+  key={idx}
+  className="product-card"
+  style={{ border: isSelected ? "1px solid #fb923c" : undefined, cursor: "pointer" }}
+  role="button"
+  onClick={async () => {
+    setSelectedRecipe(prod);
+    try {
+      const res = await api.getRecipeOfProduct(pId);
+      if (res && res.ingredients) {
+        setEditingRecipeIngredients(res.ingredients.map(ing => ({
+          ingredientId: ing.ingredientId || ing.id,
+          name: ing.name || ing.ingredientName,
+          amountNeeded: Number(ing.qty || ing.amountNeeded || 0),
+          unit: ing.unit || "N/A"
+        })));
+      }
+    } catch (e) { setEditingRecipeIngredients([]); }
+  }}
+>
+  <div className="pc-cat pc-cat-other">{catName}</div>
+  <div className="pc-name">{pName}</div>
+  <div className="pc-id">{pId}</div>
+  <div className="pc-footer">
+    <div className="pc-price" style={{ color: '#fb923c' }}>Định mức</div>
+    <span className="mgr-pill mgr-pill--warn">Mở BOM →</span>
+  </div>
+</div>
+              );
+            })}
+            <div style={{ gridColumn: "1 / -1" }}>
+              {renderPagination(recipePage, filteredRecipes.length, setRecipePage)}
+            </div>
+          </>
+        );
+      })()}
     </div>
 
     {/* ========================================================= */}
@@ -2499,30 +2954,29 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 {/* ========================================================= */}
 {selectedRecipe && (
   <div
-    /* 1. THÊM manager-ui VÀO ĐÂY */
     className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in manager-ui"
     onClick={() => setSelectedRecipe(null)}
     role="presentation"
     style={{ zIndex: 9999 }}
   >
     <div
-      className="ck-modal-box ingredient-form-box ck-max-w-2xl ck-w-full"
+      className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full" /* Thu nhỏ từ 2xl xuống lg */
       onClick={(e) => e.stopPropagation()}
       role="presentation"
       style={{ 
-        /* 2. ÉP KHUNG MODAL KHÔNG CAO QUÁ MÀN HÌNH */
         display: 'flex', 
         flexDirection: 'column', 
-        maxHeight: '90vh' 
+        maxHeight: '85vh',
+        width: '500px' /* Ép cứng độ rộng để modal trông cân đối và nhỏ gọn */
       }}
     >
-      {/* HEADER: flexShrink: 0 để không bị bóp méo */}
-      <div className="form-header" style={{ flexShrink: 0 }}>
+      {/* HEADER */}
+      <div className="form-header" style={{ flexShrink: 0, padding: '16px 20px' }}>
         <div>
-          <h3>Định mức nguyên liệu</h3>
+          <h3 style={{ fontSize: '1.1rem' }}>Định mức nguyên liệu</h3>
           <p
-            className="ck-text-sm"
-            style={{ marginTop: 4, color: "#fb923c" }}
+            className="ck-text-xs"
+            style={{ marginTop: 4, color: "#4ADE80", fontWeight: 'bold' }}
           >
             {selectedRecipe.product_name || selectedRecipe.name}
           </p>
@@ -2537,40 +2991,40 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
         </button>
       </div>
 
-      {/* 3. FORM BODY: THÊM ck-scrollbar VÀ ÉP CUỘN (flex: 1) */}
+      {/* FORM BODY */}
       <div 
         className="form-body ck-scrollbar" 
         style={{ 
           flex: 1, 
           overflowY: 'auto', 
-          paddingRight: '6px' 
+          padding: '16px 20px' /* Giảm padding cho gọn */
         }}
       >
-        <div className="section-label ck-mb-4">CÔNG THỨC NGUYÊN LIỆU</div>
+        <div className="section-label ck-mb-3" style={{ fontSize: '11px' }}>CÔNG THỨC NGUYÊN LIỆU</div>
 
         {editingRecipeIngredients.length === 0 ? (
-          <div className="ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-10 ck-text-gray-500">
-            <span>Chưa có nguyên liệu nào trong công thức</span>
+          <div className="ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-8 ck-text-gray-500">
+            <span className="ck-text-sm">Chưa có nguyên liệu nào trong công thức</span>
           </div>
         ) : (
-          <div className="ck-flex ck-flex-col ck-gap-4">
+          <div className="ck-flex ck-flex-col ck-gap-3"> {/* Giảm gap giữa các dòng */}
             {editingRecipeIngredients.map((ing, i) => (
               <div
                 key={i}
-                className="ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-4 ck-border ck-border-gray-700 ck-rounded-xl"
+                className="ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-3 ck-border ck-border-gray-700 ck-rounded-xl ck-bg-gray-900/30"
               >
-                {/* Trái: Icon + Tên nguyên liệu */}
+                {/* Trái: Icon xanh Teal + Tên nguyên liệu */}
                 <div className="ck-flex ck-items-center ck-gap-3">
-                  <div className="ck-flex ck-items-center ck-justify-center ck-w-10 ck-h-10 ck-rounded-full ck-border ck-border-teal-500/40 ck-bg-teal-500/10 ck-text-teal-400">
-                    📦
-                  </div>
-                  <span className="ck-text-white ck-font-bold">
+                  <div className="product-detail-formula-icon" style={{ background: '#2d333f' }}>
+                        <Package size={16} color="#00f2ff" />
+                      </div>
+                  <span className="ck-text-sm ck-text-white ck-font-medium">
                     {ing.name}
                   </span>
                 </div>
 
                 {/* Phải: Số lượng + Đơn vị + Nút xóa */}
-                <div className="ck-flex ck-flex-row ck-items-center ck-gap-3">
+                <div className="ck-flex ck-flex-row ck-items-center ck-gap-2">
                   <input
                     type="number"
                     value={ing.amountNeeded}
@@ -2579,11 +3033,21 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                       arr[i].amountNeeded = Number(e.target.value);
                       setEditingRecipeIngredients(arr);
                     }}
-                    className="ck-w-24 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-text-right"
-                  />
-                  <span className="ck-text-sm ck-text-gray-400 ck-font-bold ck-w-8">
-                    {ing.unit}
-                  </span>
+                    className="ck-bg-gray-900 ck-text-white ck-px-2 ck-py-1.5 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-right ck-text-sm"
+    style={{ width: '80px', flexShrink: 0 }}
+  />
+  <span
+    style={{
+      fontSize: '11px',
+      color: '#9ca3af',
+      fontWeight: '600',
+      width: '64px',
+      flexShrink: 0,
+      textAlign: 'left',
+    }}
+  >
+    {getUnitLabel(ing.unit)}
+  </span>
                   <button
                     type="button"
                     onClick={() =>
@@ -2591,7 +3055,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                         editingRecipeIngredients.filter((_, idx) => idx !== i),
                       )
                     }
-                    className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-red-500/20 ck-text-red-400 ck-transition-all"
+                    className="ck-flex ck-items-center ck-justify-center ck-w-7 ck-h-7 ck-rounded-lg ck-text-gray-500 hover:ck-bg-red-500/10 hover:ck-text-red-400 ck-transition-all"
                     title="Xóa nguyên liệu"
                   >
                     ➖
@@ -2602,12 +3066,12 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           </div>
         )}
 
-        <div className="sep" style={{ margin: "24px 0" }} />
+        <div className="sep" style={{ margin: "20px 0", borderTop: '1px solid #333' }} />
         
-        <div className="field ck-mb-4">
-          <label>Thêm nguyên liệu mới</label>
+        <div className="field ck-mb-2">
+          <label className="ck-text-[11px] ck-text-gray-500 ck-mb-1.5 ck-block">THÊM NGUYÊN LIỆU MỚI</label>
           <select
-            className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none"
+            className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
             onChange={(e) => {
               const val = e.target.value;
               if (!val) return;
@@ -2638,54 +3102,62 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
         </div>
       </div>
 
-      {/* 4. FOOTER: Dời ra ngoài form-body và ÉP MÀU y chang Nhập kho */}
-      <div 
-        className="form-actions ck-flex ck-gap-4 ck-pt-5 ck-border-t ck-border-gray-700/50" 
-        style={{ 
-          flexShrink: 0, 
-          padding: '16px',
-          marginTop: 'auto',
-          background: 'transparent' 
-        }}
-      >
-        <button
-          type="button"
-          className="btn-submit ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all"
-          onClick={async () => {
-            try {
-              await api.saveRecipe({
-                productId:
-                  selectedRecipe.product_id || selectedRecipe.id,
-                ingredients: editingRecipeIngredients,
-              });
-              alert("Lưu thành công!");
-            } catch (e) {
-              alert("Lỗi: " + e.message);
-            }
-          }}
-          style={{ 
-            background: '#14b8a6',  /* ÉP MÀU XANH TEAL */
-            color: '#ffffff',       /* CHỮ MÀU TRẮNG */
-            border: 'none',
-            boxShadow: 'none'
-          }}
-        >
-          Lưu công thức
-        </button>
-        <button
-          type="button"
-          className="btn-cancel ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-transition-all"
-          onClick={() => setSelectedRecipe(null)}
-          style={{ 
-            background: '#4b5563',  /* ÉP MÀU XÁM ĐẬM */
-            color: '#ffffff',       /* CHỮ MÀU TRẮNG */
-            border: 'none',
-            boxShadow: 'none'
-          }}
-        >
-          Đóng
-        </button>
-      </div>
+     {/* FOOTER: ÉP MÀU XANH TEAL + XÁM ĐẬM */}
+{/* FOOTER: Nút bấm bự, bo góc và hiệu ứng nhảy nhẹ */}
+<div 
+  className="form-actions" 
+  style={{ 
+    padding: '20px', 
+    borderTop: '1px solid #374151', 
+    display: 'flex', 
+    gap: '12px',
+    flexShrink: 0 
+  }}
+>
+  <button
+    type="button"
+    className="btn-submit ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-text-base"
+    onClick={async () => {
+      try {
+        await api.saveRecipe({
+          productId: selectedRecipe.product_id || selectedRecipe.id,
+          ingredients: editingRecipeIngredients,
+        });
+        alert("Lưu thành công!");
+      } catch (e) {
+        alert("Lỗi: " + e.message);
+      }
+    }}
+    style={{ 
+      background: '#14b8a6', 
+      color: '#fff', 
+      border: 'none',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-3px)'}
+    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+  >
+    Lưu công thức
+  </button>
+
+  <button
+    type="button"
+    className="btn-cancel ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-text-base"
+    onClick={() => setSelectedRecipe(null)}
+    style={{ 
+      background: '#4b5563', 
+      color: '#fff', 
+      border: 'none',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-3px)'}
+    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+  >
+    Đóng
+  </button>
+</div>
     </div>
   </div>
 )}
@@ -2726,6 +3198,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
             </button>
           </div>
         </div>
+        
         <div className="mgr-store-grid">
           {stores.length === 0 ? (
             <div
@@ -2739,64 +3212,74 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
               </p>
             </div>
           ) : (
-            stores.map((store) => {
-              const isStoreActive =
-                store.isActive === true ||
-                store.active === true ||
-                store.is_active === true ||
-                store.status === "ACTIVE";
-              return (
-                <div
-                  key={store.id || store.storeId}
-                  onClick={async () => {
-                    setSelectedStore(store);
-                    try {
-                      const res = await api.getStoreHistoryForManager(
-                        store.id || store.storeId,
-                      );
-                      setAllOrders(
-                        Array.isArray(res)
-                          ? res
-                          : res?.data || res?.items || [],
-                      );
-                    } catch (e) {
-                      setAllOrders([]);
-                    }
-                  }}
-                  className="mgr-store-card"
-                >
-                  <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
-                    <div className="mgr-store-card__icon">
-                      <Store className="ck-text-red-400" size={28} />
+            stores
+              .slice(
+                (franchiseStorePage - 1) * ITEMS_PER_PAGE,
+                franchiseStorePage * ITEMS_PER_PAGE
+              )
+              .map((store) => {
+                const isStoreActive =
+                  store.isActive === true ||
+                  store.active === true ||
+                  store.is_active === true ||
+                  store.status === "ACTIVE";
+                return (
+                  <div
+                    key={store.id || store.storeId}
+                    onClick={async () => {
+                      setSelectedStore(store);
+                      setFranchiseOrderPage(1); // Reset trang đơn hàng về 1 khi chọn cửa hàng mới
+                      try {
+                        const res = await api.getStoreHistoryForManager(
+                          store.id || store.storeId,
+                        );
+                        setAllOrders(
+                          Array.isArray(res)
+                            ? res
+                            : res?.data || res?.items || [],
+                        );
+                      } catch (e) {
+                        setAllOrders([]);
+                      }
+                    }}
+                    className="mgr-store-card"
+                  >
+                    <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
+                      <div className="mgr-store-card__icon">
+                        <Store className="ck-text-red-400" size={28} />
+                      </div>
+                      <span
+                        className={`mgr-pill ${isStoreActive ? "mgr-pill--ok" : "mgr-pill--danger"}`}
+                      >
+                        {isStoreActive ? "Đang chạy" : "Tạm dừng"}
+                      </span>
                     </div>
-                    <span
-                      className={`mgr-pill ${isStoreActive ? "mgr-pill--ok" : "mgr-pill--danger"}`}
-                    >
-                      {isStoreActive ? "Đang chạy" : "Tạm dừng"}
-                    </span>
+                    <h3 className="mgr-store-card__name">
+                      {store.name}
+                    </h3>
+                    <p className="mgr-store-card__addr">
+                      {store.address || "—"}
+                    </p>
+                    <div className="mgr-store-card__foot">
+                      <span
+                        className="mgr-mono-muted"
+                        style={{ fontSize: 10 }}
+                      >
+                        {store.id || store.storeId}
+                      </span>
+                      <span className="mgr-store-card__cta">
+                        Chi tiết →
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="mgr-store-card__name">
-                    {store.name}
-                  </h3>
-                  <p className="mgr-store-card__addr">
-                    {store.address || "—"}
-                  </p>
-                  <div className="mgr-store-card__foot">
-                    <span
-                      className="mgr-mono-muted"
-                      style={{ fontSize: 10 }}
-                    >
-                      {store.id || store.storeId}
-                    </span>
-                    <span className="mgr-store-card__cta">
-                      Chi tiết →
-                    </span>
-                  </div>
-                </div>
-              );
-            })
+                );
+              })
           )}
         </div>
+
+        {/* HIỂN THỊ PHÂN TRANG CHO DANH SÁCH CỬA HÀNG */}
+        {stores.length > 0 && renderPagination(franchiseStorePage, stores.length, setFranchiseStorePage)}
+
       </>
     ) : (
       <div className="ck-flex ck-flex-col ck-gap-6 relative">
@@ -2845,138 +3328,92 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
               </tr>
             </thead>
             <tbody className="ck-text-sm">
-              {(Array.isArray(allOrders) ? allOrders : []).map(
-                (order, idx) => {
-                  const canCancel = ![
-                    "Hoàn thành",
-                    "completed",
-                    "DELIVERED",
-                    "Đã hủy",
-                    "cancelled",
-                    "CANCELLED",
-                  ].includes(order.status);
-                  const safeOrderId =
-                    order.orderId || order.id || order._id;
-                  const safeTotal =
-                    order.totalAmount ||
-                    order.totalPrice ||
-                    order.total ||
-                    0;
+              {(() => {
+                const safeAllOrders = Array.isArray(allOrders) ? allOrders : [];
+                const currentFranchiseRows = safeAllOrders.slice((franchiseOrderPage - 1) * ITEMS_PER_PAGE, franchiseOrderPage * ITEMS_PER_PAGE);
 
+                if (safeAllOrders.length === 0) {
                   return (
-                    <tr
-                      key={safeOrderId || idx}
-                      className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors"
-                    >
-                      <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">
-                        {safeOrderId || (
-                          <span className="ck-text-gray-600">
-                            Đang cập nhật
-                          </span>
-                        )}
-                        {order.orderType === "URGENT" && (
-                          <span className="text-red-500 text-xs ml-1">
-                            🔥
-                          </span>
-                        )}
-                      </td>
-                      <td className="ck-p-5 ck-text-gray-400">
-                        {order.createdAt
-                          ? new Date(order.createdAt).toLocaleString(
-                              "vi-VN",
-                              {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )
-                          : order.date || "Chưa rõ"}
-                      </td>
-                      <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
-                        {Number(safeTotal).toLocaleString()}đ
-                      </td>
-                      <td className="ck-p-5 ck-text-center">
-                        <span
-                          className={`ck-badge ${
-                            order.status === "Hoàn thành" ||
-                            order.status === "completed" ||
-                            order.status === "DELIVERED"
-                              ? "ck-badge-green"
-                              : order.status === "Đã hủy" ||
-                                order.status === "cancelled" ||
-                                order.status === "CANCELLED"
-                              ? "ck-badge-red"
-                              : "ck-badge-blue"
-                          }`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="ck-p-5 ck-flex ck-justify-center ck-gap-2">
-                        {/* Nút Xem chi tiết (Mắt) được làm đẹp */}
-                        <button
-                          onClick={async () => {
-                            try {
-                              const detail = await api.getOrderDetails(
-                                safeOrderId,
-                              );
-                              setSelectedOrderDetails(detail);
-                              setShowOrderDetailsModal(true);
-                            } catch (e) {
-                              alert("Lỗi lấy chi tiết: " + e.message);
-                            }
-                          }}
-                          className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-blue-500/20 ck-text-blue-400 ck-transition-all"
-                          title="Xem chi tiết"
-                        >
-                          👁️
-                        </button>
-                        {/* Nút Hủy (🛑) được làm đẹp */}
-                        {canCancel && (
-                          <button
-                            onClick={async () => {
-                              if (
-                                window.confirm(
-                                  "⚠️ Bạn có chắc chắn muốn HỦY đơn hàng này?",
-                                )
-                              ) {
-                                try {
-                                  await api.cancelManagerOrder(safeOrderId);
-                                  alert("✅ Đã hủy đơn hàng thành công!");
-                                  const res = await api.getStoreHistoryForManager(
-                                    selectedStore.id || selectedStore.storeId,
-                                  );
-                                  setAllOrders(
-                                    Array.isArray(res) ? res : res?.data || [],
-                                  );
-                                } catch (e) {
-                                  alert("Lỗi hủy đơn: " + e.message);
-                                }
-                              }
-                            }}
-                            className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-red-500/20 ck-text-red-400 ck-transition-all"
-                            title="Hủy đơn"
-                          >
-                            🛑
-                          </button>
-                        )}
+                    <tr>
+                      <td colSpan="5" className="ck-p-10 ck-text-center ck-text-gray-500 italic">
+                        Cửa hàng này chưa có dữ liệu giao dịch.
                       </td>
                     </tr>
                   );
-                },
-              )}
-              {(Array.isArray(allOrders) ? allOrders : []).length === 0 && (
-                <tr>
-                  <td
-                    colSpan="5"
-                    className="ck-p-10 ck-text-center ck-text-gray-500 italic"
-                  >
-                    Cửa hàng này chưa có dữ liệu giao dịch.
-                  </td>
-                </tr>
-              )}
+                }
+
+                return (
+                  <>
+                    {currentFranchiseRows.map((order, idx) => {
+                      const canCancel = !["Hoàn thành", "completed", "DELIVERED", "Đã hủy", "cancelled", "CANCELLED"].includes(order.status);
+                      const safeOrderId = order.orderId || order.id || order._id;
+                      const safeTotal = order.totalAmount || order.totalPrice || order.total || 0;
+
+                      return (
+                        <tr key={safeOrderId || idx} className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors">
+                          <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">
+                            {safeOrderId || <span className="ck-text-gray-600">Đang cập nhật</span>}
+                            {order.orderType === "URGENT" && <span className="text-red-500 text-xs ml-1">🔥</span>}
+                          </td>
+                          <td className="ck-p-5 ck-text-gray-400">
+                            {order.createdAt ? new Date(order.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : order.date || "Chưa rõ"}
+                          </td>
+                          <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
+                            {Number(safeTotal).toLocaleString()}đ
+                          </td>
+                          <td className="ck-p-5 ck-text-center">
+                            <span className={`ck-badge ${["Hoàn thành", "completed", "DELIVERED"].includes(order.status) ? "ck-badge-green" : ["Đã hủy", "cancelled", "CANCELLED"].includes(order.status) ? "ck-badge-red" : "ck-badge-blue"}`}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="ck-p-5 ck-flex ck-justify-center ck-gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const detail = await api.getOrderDetails(safeOrderId);
+                                  setSelectedOrderDetails(detail);
+                                  setShowOrderDetailsModal(true);
+                                } catch (e) {
+                                  alert("Lỗi lấy chi tiết: " + e.message);
+                                }
+                              }}
+                              className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-blue-500/20 ck-text-blue-400 ck-transition-all"
+                              title="Xem chi tiết"
+                            >
+                              👁️
+                            </button>
+                            {canCancel && (
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm("⚠️ Bạn có chắc chắn muốn HỦY đơn hàng này?")) {
+                                    try {
+                                      await api.cancelManagerOrder(safeOrderId);
+                                      alert("✅ Đã hủy đơn hàng thành công!");
+                                      const res = await api.getStoreHistoryForManager(selectedStore.id || selectedStore.storeId);
+                                      setAllOrders(Array.isArray(res) ? res : res?.data || []);
+                                    } catch (e) {
+                                      alert("Lỗi hủy đơn: " + e.message);
+                                    }
+                                  }
+                                }}
+                                className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-red-500/20 ck-text-red-400 ck-transition-all"
+                                title="Hủy đơn"
+                              >
+                                🛑
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr>
+                      <td colSpan="5" style={{ padding: 0, border: "none" }}>
+                        {renderPagination(franchiseOrderPage, safeAllOrders.length, setFranchiseOrderPage)}
+                      </td>
+                    </tr>
+                  </>
+                );
+              })()}
             </tbody>
           </table>
         </div>
@@ -3132,22 +3569,25 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
         </div>
       </main>
 
+
       {/* CHI TIẾT ĐƠN HÀNG MODAL */}
       {showOrderDetailsModal && selectedOrderDetails && (
         <div
           className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in"
           onClick={() => setShowOrderDetailsModal(false)}
           role="presentation"
+          style={{ zIndex: 9999 }}
         >
           <div
             className="ck-modal-box ingredient-form-box product-detail-box ck-max-w-2xl ck-w-full"
             onClick={(e) => e.stopPropagation()}
             role="presentation"
+            /* 1. Ép chiều cao tối đa cho cả cái khung Modal */
+            style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}
           >
-            <div className="form-header">
+            <div className="form-header" style={{ flexShrink: 0 }}>
               <div>
                 <h3>Chi tiết đơn hàng</h3>
-                {/* Đã xóa mã ID theo yêu cầu */}
               </div>
               <button
                 type="button"
@@ -3159,7 +3599,12 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
               </button>
             </div>
 
-            <div className="form-body ck-max-h-[70vh] ck-overflow-y-auto">
+            {/* 2. Ép phần body tự động chiếm phần còn lại và bắt buộc hiện thanh cuộn nếu dài */}
+            <div 
+              className="form-body ck-scrollbar ck-pr-2"
+              style={{ flex: 1, overflowY: 'auto' }}
+            >
+              
               {/* Trạng thái đơn hàng */}
               <div className="form-row">
                 <div className="field ck-w-full">
@@ -3515,6 +3960,201 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
       {/* FOOTER (Thêm flexShrink: 0) */}
       <div className="form-actions" style={{ borderTop: '1px solid #333', flexShrink: 0 }}>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* POPUP: LỊCH SỬ KIỂM KÊ (HIỂN THỊ ĐỘC LẬP) */}
+{showHistoryModal && (
+  <div 
+    className="ck-modal-overlay ck-animate-fade-in"
+    style={{ zIndex: 9999, backgroundColor: "rgba(0, 0, 0, 0.85)", display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+  >
+    <div 
+      className="ck-modal-box ck-w-full ck-max-w-4xl"
+      style={{ background: '#1a1d23', border: '1px solid #333', borderRadius: '20px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+    >
+      {/* HEADER */}
+<div className="form-header" style={{ borderBottom: '1px solid #333', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+  
+  {/* BÊN TRÁI — căn trái hoàn toàn */}
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+    <h3 style={{ color: '#fff', margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {selectedSessionCode && (
+        <button
+          onClick={() => setSelectedSessionCode("")}
+          style={{ background: 'transparent', color: '#9ca3af', border: 'none', cursor: 'pointer', padding: 0, fontSize: '16px' }}
+        >
+          ← Quay lại
+        </button>
+      )}
+      {selectedSessionCode ? "Chi tiết kiểm kê" : "Lịch sử kiểm kê"}
+    </h3>
+    {selectedSessionCode && (
+      <p style={{ fontSize: '13px', color: '#4fd1c5', marginTop: '6px', fontFamily: 'monospace', textAlign: 'left' }}>
+        Mã phiên: {selectedSessionCode}
+      </p>
+    )}
+  </div>
+
+  {/* NÚT ĐÓNG — bên phải */}
+  <button
+    type="button"
+    style={{ background: '#333', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', flexShrink: 0, border: 'none', cursor: 'pointer' }}
+    onClick={() => setShowHistoryModal(false)}
+  >✕</button>
+
+</div>
+
+      {/* BODY */}
+      <div className="form-body ck-p-6 ck-max-h-[60vh] ck-overflow-y-auto ck-scrollbar">
+        
+        {/* TRẠNG THÁI 1: DANH SÁCH LỊCH SỬ */}
+        {!selectedSessionCode ? (
+          isLoadingHistory ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+              <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+              Đang tải dữ liệu...
+            </div>
+          ) : stocktakeHistory.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+              <div style={{ fontSize: '32px', marginBottom: '12px' }}>📭</div>
+              Chưa có lịch sử kiểm kê nào.
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ background: '#242933', color: '#9ca3af' }}>
+                  <th style={{ padding: '12px 16px', borderRadius: '10px 0 0 10px', textAlign: 'center' }}>Mã Phiên</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Thời gian</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Số món biến động</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Tổng lệch</th>
+                  <th style={{ padding: '12px 16px', borderRadius: '0 10px 10px 0', textAlign: 'center' }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+  {stocktakeHistory.map((history, idx) => (
+    <tr
+      key={idx}
+      style={{
+        borderBottom: '1px solid #2d3748',
+        transition: 'all 0.2s ease',
+        transform: 'translateY(0)',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+        // Hiện nút Xem
+        const btn = e.currentTarget.querySelector('.btn-xem');
+        if (btn) btn.style.opacity = '1';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+        // Ẩn nút Xem
+        const btn = e.currentTarget.querySelector('.btn-xem');
+        if (btn) btn.style.opacity = '0';
+      }}
+    >
+      <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 'bold', color: '#4fd1c5', textAlign: 'center' }}>
+        {history.sessionCode}
+      </td>
+      <td style={{ padding: '14px 16px', color: '#d1d5db', textAlign: 'center' }}>
+        {new Date(history.stocktakeDate).toLocaleString("vi-VN")}
+      </td>
+      <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#fff', textAlign: 'center' }}>
+        {history.totalIngredientsChanged} món
+      </td>
+      <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'center' }}>
+        <span style={{
+          color: history.totalQuantityVariance < 0 ? '#f87171' : history.totalQuantityVariance > 0 ? '#60a5fa' : '#4ade80',
+          fontWeight: 'bold'
+        }}>
+          {history.totalQuantityVariance > 0 ? "+" : ""}{history.totalQuantityVariance}
+        </span>
+      </td>
+      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+        <button
+          className="btn-xem"
+          onClick={() => handleViewHistoryDetail(history.sessionCode)}
+          style={{
+            opacity: 0,                        // ← ẩn mặc định
+            transition: 'all 0.2s ease',
+            fontSize: '12px',
+            background: '#374151',
+            color: '#fff',
+            border: 'none',
+            padding: '6px 16px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+          }}
+        >
+          Xem
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
+            </table>
+          )
+        ) : (
+          /* TRẠNG THÁI 2: CHI TIẾT 1 PHIÊN */
+          historyDetails.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+              <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+              Đang tải chi tiết...
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ background: '#242933', color: '#9ca3af' }}>
+                  <th style={{ padding: '12px 16px', borderRadius: '10px 0 0 10px', textAlign: 'center' }}>Mã Món</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Nguyên liệu</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Hao hụt / Dư</th>
+                  <th style={{ padding: '12px 16px', borderRadius: '0 10px 10px 0', textAlign: 'center' }}>Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyDetails.map((detail, idx) => (
+                  <tr 
+                    key={idx} 
+                    style={{ borderBottom: '1px solid #2d3748', transition: 'background 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#9ca3af', textAlign: 'center' }}>
+                      {detail.ingredient?.id}
+                    </td>
+                    <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#e5e7eb', textAlign: 'center' }}>
+                      {detail.ingredient?.name}
+                    </td>
+                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'center' }}>
+                      <span style={{ 
+                        color: detail.quantityDeducted > 0 ? '#f87171' : '#60a5fa',
+                        fontWeight: 'bold'
+                      }}>
+                        {detail.quantityDeducted > 0 ? "↘" : "↗"} {Math.abs(detail.quantityDeducted)}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: '#9ca3af', textAlign: 'center', maxWidth: '200px' }}>
+  <span style={{
+    display: 'block',
+    wordBreak: 'break-word',   // ← xuống dòng thay vì cắt
+    whiteSpace: 'normal',      // ← bỏ nowrap
+    lineHeight: '1.5',
+  }}>
+    {detail.note || "—"}
+  </span>
+</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        )}
       </div>
     </div>
   </div>
