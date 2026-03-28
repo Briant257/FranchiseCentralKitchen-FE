@@ -352,11 +352,12 @@ const minChartMode = useMemo(() =>
   [appliedDateRange, getMinChartMode]
 );
 
+const [productStatistics, setProductStatistics] = useState(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [prods, reps, invs, kpis, sts, cfgs, dashFull, cats, reportedData, units] =
+      const [prods, reps, invs, kpis, sts, cfgs, dashFull, cats, reportedData, units, productStats] =
         await Promise.all([
           api.getMasterProducts().catch(() => []),
           api.getReports().catch(() => []),
@@ -368,6 +369,7 @@ const minChartMode = useMemo(() =>
           api.getCategories().catch(() => []),
           api.getReportedShipments().catch(() => []),
           api.getUnits().catch(() => []),
+          api.getProductStatistics().catch(() => ({})),
         ]);
 
       setMasterProducts(prods);
@@ -380,6 +382,7 @@ const minChartMode = useMemo(() =>
       setDashboardData(dashFull || {});
       setReportedShipments(Array.isArray(reportedData) ? reportedData : []);
       setUnitMasterData(Array.isArray(units) ? units : []);
+      setProductStatistics(productStats);
     } catch (error) {
       console.error("Lỗi tải dữ liệu Manager:", error);
     } finally {
@@ -475,29 +478,6 @@ const minChartMode = useMemo(() =>
   // ==========================================
   // HÀM XỬ LÝ SẢN PHẨM & DANH MỤC
   // ==========================================
-  const productStats = useMemo(() => {
-    let totalActive = 0;
-    let sumPrice = 0;
-    masterProducts.forEach((p) => {
-      const isSelling =
-        p.isActive === true ||
-        p.active === true ||
-        p.is_active === true ||
-        p.is_active === 1 ||
-        String(p.is_active) === "true";
-      if (isSelling) totalActive++;
-      sumPrice += Number(p.sellingPrice || p.price || 0);
-    });
-    return {
-      total: totalActive,
-      categoriesCount: categoriesList.length,
-      withFormula: masterProducts.filter(
-        (p) => p.ingredients && p.ingredients.length > 0,
-      ).length,
-      avgPrice:
-        masterProducts.length > 0 ? sumPrice / masterProducts.length : 0,
-    };
-  }, [masterProducts, categoriesList]);
 
   const handleSaveCategory = async () => {
     if (!newCategoryName) return alert("Vui lòng nhập tên danh mục!");
@@ -1367,46 +1347,68 @@ const minChartMode = useMemo(() =>
       </button>
     </div>
     <div className="mgr-stat-grid">
-      <div className="mgr-stat-card mgr-stat-card--0">
-        <div className="mgr-stat-card__label">Tổng sản phẩm</div>
-        <div className="mgr-stat-card__value">
-          {productStats.total}
-        </div>
-        <div className="mgr-stat-card__foot">đang bán</div>
-      </div>
-      <div className="mgr-stat-card mgr-stat-card--1">
-        <div className="mgr-stat-card__label">Danh mục</div>
-        <div
-          className="mgr-stat-card__value"
-          style={{ color: "#a78bfa" }}
-        >
-          {productStats.categoriesCount}
-        </div>
-        <div className="mgr-stat-card__foot">phân loại</div>
-      </div>
-      <div className="mgr-stat-card mgr-stat-card--2">
-        <div className="mgr-stat-card__label">Có công thức</div>
-        <div
-          className="mgr-stat-card__value"
-          style={{ color: "#2dd4bf" }}
-        >
-          {productStats.withFormula}
-        </div>
-        <div className="mgr-stat-card__foot">đã cấu hình</div>
-      </div>
-      <div className="mgr-stat-card mgr-stat-card--3">
-        <div className="mgr-stat-card__label">Giá trung bình</div>
-        <div
-          className="mgr-stat-card__value"
-          style={{ color: "#4ade80" }}
-        >
-          {productStats.avgPrice >= 1000
-            ? `${(productStats.avgPrice / 1000).toFixed(0)}k`
-            : productStats.avgPrice}
-        </div>
-        <div className="mgr-stat-card__foot">mỗi món</div>
-      </div>
+  {/* Thẻ 1: Đang bán — Xanh lá */}
+  <div className="mgr-stat-card mgr-stat-card--0">
+    <div className="mgr-stat-card__label">Sản phẩm đang bán</div>
+    <div className="mgr-stat-card__value" style={{ color: "#4ade80" }}>
+      {productStatistics?.activeProducts ?? "—"}
     </div>
+    <div className="mgr-stat-card__foot">đang kinh doanh</div>
+  </div>
+
+  {/* Thẻ 2: Ngừng bán — Xám */}
+  <div className="mgr-stat-card mgr-stat-card--1">
+    <div className="mgr-stat-card__label">Sản phẩm ngừng bán</div>
+    <div className="mgr-stat-card__value" style={{ color: "#9ca3af" }}>
+      {productStatistics?.inactiveProducts ?? "—"}
+    </div>
+    <div className="mgr-stat-card__foot">bao gồm bản nháp</div>
+  </div>
+
+  {/* Thẻ 3: Có định lượng — Xanh blue */}
+  <div className="mgr-stat-card mgr-stat-card--2">
+    <div className="mgr-stat-card__label">Đã có định lượng</div>
+    <div className="mgr-stat-card__value" style={{ color: "#60a5fa" }}>
+      {productStatistics?.withFormula ?? "—"}
+    </div>
+    <div className="mgr-stat-card__foot">đã cấu hình BOM</div>
+  </div>
+
+  {/* Thẻ 4: Thiếu định lượng — Đỏ/Cam báo động */}
+  <div
+    className="mgr-stat-card mgr-stat-card--3"
+    style={{
+      border: (productStatistics?.withoutFormula ?? 0) > 0
+        ? "1px solid rgba(251, 146, 60, 0.6)"
+        : undefined,
+      background: (productStatistics?.withoutFormula ?? 0) > 0
+        ? "rgba(251, 146, 60, 0.07)"
+        : undefined,
+    }}
+  >
+    <div className="mgr-stat-card__label">
+      {(productStatistics?.withoutFormula ?? 0) > 0 && (
+        <span style={{ marginRight: 4 }}>⚠️</span>
+      )}
+      Cần thêm định lượng
+    </div>
+    <div
+      className="mgr-stat-card__value"
+      style={{
+        color: (productStatistics?.withoutFormula ?? 0) > 0
+          ? "#fb923c"
+          : "#4ade80",
+      }}
+    >
+      {productStatistics?.withoutFormula ?? "—"}
+    </div>
+    <div className="mgr-stat-card__foot">
+      {(productStatistics?.withoutFormula ?? 0) > 0
+        ? "⬆ Cần xử lý ngay"
+        : "✅ Tất cả đã đủ BOM"}
+    </div>
+  </div>
+</div>
 
     {/* === SUBTAB SẢN PHẨM === */}
     {productSubTab === "products" && (
@@ -1844,32 +1846,81 @@ const minChartMode = useMemo(() =>
                   </div>
                 </div>
 
-                <div className="mgr-strip">
-                  <div className="mgr-strip-item">
-                    <div className="mgr-strip-item__label">Đang hiển thị</div>
-                    <div className="mgr-strip-item__val">
-                      {inventorySummary.shown}
-                    </div>
-                  </div>
-                  <div className="mgr-strip-item mgr-strip-item--teal">
-                    <div className="mgr-strip-item__label">Mức an toàn</div>
-                    <div className="mgr-strip-item__val">
-                      {inventorySummary.safe}
-                    </div>
-                  </div>
-                  <div className="mgr-strip-item mgr-strip-item--amber">
-                    <div className="mgr-strip-item__label">Sắp hết</div>
-                    <div className="mgr-strip-item__val">
-                      {inventorySummary.low}
-                    </div>
-                  </div>
-                  <div className="mgr-strip-item mgr-strip-item--red">
-                    <div className="mgr-strip-item__label">Hết hàng</div>
-                    <div className="mgr-strip-item__val">
-                      {inventorySummary.out}
-                    </div>
-                  </div>
-                </div>
+                <div className="mgr-stat-grid">
+  {/* Thẻ 1: Đang hiển thị */}
+  <div className="mgr-stat-card mgr-stat-card--0">
+    <div className="mgr-stat-card__label">Đang hiển thị</div>
+    <div className="mgr-stat-card__value" style={{ color: "#e5e7eb" }}>
+      {inventorySummary.shown}
+    </div>
+    <div className="mgr-stat-card__foot">
+      / {inventorySummary.totalInSystem} nguyên liệu
+    </div>
+  </div>
+
+  {/* Thẻ 2: Mức an toàn */}
+  <div className="mgr-stat-card mgr-stat-card--1">
+    <div className="mgr-stat-card__label">Mức an toàn</div>
+    <div className="mgr-stat-card__value" style={{ color: "#2dd4bf" }}>
+      {inventorySummary.safe}
+    </div>
+    <div className="mgr-stat-card__foot">còn đủ hàng</div>
+  </div>
+
+  {/* Thẻ 3: Sắp hết */}
+  <div
+    className="mgr-stat-card mgr-stat-card--2"
+    style={{
+      border: inventorySummary.low > 0
+        ? "1px solid rgba(251, 191, 36, 0.5)"
+        : undefined,
+      background: inventorySummary.low > 0
+        ? "rgba(251, 191, 36, 0.06)"
+        : undefined,
+    }}
+  >
+    <div className="mgr-stat-card__label">
+      {inventorySummary.low > 0 && <span style={{ marginRight: 4 }}>⚠️</span>}
+      Sắp hết hàng
+    </div>
+    <div
+      className="mgr-stat-card__value"
+      style={{ color: inventorySummary.low > 0 ? "#fbbf24" : "#4ade80" }}
+    >
+      {inventorySummary.low}
+    </div>
+    <div className="mgr-stat-card__foot">
+      {inventorySummary.low > 0 ? "cần nhập thêm" : "✅ Ổn định"}
+    </div>
+  </div>
+
+  {/* Thẻ 4: Hết hàng */}
+  <div
+    className="mgr-stat-card mgr-stat-card--3"
+    style={{
+      border: inventorySummary.out > 0
+        ? "1px solid rgba(239, 68, 68, 0.5)"
+        : undefined,
+      background: inventorySummary.out > 0
+        ? "rgba(239, 68, 68, 0.06)"
+        : undefined,
+    }}
+  >
+    <div className="mgr-stat-card__label">
+      {inventorySummary.out > 0 && <span style={{ marginRight: 4 }}>🚨</span>}
+      Hết hàng
+    </div>
+    <div
+      className="mgr-stat-card__value"
+      style={{ color: inventorySummary.out > 0 ? "#f87171" : "#4ade80" }}
+    >
+      {inventorySummary.out}
+    </div>
+    <div className="mgr-stat-card__foot">
+      {inventorySummary.out > 0 ? "cần nhập gấp!" : "✅ Không hết hàng"}
+    </div>
+  </div>
+</div>
 
                 <div className="mgr-search-row">
                   <div className="mgr-search-bar mgr-search-bar--amber">

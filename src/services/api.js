@@ -575,10 +575,11 @@ const auth = {
 
   // --- Bếp (Kitchen) ---
   getKitchenAggregation: () => request("/api/kitchen/aggregation"),
+  // ✅ SỬA LẠI (unwrap ra mảng)
   confirmAggregation: (b) =>
     request("/api/kitchen/aggregation/confirm", {
       method: "POST",
-      body: JSON.stringify(b),
+      body: JSON.stringify(b?.productIds ?? b),
     }),
   cook: (b) =>
     request("/api/kitchen/cook", { method: "POST", body: JSON.stringify(b) }),
@@ -1344,6 +1345,15 @@ const api = {
     );
   },
 
+  getProductStatistics: async () => {
+    try {
+      const res = await request("/api/products/statistics");
+      return res?.data ?? res ?? {};
+    } catch {
+      return {};
+    }
+  },
+
   async saveUsers(users) {
     return users;
   },
@@ -1597,7 +1607,7 @@ const api = {
   confirmAggregation: (b) =>
     request("/api/kitchen/aggregation/confirm", {
       method: "POST",
-      body: JSON.stringify(b),
+      body: JSON.stringify(b?.productIds ?? b),
     }),
   updateProductionRunStatus: (id, s) =>
     request(`/api/kitchen/productions/${id}/status?status=${s}`, {
