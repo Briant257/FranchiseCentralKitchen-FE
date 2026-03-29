@@ -44,6 +44,10 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
 
+  const ITEMS_PER_PAGE = 10;
+const [activePage, setActivePage] = useState(1);
+const [historyPage, setHistoryPage] = useState(1);
+
   const [activeTab, setActiveTab] = useState(TABS.DISPATCH);
   const [loading, setLoading] = useState(false);
 
@@ -198,6 +202,34 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
       </div>
     );
   }
+
+  const renderPagination = (currentPage, totalItems, setPageFunc) => {
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 6, padding: "16px 0", borderTop: "1px solid var(--line)" }}>
+      <button type="button" onClick={() => setPageFunc(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+        style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--line)", background: currentPage === 1 ? "transparent" : "var(--surface2)", color: currentPage === 1 ? "var(--ink4)" : "var(--ink)", cursor: currentPage === 1 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}>
+        ← Trước
+      </button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1)
+        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+        .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx-1] > 1) acc.push("..."); acc.push(p); return acc; }, [])
+        .map((item, idx) => item === "..." ? (
+          <span key={`d${idx}`} style={{ color: "var(--ink4)", fontSize: 13 }}>···</span>
+        ) : (
+          <button key={item} type="button" onClick={() => setPageFunc(item)}
+            style={{ width: 32, height: 32, borderRadius: 8, border: item === currentPage ? "2px solid var(--amber)" : "1px solid var(--line)", background: item === currentPage ? "var(--amber-bg)" : "transparent", color: item === currentPage ? "var(--amber)" : "var(--ink3)", fontWeight: item === currentPage ? 800 : 600, fontSize: 13, cursor: item === currentPage ? "default" : "pointer" }}>
+            {item}
+          </button>
+        ))}
+      <button type="button" onClick={() => setPageFunc(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+        style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--line)", background: currentPage === totalPages ? "transparent" : "var(--surface2)", color: currentPage === totalPages ? "var(--ink4)" : "var(--ink)", cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}>
+        Sau →
+      </button>
+    </div>
+  );
+};
 
   return (
     <div className="sm-page">
@@ -484,386 +516,281 @@ const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
   </div>
 )}
 
-            {/* Tab: Chuyến đang chạy */}
             {activeTab === TABS.ACTIVE && (
-              <div className="kitchen-tab-body">
-                {activeShipments.length === 0 ? (
-                  <div className="card">
-                    <div className="empty">
-                      <Package
-                        size={40}
-                        style={{
-                          opacity: 0.2,
-                          margin: "0 auto 12px",
-                          display: "block",
-                        }}
-                      />
-                      <p>Không có chuyến hàng nào đang chạy.</p>
+  <div className="kitchen-tab-body">
+    {activeShipments.length === 0 ? (
+      <div className="card">
+        <div className="empty">
+          <Package size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+          <p>Không có chuyến hàng nào đang chạy.</p>
+        </div>
+      </div>
+    ) : (
+      <>
+        <div className="kitchen-runs-grid">
+          {activeShipments
+            .slice((activePage - 1) * ITEMS_PER_PAGE, activePage * ITEMS_PER_PAGE)
+            .map((s) => {
+              const id = sid(s);
+              const hasDriver = Boolean(s.driver || s.driverId || s.driver_id || s.driverName || s.driver_name);
+              return (
+                <div key={id} className="kitchen-run-card" style={{ minHeight: "auto" }}>
+                  {/* Header card */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                    <div className="card-icon" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}>
+                      <Package size={18} />
                     </div>
+                    <span className="tag" style={{ background: "var(--amber-bg)", color: "var(--amber)", fontSize: 11 }}>
+                      {s.status || "PENDING"}
+                    </span>
                   </div>
-                ) : (
-                  <div className="kitchen-runs-grid">
-                    {activeShipments.map((s) => {
-                      const id = sid(s);
-                      const hasDriver = Boolean(
-                        s.driverId ||
-                        s.driver_id ||
-                        s.driverName ||
-                        s.driver_name ||
-                        s.driver ||
-                        s.accountId,
-                      );
-                      return (
-                        <div
-                          key={id}
-                          className="kitchen-run-card"
-                          style={{ minHeight: "auto" }}
-                        >
-                          <div
-                            className="kitchen-run-head"
-                            style={{ marginBottom: 12 }}
-                          >
-                            <div
-                              className="card-icon"
-                              style={{
-                                background: "var(--amber-bg)",
-                                color: "var(--amber)",
-                              }}
-                            >
-                              <Package size={18} />
-                            </div>
-                          </div>
-                          <h3
-                            style={{
-                              margin: "0 0 8px",
-                              fontSize: 15,
-                              fontWeight: 700,
-                              color: "var(--ink)",
-                            }}
-                          >
-                            {s.storeName ||
-                              s.store_name ||
-                              s.name ||
-                              s.store ||
-                              s.destinationStore ||
-                              "—"}
-                          </h3>
-                          <div style={{ flex: 1, marginBottom: 12 }}>
-                            {!hasDriver ? (
-                              <div className="fg" style={{ marginBottom: 8 }}>
-                                <label htmlFor={`drv-${id}`}>Chọn tài xế</label>
-                                <select
-                                  id={`drv-${id}`}
-                                  value={selectedDrivers[id] || ""}
-                                  onChange={(e) =>
-                                    setSelectedDrivers({
-                                      ...selectedDrivers,
-                                      [id]: e.target.value,
-                                    })
-                                  }
-                                >
-                                  <option value="">— Chọn tài xế —</option>
-                                  {drivers.map((d) => (
-                                    <option
-                                      key={d.accountId || d.id || d.user_id}
-                                      value={d.accountId || d.id || d.user_id}
-                                    >
-                                      {d.fullName ||
-                                        d.name ||
-                                        d.full_name ||
-                                        d.username}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            ) : (
-                              <p
-                                style={{
-                                  fontSize: 12.5,
-                                  color: "var(--ink3)",
-                                  margin: 0,
-                                }}
-                              >
-                                Tài xế:{" "}
-                                <strong style={{ color: "var(--sage)" }}>
-                                  {getDriverDisplayName(s)}
-                                </strong>
-                              </p>
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 8,
-                              marginTop: "auto",
-                            }}
-                          >
-                            {!hasDriver && (
-                              <button
-                                type="button"
-                                className="btn btn-amber btn-sm"
-                                style={{ width: "100%" }}
-                                onClick={() => handleAssignDriver(id)}
-                              >
-                                Gán tài xế
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-sm"
-                              style={{ width: "100%" }}
-                              onClick={() => handleViewDetails(id)}
-                            >
-                              Chi tiết món
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sage btn-sm"
-                              style={{ width: "100%" }}
-                              onClick={() => handleMarkDelivered(id)}
-                            >
-                              Xe tới nơi
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Tab: Lịch sử */}
-            {activeTab === TABS.HISTORY && (
-              <div className="kitchen-tab-body">
-                {historyShipments.length === 0 ? (
-                  <div className="card">
-                    <div className="empty">
-                      <CheckCircle
-                        size={40}
-                        style={{
-                          opacity: 0.2,
-                          margin: "0 auto 12px",
-                          display: "block",
-                        }}
-                      />
-                      <p>Chưa có chuyến hàng nào hoàn thành.</p>
+                  {/* Tên cửa hàng */}
+                  <h3 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                    {s.store_name || s.storeName || s.name || "—"}
+                  </h3>
+
+                  {/* Địa chỉ */}
+                  {(s.store_address || s.storeAddress) && (
+                    <p style={{ fontSize: 11.5, color: "var(--ink4)", margin: "0 0 8px" }}>
+                      📍 {s.store_address || s.storeAddress}
+                    </p>
+                  )}
+
+                  {/* Mã đơn + Mã chuyến */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 10, padding: "8px 10px", background: "var(--surface2)", borderRadius: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ color: "var(--ink3)" }}>Mã chuyến</span>
+                      <span className="mono" style={{ fontWeight: 700, color: "var(--ink)", fontSize: 11 }}>{id}</span>
                     </div>
+                    {(s.order_id || s.orderId) && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "var(--ink3)" }}>Mã đơn</span>
+                        <span className="mono" style={{ fontWeight: 700, color: "var(--amber)", fontSize: 11 }}>{s.order_id || s.orderId}</span>
+                      </div>
+                    )}
+                    {(s.plate) && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "var(--ink3)" }}>Biển số</span>
+                        <span className="mono" style={{ fontWeight: 700, color: "var(--ink)" }}>{s.plate}</span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="kitchen-runs-grid">
-                    {historyShipments.map((s) => {
-                      const id = sid(s);
-                      const rawTime =
-                        s.delivered_at ||
-                        s.deliveredAt ||
-                        s.resolved_at ||
-                        s.resolvedAt;
-                      let formattedTime = "Hoàn tất";
-                      if (rawTime) {
-                        const d = new Date(rawTime);
-                        if (!Number.isNaN(d.getTime())) {
-                          formattedTime = d.toLocaleDateString("vi-VN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          });
-                        }
-                      }
-                      return (
-                        <div
-                          key={id}
-                          className="kitchen-run-card"
-                          style={{ minHeight: "auto", opacity: 0.95 }}
-                        >
-                          <div
-                            className="kitchen-run-head"
-                            style={{ marginBottom: 12 }}
-                          >
-                            <div
-                              className="card-icon"
-                              style={{
-                                background: "var(--sage-bg)",
-                                color: "var(--sage)",
-                              }}
-                            >
-                              <CheckCircle size={18} />
-                            </div>
-                          </div>
-                          <h3
-                            style={{
-                              margin: "0 0 8px",
-                              fontSize: 15,
-                              fontWeight: 700,
-                              color: "var(--ink)",
-                            }}
-                          >
-                            {s.storeName ||
-                              s.store_name ||
-                              s.name ||
-                              s.store ||
-                              s.destinationStore ||
-                              "—"}
-                          </h3>
-                          <p
-                            style={{
-                              fontSize: 12.5,
-                              color: "var(--ink3)",
-                              margin: "0 0 4px",
-                            }}
-                          >
-                            Tài xế:{" "}
-                            <span
-                              style={{ fontWeight: 600, color: "var(--ink)" }}
-                            >
-                              {getDriverDisplayName(s)}
-                            </span>
-                          </p>
-                          <p
-                            style={{
-                              fontSize: 12.5,
-                              color: "var(--ink4)",
-                              margin: "0 0 12px",
-                            }}
-                          >
-                            Hoàn tất: {formattedTime}
-                          </p>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            style={{ width: "100%", marginTop: "auto" }}
-                            onClick={() => handleViewDetails(id)}
-                          >
-                            Chi tiết →
-                          </button>
-                        </div>
-                      );
-                    })}
+
+                  {/* Tài xế */}
+                  <div style={{ flex: 1, marginBottom: 10 }}>
+                    {!hasDriver ? (
+                      <div className="fg">
+                        <label htmlFor={`drv-${id}`}>Chọn tài xế</label>
+                        <select id={`drv-${id}`} value={selectedDrivers[id] || ""}
+                          onChange={(e) => setSelectedDrivers({ ...selectedDrivers, [id]: e.target.value })}>
+                          <option value="">— Chọn tài xế —</option>
+                          {drivers.map((d) => (
+                            <option key={d.accountId || d.id || d.user_id} value={d.accountId || d.id || d.user_id}>
+                              {d.fullName || d.name || d.full_name || d.username}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: 0 }}>
+                        🧑‍✈️ Tài xế: <strong style={{ color: "var(--sage)" }}>{getDriverDisplayName(s)}</strong>
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto" }}>
+                    {!hasDriver && (
+                      <button type="button" className="btn btn-amber btn-sm" style={{ width: "100%" }} onClick={() => handleAssignDriver(id)}>
+                        Gán tài xế
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-ghost btn-sm" style={{ width: "100%" }} onClick={() => handleViewDetails(id)}>
+                      Chi tiết món
+                    </button>
+                    <button type="button" className="btn btn-sage btn-sm" style={{ width: "100%" }} onClick={() => handleMarkDelivered(id)}>
+                      ✓ Xe tới nơi
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+        {renderPagination(activePage, activeShipments.length, setActivePage)}
+      </>
+    )}
+  </div>
+)}
+            {activeTab === TABS.HISTORY && (
+  <div className="kitchen-tab-body">
+    {historyShipments.length === 0 ? (
+      <div className="card">
+        <div className="empty">
+          <CheckCircle size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+          <p>Chưa có chuyến hàng nào hoàn thành.</p>
+        </div>
+      </div>
+    ) : (
+      <>
+        <div className="kitchen-runs-grid">
+          {historyShipments
+            .slice((historyPage - 1) * ITEMS_PER_PAGE, historyPage * ITEMS_PER_PAGE)
+            .map((s) => {
+              const id = sid(s);
+              const rawTime = s.delivered_at || s.deliveredAt || s.resolved_at || s.resolvedAt;
+              let formattedTime = "Hoàn tất";
+              if (rawTime) {
+                const d = new Date(rawTime);
+                if (!Number.isNaN(d.getTime())) {
+                  formattedTime = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+                }
+              }
+              return (
+                <div key={id} className="kitchen-run-card" style={{ minHeight: "auto", opacity: 0.95 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                    <div className="card-icon" style={{ background: "var(--sage-bg)", color: "var(--sage)" }}>
+                      <CheckCircle size={18} />
+                    </div>
+                    <span className="tag" style={{ background: "var(--sage-bg)", color: "var(--sage)", fontSize: 11 }}>Hoàn thành</span>
+                  </div>
+
+                  <h3 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                    {s.store_name || s.storeName || s.name || "—"}
+                  </h3>
+
+                  {(s.store_address || s.storeAddress) && (
+                    <p style={{ fontSize: 11.5, color: "var(--ink4)", margin: "0 0 8px" }}>
+                      📍 {s.store_address || s.storeAddress}
+                    </p>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 10, padding: "8px 10px", background: "var(--surface2)", borderRadius: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ color: "var(--ink3)" }}>Mã chuyến</span>
+                      <span className="mono" style={{ fontWeight: 700, color: "var(--ink)", fontSize: 11 }}>{id}</span>
+                    </div>
+                    {(s.order_id || s.orderId) && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "var(--ink3)" }}>Mã đơn</span>
+                        <span className="mono" style={{ fontWeight: 700, color: "var(--sage)", fontSize: 11 }}>{s.order_id || s.orderId}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <p style={{ fontSize: 12.5, color: "var(--ink3)", margin: "0 0 4px" }}>
+                    🧑‍✈️ <span style={{ fontWeight: 600, color: "var(--ink)" }}>{getDriverDisplayName(s)}</span>
+                  </p>
+                  <p style={{ fontSize: 12, color: "var(--ink4)", margin: "0 0 12px" }}>
+                    🕐 {formattedTime}
+                  </p>
+
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: "auto" }} onClick={() => handleViewDetails(id)}>
+                    Chi tiết →
+                  </button>
+                </div>
+              );
+            })}
+        </div>
+        {renderPagination(historyPage, historyShipments.length, setHistoryPage)}
+      </>
+    )}
+  </div>
+)}
           </div>
         </main>
       </div>
 
       {/* Chi tiết món trên xe */}
-      {showDetailsModal && (
-        <div
-          className="sm-dim"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="supply-detail-title"
+{showDetailsModal && (
+  <div
+    className="sm-dim"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="supply-detail-title"
+  >
+    <div
+      className="sm-modal-box"
+      onClick={(e) => e.stopPropagation()}
+      style={{ maxWidth: '450px', width: '90%', margin: '0 auto' }} 
+    >
+      <div className="sm-modal-hd">
+        <h2 id="supply-detail-title" className="sm-modal-title" style={{ fontSize: '18px' }}>
+          Chi tiết món trên xe
+        </h2>
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs"
+          onClick={() => setShowDetailsModal(false)}
+          aria-label="Đóng"
         >
-          <div
-            className="sm-modal-box"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '450px', width: '90%', margin: '0 auto' }} 
-          >
-            <div className="sm-modal-hd">
-              <h2 id="supply-detail-title" className="sm-modal-title" style={{ fontSize: '18px' }}>
-                Chi tiết món trên xe
-              </h2>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() => setShowDetailsModal(false)}
-                aria-label="Đóng"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div
-              className="sm-modal-bd ck-scrollbar"
-              style={{ maxHeight: "min(60vh, 420px)", overflowY: "auto", paddingRight: "6px" }}
-            >
-              {shipmentDetails ? (
-                Array.isArray(shipmentDetails) && shipmentDetails.length > 0 ? (
-                  shipmentDetails.map((item, idx) => (
-                    <div key={idx} className="sm-bom-row" style={{ padding: '12px 16px', marginBottom: '8px' }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                        }}
-                      >
-                        <span style={{ fontSize: 20 }}>📦</span>
-                        <div>
-                          <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: '14px' }}>
-                            {item.product_name ||
-                              item.productName ||
-                              "Sản phẩm"}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--ink4)" }}>
-                            Số lượng dự kiến giao
-                          </div>
-                        </div>
-                      </div>
-                      <span
-                        className="mono"
-                        style={{
-                          fontWeight: 800,
-                          color: "var(--amber)",
-                          fontSize: 16,
-                        }}
-                      >
-                        ×
-                        {item.expected_quantity ||
-                          item.expectedQuantity ||
-                          item.quantity ||
-                          0}
-                      </span>
+          ✕
+        </button>
+      </div>
+      
+      <div
+        className="sm-modal-bd ck-scrollbar"
+        style={{ maxHeight: "min(60vh, 420px)", overflowY: "auto", paddingRight: "6px" }}
+      >
+        {shipmentDetails ? (
+          Array.isArray(shipmentDetails) && shipmentDetails.length > 0 ? (
+            shipmentDetails.map((item, idx) => (
+              <div key={idx} className="sm-bom-row" style={{ padding: '12px 16px', marginBottom: '8px' }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 20 }}>📦</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: '14px' }}>
+                      {item.product_name || item.productName || "Sản phẩm"}
                     </div>
-                  ))
-                ) : (
-                  <p
-                    style={{
-                      textAlign: "center",
-                      color: "var(--ink4)",
-                      margin: '20px 0',
-                    }}
-                  >
-                    Không có dữ liệu món ăn
-                  </p>
-                )
-              ) : (
-                <p
-                  style={{
-                    textAlign: "center",
-                    color: "var(--ink3)",
-                    margin: '20px 0',
-                  }}
+                    <div style={{ fontSize: 11, color: "var(--ink4)" }}>
+                      Số lượng dự kiến giao
+                    </div>
+                  </div>
+                </div>
+                <span
+                  className="mono"
+                  style={{ fontWeight: 800, color: "var(--amber)", fontSize: 16 }}
                 >
-                  Đang tải…
-                </p>
-              )}
-            </div>
+                  ×{item.expected_quantity || item.expectedQuantity || item.quantity || 0}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p style={{ textAlign: "center", color: "var(--ink4)", margin: '20px 0' }}>
+              Không có dữ liệu món ăn
+            </p>
+          )
+        ) : (
+          <p style={{ textAlign: "center", color: "var(--ink3)", margin: '20px 0' }}>
+            Đang tải…
+          </p>
+        )}
+      </div>
 
-            {/* NÚT ĐÓNG ĐÃ ĐƯỢC CĂN GIỮA VÀ BO GÓC */}
-            <div className="sm-modal-ft" style={{ display: 'flex', justifyContent: 'center', paddingTop: '12px' }}>
-              <button
-                type="button"
-                className="btn btn-amber"
-                style={{ 
-                  minWidth: '120px', 
-                  padding: '10px 24px', 
-                  fontWeight: 'bold',
-                  borderRadius: '8px'
-                }}
-                onClick={() => setShowDetailsModal(false)}
-              >
-                Đóng
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
+      <div className="sm-modal-ft" style={{ display: 'flex', justifyContent: 'center', paddingTop: '12px' }}>
+        <button
+          type="button"
+          className="btn btn-amber"
+          style={{ 
+            minWidth: '120px', 
+            padding: '10px 24px', 
+            fontWeight: 'bold',
+            borderRadius: '8px',
+            transform: 'none',        
+            transition: 'opacity 0.2s ease', 
+            paddingLeft: 185,
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+          onClick={() => setShowDetailsModal(false)}
+        >
+          Đóng
+        </button>
+      </div>
+      
+    </div>
+  </div>
+)}
     </div>
   );
 };

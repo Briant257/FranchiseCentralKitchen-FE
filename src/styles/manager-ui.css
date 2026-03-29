@@ -806,8 +806,8 @@
   color: var(--text, #fff);
 }
 .manager-ui .mgr-icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 70px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -825,6 +825,26 @@
   color: #fff;
   border-color: rgba(45, 212, 191, 0.45);
   background: rgba(45, 212, 191, 0.1);
+}
+
+/* Tự động căn giữa các nút trong mgr-action-group */
+.mgr-action-group {
+  display: flex;
+  justify-content: center; /* Căn giữa các nút */
+  align-items: center;
+  gap: 12px;                /* Khoảng cách 12px giữa 2 nút */
+   /* Xóa margin cũ để không bị lệch */
+  transition: all 0.2s;
+  
+  /* Hiệu ứng tàng hình của file CSS tàng hình cũ của bạn */
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Hiện hình khi hover như cũ */
+tr:hover .mgr-action-group {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* —— Thẻ cửa hàng franchise —— */

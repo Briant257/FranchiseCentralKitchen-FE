@@ -574,11 +574,12 @@ const auth = {
     request(`/api/formulas/${productId}`, { method: "DELETE" }),
 
   // --- Bếp (Kitchen) ---
-  getKitchenAggregation: () => request("/api/kitchen/aggregation"),
-  confirmAggregation: (b) =>
+  getKitchenAggregation: () => request("/api/kitchen/orders"),
+  // ✅ SỬA LẠI (unwrap ra mảng)
+  confirmAggregation: (orderIds) =>
     request("/api/kitchen/aggregation/confirm", {
       method: "POST",
-      body: JSON.stringify(b),
+      body: JSON.stringify(orderIds),
     }),
   cook: (b) =>
     request("/api/kitchen/cook", { method: "POST", body: JSON.stringify(b) }),
@@ -587,15 +588,7 @@ const auth = {
     try {
       const res = await request("/api/kitchen/productions/active");
       const list = Array.isArray(res) ? res : (res?.data ?? []);
-
-      return list.map((run) => ({
-        id: run.runId || run.id || Math.random().toString(),
-        name: run.productName || run.name || "Mẻ nấu chưa có tên",
-        status: run.status || "PENDING",
-        totalQty: Number(run.plannedQty || run.totalQty || 0),
-        cookedQty: Number(run.cookedQty || 0),
-        details: run.details || [],
-      }));
+      return list; // Trả thẳng list để hàm loadData xử lý map logic mới
     } catch (error) {
       console.error("Lỗi lấy danh sách mẻ nấu:", error);
       return [];
@@ -606,11 +599,11 @@ const auth = {
       method: "PUT",
       body: JSON.stringify({ status: s }),
     }),
-  reportWastage: (b) =>
-    request("/api/kitchen/wastage", {
-      method: "POST",
-      body: JSON.stringify(b),
-    }),
+  // reportWastage: (b) =>
+  //   request("/api/kitchen/wastage", {
+  //     method: "POST",
+  //     body: JSON.stringify(b),
+  //   }),
 
   // --- Thống kê & Quy đổi ---
   getKPIStats: async () => {
@@ -831,7 +824,7 @@ const kitchenApi = {
 
 // --- API object thống nhất (tương thích code cũ) ---
 const api = {
-  init() {},
+  init() { },
 
   isAuthenticated: () => auth.isAuthenticated(),
   login: (username, password) => auth.login(username, password),
@@ -992,6 +985,15 @@ const api = {
     });
   },
 
+  // 1. Lấy danh sách lịch sử kiểm kê
+  getStocktakeHistory: async () => {
+    return request("/api/inventory/stocktake/history", { method: "GET" });
+  },
+
+  // 2. Lấy chi tiết đợt kiểm kê
+  getStocktakeHistoryDetail: async (sessionCode) => {
+    return request(`/api/inventory/stocktake/history/${sessionCode}`, { method: "GET" });
+  },
   checkoutStoreCart(body) {
     return request("/api/store/cart/checkout", {
       method: "POST",
@@ -1029,8 +1031,8 @@ const api = {
       const res = await request("/api/store/settings/profile");
       const body =
         res?.data != null &&
-        typeof res.data === "object" &&
-        !Array.isArray(res.data)
+          typeof res.data === "object" &&
+          !Array.isArray(res.data)
           ? res.data
           : res;
       return body && typeof body === "object" ? body : {};
@@ -1308,6 +1310,16 @@ const api = {
     );
   },
 
+  // Lấy toàn bộ Master Data đơn vị tính
+  getUnits: async () => {
+    try {
+      const res = await request("/api/units");
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
+  },
+
   async updateAccountRole(accountId, roleName, storeId, replacementAccountId) {
     const id = String(accountId ?? "").trim();
     if (!id) throw new Error("Không có mã tài khoản.");
@@ -1323,6 +1335,15 @@ const api = {
         method: "PATCH",
       },
     );
+  },
+
+  getProductStatistics: async () => {
+    try {
+      const res = await request("/api/products/statistics");
+      return res?.data ?? res ?? {};
+    } catch {
+      return {};
+    }
   },
 
   async saveUsers(users) {
@@ -1348,6 +1369,11 @@ const api = {
         method: "POST",
       },
     ).then((res) => res?.message ?? res?.msg ?? res);
+  },
+
+  getImportHistory: async () => {
+    const res = await request("/api/inventory/import-history");
+    return Array.isArray(res) ? res : res?.data || [];
   },
 
   reportShipmentShortage(shipmentId, body) {
@@ -1441,16 +1467,16 @@ const api = {
     });
   },
 
-  reportKitchenWastage: async (body) => {
-    return request("/api/kitchen/wastage", {
-      method: "POST",
-      body: JSON.stringify({
-        runId: body.runId,
-        wasteQty: Number(body.wasteQty) || 0,
-        reason: body.reason || "Không có lý do",
-      }),
-    });
-  },
+  // reportKitchenWastage: async (body) => {
+  //   return request("/api/kitchen/wastage", {
+  //     method: "POST",
+  //     body: JSON.stringify({
+  //       runId: body.runId,
+  //       wasteQty: Number(body.wasteQty) || 0,
+  //       reason: body.reason || "Không có lý do",
+  //     }),
+  //   });
+  // },
 
   dispatchShipment: async (shipmentId) => {
     return request(`/api/logistics/shipments/${shipmentId}/dispatch`, {
@@ -1573,12 +1599,17 @@ const api = {
   getProductionRuns: async () =>
     toArray(await request("/api/kitchen/productions/active")),
 
-  getKitchenAggregation: () => request("/api/kitchen/aggregation"),
+  getKitchenAggregation: () => request("/api/kitchen/orders"),
 
-  confirmAggregation: (b) =>
+  confirmAggregation: (orderIds) =>
     request("/api/kitchen/aggregation/confirm", {
       method: "POST",
-      body: JSON.stringify(b),
+      body: JSON.stringify(orderIds),
+    }),
+  cookRunItems: (runId, productIds) =>
+    request(`/api/kitchen/productions/${runId}/cook-items`, {
+      method: "PUT",
+      body: JSON.stringify(productIds),
     }),
   updateProductionRunStatus: (id, s) =>
     request(`/api/kitchen/productions/${id}/status?status=${s}`, {
@@ -1617,16 +1648,16 @@ const api = {
     });
   },
 
-  reportWastage: async (body) => {
-    return request("/api/kitchen/wastage", {
-      method: "POST",
-      body: JSON.stringify({
-        runId: body.runId,
-        wasteQty: Number(body.wasteQty) || 0,
-        reason: body.reason || "Không có lý do",
-      }),
-    });
-  },
+  // reportWastage: async (body) => {
+  //   return request("/api/kitchen/wastage", {
+  //     method: "POST",
+  //     body: JSON.stringify({
+  //       runId: body.runId,
+  //       wasteQty: Number(body.wasteQty) || 0,
+  //       reason: body.reason || "Không có lý do",
+  //     }),
+  //   });
+  // },
 
   markOrderPreparing: async (orderId) => {
     return request(`/api/orders/delivery/${orderId}/preparing`, {
