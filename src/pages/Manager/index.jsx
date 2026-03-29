@@ -76,6 +76,11 @@ const getUnitLabel = useCallback(
   const [reportedShipments, setReportedShipments] = useState([]);
   const [showIncidentsModal, setShowIncidentsModal] = useState(false);
 
+  const [showImportHistoryModal, setShowImportHistoryModal] = useState(false);
+const [importHistory, setImportHistory] = useState([]);
+const [importHistoryLoading, setImportHistoryLoading] = useState(false);
+const [selectedTicket, setSelectedTicket] = useState(null); // modal con
+
   // --- STATE NHẬP KHO ---
   const [showImportModal, setShowImportModal] = useState(false);
   const [importForm, setImportForm] = useState({
@@ -154,6 +159,18 @@ const [backendWarningMsg, setBackendWarningMsg] = useState("");
       alert("Lỗi tải chi tiết: " + err.message);
     }
   };
+
+  const fetchImportHistory = async () => {
+  setImportHistoryLoading(true);
+  try {
+    const list = await api.getImportHistory();
+    setImportHistory(list);
+  } catch (err) {
+    alert("❌ Lỗi tải lịch sử: " + err.message);
+  } finally {
+    setImportHistoryLoading(false);
+  }
+};
 
   // --- BỔ SUNG STATE QUY ĐỔI ĐƠN VỊ ---
   const [conversions, setConversions] = useState([]);
@@ -614,26 +631,6 @@ const [productStatistics, setProductStatistics] = useState(null);
 
     return matchText && matchStat;
   });
-
-  const inventorySummary = useMemo(() => {
-    let safe = 0,
-      low = 0,
-      out = 0;
-    for (const item of filteredInventory) {
-      const stock = Number(item.stock) || 0;
-      const min = Number(item.minThreshold ?? item.min ?? 10);
-      if (stock <= 0) out += 1;
-      else if (stock <= min) low += 1;
-      else safe += 1;
-    }
-    return {
-      shown: filteredInventory.length,
-      safe,
-      low,
-      out,
-      totalInSystem: inventory.length,
-    };
-  }, [filteredInventory, inventory]);
 
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [recipeSearchText, setRecipeSearchText] = useState("");
@@ -1845,83 +1842,6 @@ const [productStatistics, setProductStatistics] = useState(null);
                     </p>
                   </div>
                 </div>
-
-                <div className="mgr-stat-grid">
-  {/* Thẻ 1: Đang hiển thị */}
-  <div className="mgr-stat-card mgr-stat-card--0">
-    <div className="mgr-stat-card__label">Đang hiển thị</div>
-    <div className="mgr-stat-card__value" style={{ color: "#e5e7eb" }}>
-      {inventorySummary.shown}
-    </div>
-    <div className="mgr-stat-card__foot">
-      / {inventorySummary.totalInSystem} nguyên liệu
-    </div>
-  </div>
-
-  {/* Thẻ 2: Mức an toàn */}
-  <div className="mgr-stat-card mgr-stat-card--1">
-    <div className="mgr-stat-card__label">Mức an toàn</div>
-    <div className="mgr-stat-card__value" style={{ color: "#2dd4bf" }}>
-      {inventorySummary.safe}
-    </div>
-    <div className="mgr-stat-card__foot">còn đủ hàng</div>
-  </div>
-
-  {/* Thẻ 3: Sắp hết */}
-  <div
-    className="mgr-stat-card mgr-stat-card--2"
-    style={{
-      border: inventorySummary.low > 0
-        ? "1px solid rgba(251, 191, 36, 0.5)"
-        : undefined,
-      background: inventorySummary.low > 0
-        ? "rgba(251, 191, 36, 0.06)"
-        : undefined,
-    }}
-  >
-    <div className="mgr-stat-card__label">
-      {inventorySummary.low > 0 && <span style={{ marginRight: 4 }}>⚠️</span>}
-      Sắp hết hàng
-    </div>
-    <div
-      className="mgr-stat-card__value"
-      style={{ color: inventorySummary.low > 0 ? "#fbbf24" : "#4ade80" }}
-    >
-      {inventorySummary.low}
-    </div>
-    <div className="mgr-stat-card__foot">
-      {inventorySummary.low > 0 ? "cần nhập thêm" : "✅ Ổn định"}
-    </div>
-  </div>
-
-  {/* Thẻ 4: Hết hàng */}
-  <div
-    className="mgr-stat-card mgr-stat-card--3"
-    style={{
-      border: inventorySummary.out > 0
-        ? "1px solid rgba(239, 68, 68, 0.5)"
-        : undefined,
-      background: inventorySummary.out > 0
-        ? "rgba(239, 68, 68, 0.06)"
-        : undefined,
-    }}
-  >
-    <div className="mgr-stat-card__label">
-      {inventorySummary.out > 0 && <span style={{ marginRight: 4 }}>🚨</span>}
-      Hết hàng
-    </div>
-    <div
-      className="mgr-stat-card__value"
-      style={{ color: inventorySummary.out > 0 ? "#f87171" : "#4ade80" }}
-    >
-      {inventorySummary.out}
-    </div>
-    <div className="mgr-stat-card__foot">
-      {inventorySummary.out > 0 ? "cần nhập gấp!" : "✅ Không hết hàng"}
-    </div>
-  </div>
-</div>
-
                 <div className="mgr-search-row">
                   <div className="mgr-search-bar mgr-search-bar--amber">
                     <input
@@ -1943,6 +1863,17 @@ const [productStatistics, setProductStatistics] = useState(null);
                       Tìm
                     </button>
                   </div>
+                  <button
+  type="button"
+  onClick={() => {
+    setShowImportHistoryModal(true);
+    fetchImportHistory();
+  }}
+  className="mgr-btn"
+  style={{ background: "#1e3a5f", color: "#38bdf8", border: "1px solid #1d4ed8" }}
+>
+  📋 Lịch sử nhập kho
+</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -4206,6 +4137,432 @@ const [productStatistics, setProductStatistics] = useState(null);
             </table>
           )
         )}
+      </div>
+    </div>
+  </div>
+)}
+
+{showImportHistoryModal && (
+  <div
+    className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in manager-ui"
+    onClick={() => setShowImportHistoryModal(false)}
+    role="presentation"
+    style={{ zIndex: 9999 }}
+  >
+    <div
+      className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+      onClick={(e) => e.stopPropagation()}
+      role="presentation"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: "85vh",
+        width: "700px",
+      }}
+    >
+      {/* HEADER */}
+      <div className="form-header" style={{ flexShrink: 0, padding: "16px 20px" }}>
+        <div>
+          <h3 style={{ fontSize: "1.1rem" }}>Lịch sử nhập kho</h3>
+          <p className="ck-text-xs" style={{ marginTop: 4, color: "#4ADE80", fontWeight: "bold" }}>
+            Kho trung tâm · {importHistory.length} phiếu
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-close"
+          onClick={() => setShowImportHistoryModal(false)}
+          aria-label="Đóng"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* BODY — CÓ THANH CUỘN */}
+      <div
+        className="form-body ck-scrollbar"
+        style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}
+      >
+        <div className="section-label ck-mb-3" style={{ fontSize: "11px" }}>
+          DANH SÁCH PHIẾU NHẬP
+        </div>
+
+        {importHistoryLoading ? (
+          <div className="ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-8 ck-text-gray-500">
+            <span className="ck-text-sm">⏳ Đang tải dữ liệu...</span>
+          </div>
+        ) : importHistory.length === 0 ? (
+          <div className="ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-8 ck-text-gray-500">
+            <span className="ck-text-sm">Chưa có phiếu nhập nào</span>
+          </div>
+        ) : (
+          <div className="ck-flex ck-flex-col ck-gap-3">
+            {importHistory.map((ticket) => (
+              <div
+                key={ticket.ticketId}
+                role="button"
+                onClick={() => setSelectedTicket(ticket)}
+                className="ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-3 ck-border ck-border-gray-700 ck-rounded-xl ck-bg-gray-900/30 ck-cursor-pointer ck-transition-all"
+                style={{ cursor: "pointer" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(20,184,166,0.5)";
+                  e.currentTarget.style.background = "rgba(20,184,166,0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "";
+                  e.currentTarget.style.background = "";
+                }}
+              >
+                {/* TRÁI: icon + thông tin phiếu */}
+                <div className="ck-flex ck-items-center ck-gap-3">
+                  <div
+                    className="product-detail-formula-icon"
+                    style={{ background: "#2d333f", flexShrink: 0 }}
+                  >
+                    📋
+                  </div>
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontFamily: "monospace",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: "#38bdf8",
+                      }}
+                    >
+                      {ticket.ticketId}
+                    </p>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9ca3af" }}>
+                      {new Date(ticket.importDate).toLocaleString("vi-VN", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      · {ticket.createdByName || "—"}
+                    </p>
+                    {ticket.note && (
+                      <p
+                        style={{
+                          margin: "2px 0 0",
+                          fontSize: 11,
+                          color: "#6b7280",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        📝 {ticket.note}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* PHẢI: tổng tiền + badge số dòng + mũi tên */}
+                <div
+                  className="ck-flex ck-items-center ck-gap-3"
+                  style={{ flexShrink: 0 }}
+                >
+                  <div style={{ textAlign: "right", minWidth: 110 }}>
+  <p
+    style={{
+      margin: 0,
+      fontFamily: "monospace",
+      fontWeight: 700,
+      fontSize: 14,
+      color: "#4ade80",
+      textAlign: "right",
+    }}
+  >
+    {Number(ticket.totalAmount || 0).toLocaleString("vi-VN")}đ
+  </p>
+  <p style={{ margin: "2px 0 0", fontSize: 10, color: "#6b7280", textAlign: "right" }}>
+    {ticket.items?.length || 0} nguyên liệu
+  </p>
+</div>
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>›</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* FOOTER */}
+      <div
+        className="form-actions"
+        style={{
+          padding: "20px",
+          borderTop: "1px solid #374151",
+          display: "flex",
+          gap: "12px",
+          flexShrink: 0,
+        }}
+      >
+        <button
+          type="button"
+          className="btn-cancel ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-text-base"
+          onClick={() => setShowImportHistoryModal(false)}
+          style={{
+            background: "#4b5563",
+            color: "#fff",
+            border: "none",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-3px)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+        >
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{selectedTicket && (
+  <div
+    className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in manager-ui"
+    onClick={() => setSelectedTicket(null)}
+    role="presentation"
+    style={{ zIndex: 10000 }}
+  >
+    <div
+      className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+      onClick={(e) => e.stopPropagation()}
+      role="presentation"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: "85vh",
+        width: "560px",
+      }}
+    >
+      {/* HEADER */}
+      <div className="form-header" style={{ flexShrink: 0, padding: "16px 20px" }}>
+        <div>
+          <h3 style={{ fontSize: "1.1rem" }}>Chi tiết phiếu nhập</h3>
+          <p
+            className="ck-text-xs"
+            style={{
+              marginTop: 4,
+              color: "#4ADE80",
+              fontWeight: "bold",
+              fontFamily: "monospace",
+            }}
+          >
+            {selectedTicket.ticketId}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-close"
+          onClick={() => setSelectedTicket(null)}
+          aria-label="Đóng"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* BODY — CÓ THANH CUỘN */}
+      <div
+        className="form-body ck-scrollbar"
+        style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}
+      >
+        {/* THÔNG TIN PHIẾU */}
+        <div className="section-label ck-mb-3" style={{ fontSize: "11px" }}>
+          THÔNG TIN PHIẾU
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+            marginBottom: 20,
+            padding: "14px 16px",
+            borderRadius: 12,
+            background: "rgba(20,184,166,0.06)",
+            border: "1px solid rgba(20,184,166,0.2)",
+          }}
+        >
+          {[
+            {
+              label: "Ngày nhập",
+              value: new Date(selectedTicket.importDate).toLocaleString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            },
+            { label: "Người tạo", value: selectedTicket.createdByName || "—" },
+            { label: "Ghi chú", value: selectedTicket.note || "—" },
+            {
+              label: "Trạng thái",
+              value: (
+                <span
+                  className="mgr-pill mgr-pill--ok"
+                  style={{ fontSize: 11 }}
+                >
+                  {selectedTicket.status || "—"}
+                </span>
+              ),
+            },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <p
+                style={{
+                  fontSize: 10,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  fontWeight: 700,
+                  margin: "0 0 4px",
+                }}
+              >
+                {label}
+              </p>
+              <p style={{ fontSize: 13, color: "#e5e7eb", margin: 0, fontWeight: 500 }}>
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* DANH SÁCH NGUYÊN LIỆU */}
+        <div className="section-label ck-mb-3" style={{ fontSize: "11px" }}>
+          NGUYÊN LIỆU NHẬP ({selectedTicket.items?.length || 0} DÒNG)
+        </div>
+
+        <div className="ck-flex ck-flex-col ck-gap-3">
+          {(selectedTicket.items || []).map((item, i) => (
+            <div
+              key={i}
+              className="ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-3 ck-border ck-border-gray-700 ck-rounded-xl ck-bg-gray-900/30"
+            >
+              {/* TRÁI: icon + tên */}
+              <div className="ck-flex ck-items-center ck-gap-3">
+                
+                <span className="ck-text-sm ck-text-white ck-font-medium">
+                  {item.ingredientName}
+                </span>
+              </div>
+
+              {/* PHẢI: số liệu */}
+              <div className="ck-flex ck-items-center ck-gap-3" style={{ flexShrink: 0 }}>
+               {/* Số lượng + đơn vị */}
+<div style={{ textAlign: "right", minWidth: 120 }}>
+  <p
+    style={{
+      margin: 0,
+      fontFamily: "monospace",
+      fontWeight: 700,
+      fontSize: 14,
+      color: "#fff",
+      display: "flex",
+      justifyContent: "flex-end",
+      alignItems: "baseline",
+      gap: 4,
+    }}
+  >
+    {Number(item.quantity).toLocaleString("vi-VN")}
+    <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, minWidth: 52, textAlign: "left" }}>
+      {getUnitLabel(item.unit)}
+    </span>
+  </p>
+ <p style={{ margin: "2px 0 0", fontSize: 11, color: "#6b7280", textAlign: "", minWidth: 120 , paddingRight:20}}>
+  {Number(item.importPrice).toLocaleString("vi-VN")}đ / {getUnitLabel(item.unit)}
+</p>
+</div>
+
+                {/* Thành tiền */}
+                <div
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 8,
+                    background: "rgba(74,222,128,0.1)",
+                    border: "1px solid rgba(74,222,128,0.2)",
+                    textAlign: "right",
+                    minWidth: 90,
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      fontFamily: "monospace",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: "#4ade80",
+                    }}
+                  >
+                    {Number(item.totalPrice).toLocaleString("vi-VN")}đ
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FOOTER — TỔNG TIỀN + NÚT */}
+      <div
+        className="form-actions"
+        style={{
+          padding: "20px",
+          borderTop: "1px solid #374151",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          flexShrink: 0,
+        }}
+      >
+        {/* Tổng tiền */}
+        <div>
+          <p
+            style={{
+              fontSize: 10,
+              color: "#6b7280",
+              textTransform: "uppercase",
+              fontWeight: 700,
+              margin: "0 0 2px",
+            }}
+          >
+            Tổng giá trị phiếu
+          </p>
+          <p
+            style={{
+              fontSize: 20,
+              fontFamily: "monospace",
+              fontWeight: 900,
+              color: "#4ade80",
+              margin: 0,
+            }}
+          >
+            {Number(selectedTicket.totalAmount || 0).toLocaleString("vi-VN")}đ
+          </p>
+        </div>
+
+        {/* Nút đóng */}
+        <button
+          type="button"
+          className="btn-cancel ck-py-3 ck-rounded-xl ck-font-bold ck-text-base"
+          onClick={() => setSelectedTicket(null)}
+          style={{
+            background: "#4b5563",
+            color: "#fff",
+            border: "none",
+            padding: "10px 28px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            borderRadius: 12,
+            fontWeight: 700,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-3px)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+        >
+          Đóng
+        </button>
       </div>
     </div>
   </div>

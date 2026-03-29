@@ -63,14 +63,12 @@ const getUnitLabel = useCallback(
   },
   [unitMasterData]
 );
-  // STATE: BÁO CÁO HAO HỤT
-  const [, setShowWastageModal] = useState(false);
-  const [, setWastageData] = useState({ runId: "", runName: "", wasteQty: "", reason: "" });
 
   const [selectedAggItems, setSelectedAggItems] = useState([]);
-
- 
-
+const [, setExpandedOrderId] = useState(null);
+const [viewingOrderDetails, setViewingOrderDetails] = useState(null);
+const [, setExpandedRecipeIndex] = useState(null);
+const [viewingItemFormula, setViewingItemFormula] = useState(null);
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -86,9 +84,7 @@ const getUnitLabel = useCallback(
       // --- MAP DỮ LIỆU MẺ NẤU TỪ BACKEND SANG FRONTEND ---
       const rawRuns = Array.isArray(runsData) ? runsData : (runsData?.data || []);
       const mappedRuns = rawRuns.map((run, idx) => {
-        const rawBom = run.bom || run.ingredients || run.formula || [];
-
-        // BƯỚC QUAN TRỌNG: CHUẨN HÓA TRẠNG THÁI (ÉP KIỂU)
+        
         let currentStatus = String(run.status || "PENDING").toUpperCase();
         if (["PLANNED", "NEW", "CREATED", "WAITING", "TODO"].includes(currentStatus)) {
             currentStatus = "PENDING";
@@ -100,19 +96,26 @@ const getUnitLabel = useCallback(
             currentStatus = "COMPLETED";
         }
 
+        const items = run.items || [];
+        // Tính tổng tiến độ dựa trên các món con bên trong
+        const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const cookedQty = items.reduce((sum, item) => sum + (item.isCooked ? item.quantity : 0), 0);
+
         return {
-          id: run.runId || run.id || `RUN_TEMP_${idx}`,
-          productId: run.productId || run.product_id || "",
-          name: run.productName || run.name || "Đang tải tên món...",
+          id: run.runId || `RUN_TEMP_${idx}`,
+          orderId: run.orderId || "UNKNOWN",
+          storeName: run.storeName || "Cửa hàng",
+          orderType: run.orderType || "STANDARD",
+          name: `${run.orderId} - ${run.storeName}`,
           status: currentStatus,
-          totalQty: Number(run.plannedQty || run.totalQty || 0),
-          cookedQty: Number(run.cookedQty || 0),
-          details: run.details || [],
-          bom: rawBom.length > 0 ? rawBom.map(ing => ({
-            name: ing.ingredientName || ing.name || "Nguyên liệu",
-            qtyPerItem: Number(ing.amountNeeded || ing.qtyPerItem || ing.amount || 0),
+          totalQty: totalQty,
+          cookedQty: cookedQty,
+          items: items, 
+          bom: items.flatMap(item => item.formulas || []).map(ing => ({
+            name: ing.ingredientName || "Nguyên liệu",
+            qtyPerItem: Number(ing.amountNeeded || 0),
             unit: ing.unit || "KG"
-          })) : null
+          }))
         };
       });
       setProductionRuns(mappedRuns);
@@ -170,31 +173,30 @@ const getUnitLabel = useCallback(
     }
   };
 
-  const handleBulkComplete = async () => {
-    const activeRuns = productionRuns.filter(r => r.status === "COOKING").map(r => r.id);
-    if (activeRuns.length === 0) return alert("Không có mẻ nào đang nấu để chốt!");
-
-    if (window.confirm(`Bạn có chắc chắn muốn chốt hoàn thành ${activeRuns.length} mẻ nấu này không?`)) {
-      try {
-        await api.updateBulkProductionStatus(activeRuns, "COMPLETED");
-        alert(`✅ Đã hoàn thành ${activeRuns.length} mẻ nấu và trừ kho!`);
-        loadData();
-      } catch (err) {
-        alert("Lỗi chốt mẻ hàng loạt!");
-      }
-    }
-  };
-
   const handleOpenAggregation = async () => {
     try {
-      const data = await api.getKitchenAggregation();
-      setAggregationData(data);
-      if (Array.isArray(data)) {
-        setSelectedAggItems(data.map(item => item.productId));
-      } else {
-        setSelectedAggItems([]);
-      }
+      const data = await api.getKitchenAggregation(); // BE trả về list Đơn hàng
       
+      let sortedData = [];
+      if (Array.isArray(data)) {
+        // Sắp xếp: Ưu tiên URGENT (Khẩn cấp) lên đầu, tiếp theo là COMPENSATION (Sự cố)
+        sortedData = data.sort((a, b) => {
+          const typeA = String(a.orderType || a.type || "").toUpperCase();
+          const typeB = String(b.orderType || b.type || "").toUpperCase();
+          
+          const getWeight = (type) => {
+            if (type.includes("URGENT") || type.includes("KHẨN")) return 3;
+            if (type.includes("COMPENSATION") || type.includes("SỰ CỐ")) return 2;
+            return 1;
+          };
+
+          return getWeight(typeB) - getWeight(typeA);
+        });
+      }
+
+      setAggregationData(sortedData);
+      setSelectedAggItems([]); // Reset danh sách chọn
+      setExpandedOrderId(null); // Reset trạng thái mở rộng
       setShowAggModal(true);
     } catch (error) {
       setErrorModal({ show: true, message: "Lỗi tải dữ liệu gom đơn hoặc không có đơn mới!" });
@@ -214,8 +216,8 @@ const getUnitLabel = useCallback(
     }
     
     try {
-      // Gửi mảng productId đã chọn xuống Backend
-      await api.confirmAggregation({ productIds: selectedAggItems });
+    
+      await api.confirmAggregation(selectedAggItems);
       setShowAggModal(false);
       loadData();
       alert("✅ Đã chốt gom đơn, xuất kho và chuyển trạng thái thành công!");
@@ -521,7 +523,7 @@ const getUnitLabel = useCallback(
                                 key={cat.id}
                                 className="ptile"
                                 style={{
-                                  cursor: "default", // Bỏ hiệu ứng click vì đây chỉ là danh sách
+                                  cursor: "default", 
                                   display: "flex",
                                   flexDirection: "row",
                                   alignItems: "center",
@@ -530,7 +532,7 @@ const getUnitLabel = useCallback(
                                   minHeight: "unset"
                                 }}
                               >
-                                {/* Cột STT được làm thành một huy hiệu nhỏ */}
+
                                 <div
                                   className="pt-unit"
                                   style={{
@@ -691,9 +693,6 @@ const getUnitLabel = useCallback(
         <button type="button" onClick={handleOpenAggregation} className="btn btn-amber btn-sm">
           📦 Gom đơn
         </button>
-        <button type="button" onClick={handleBulkComplete} className="btn btn-sage btn-sm">
-          Chốt tất cả mẻ đang nấu  {/* ← bỏ ✅ */}
-        </button>
       </div>
     </div>
 
@@ -718,41 +717,47 @@ const getUnitLabel = useCallback(
                   ? { background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)" }
                   : { background: "var(--sage-bg)", color: "var(--sage)", border: "1px solid var(--sage)" };
               return (
-                <div key={run.id} className="kitchen-run-card">
+                <div key={run.id} className="kitchen-run-card" style={{ border: run.orderType === 'URGENT' ? '2px solid var(--rust)' : '' }}>
                   <div>
-                    <div className="kitchen-run-head">
-                      <div className="kitchen-run-title-row">
-                        <h3>{run.name}</h3>
-                        <button type="button" onClick={() => handleViewRecipe(run)} className="btn btn-ghost btn-xs" title="Xem công thức">
-                          <Eye size={16} />
-                        </button>
-                        {run.status === "COOKING" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setWastageData({ runId: run.id, runName: run.name, wasteQty: "", reason: "" });
-                              setShowWastageModal(true);
-                            }}
-                            className="btn btn-ghost btn-xs"
-                            style={{ color: "var(--rust)" }}
-                            title="Báo cáo hao hụt"
-                          />
-                        )}
+                    <div className="kitchen-run-head" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '10px' }}>
+                      {/* Dòng title chứa Tên cửa hàng, Mã đơn và Nút Báo cáo */}
+                      <div className="kitchen-run-title-row" style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                        
+                        {/* Cụm thông tin Cửa hàng & Mã */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h3 style={{ margin: 0, fontSize: '16px' }}>{run.storeName}</h3>
+                            {run.orderType === 'URGENT' && (
+                              <span className="tag" style={{ background: 'var(--rust-bg)', color: 'var(--rust)', padding: '2px 6px', fontSize: '11px' }}>Khẩn cấp</span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 600, fontFamily: 'monospace' }}>
+                            Mã: {run.orderId}
+                          </span>
+                        </div>
                       </div>
+                      
+                      {/* Huy hiệu trạng thái */}
                       <span className="kitchen-status-pill" style={statusStyle}>
-                        {run.status === "PENDING" ? "Chờ nấu" : run.status === "COOKING" ? "Đang nấu" : "Xong"}
+                        {run.status === "PENDING" ? "Đang chuẩn bị" : run.status === "COOKING" ? "Đang nấu" : "Đã xong"}
                       </span>
                     </div>
 
-                    <div className="kitchen-run-qty">
-                      {run.totalQty}
-                      <span>phần ăn</span>
+                    <div style={{ marginTop: 16 }}>
+                      <button 
+                        type="button" 
+                        onClick={() => handleViewRecipe(run)} 
+                        className="btn btn-ghost btn-sm" 
+                        style={{ width: '100%', border: '1px dashed var(--border)', display: 'flex', justifyContent: 'center', gap: '8px' }}
+                      >
+                        <Eye size={16} /> Xem chi tiết món & công thức
+                      </button>
                     </div>
 
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6, color: "var(--ink3)", textTransform: "uppercase" }}>
                         <span>Tiến độ nấu</span>
-                        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{run.cookedQty}/{run.totalQty}</span>
+                        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{run.cookedQty}/{run.totalQty} phần</span>
                       </div>
                       <div className="kitchen-run-progress-track">
                         <div
@@ -768,48 +773,23 @@ const getUnitLabel = useCallback(
 
                   <div style={{ marginTop: 14 }}>
                     {run.status === "PENDING" && (
-  <button
-    type="button"
-    onClick={() => handleUpdateRunStatus(run.id, "COOKING")}
-    className="btn btn-ghost"
-    style={{ width: "100%", paddingLeft: 85 }}
-    onMouseEnter={e => {
-      e.currentTarget.style.background = "var(--amber-bg)";
-      e.currentTarget.style.color = "var(--amber)";
-      e.currentTarget.style.borderColor = "var(--amber)";
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.background = "";
-      e.currentTarget.style.color = "";
-      e.currentTarget.style.borderColor = "";
-    }}
-  >
-    Bắt đầu nấu
-  </button>
-)}
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRunStatus(run.id, "COOKING")}
+                        className="btn btn-amber"
+                        style={{ width: "100%", justifyContent: 'center' }}
+                      >
+                         Bắt đầu nấu
+                      </button>
+                    )}
                     {run.status === "COOKING" && (
-  <button
-    type="button"
-    onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")}
-    className="btn btn-amber"
-    style={{ width: "100%", paddingLeft: 85 }}
-    onMouseEnter={e => {
-      e.currentTarget.style.background = "var(--sage)";
-      e.currentTarget.style.color = "#ffffff";
-      e.currentTarget.style.borderColor = "var(--sage)";
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.background = "";
-      e.currentTarget.style.color = "";
-      e.currentTarget.style.borderColor = "";
-    }}
-  >
-    Hoàn thành mẻ
-  </button>
-)}
-                    {run.status === "COMPLETED" && (
-                      <button type="button" disabled className="btn btn-ghost" style={{ width: "100%", opacity: 0.55, paddingLeft: 75 }}>
-                        Đã xong
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRunStatus(run.id, "COMPLETED")}
+                        className="btn btn-sage"
+                        style={{ width: "100%", justifyContent: 'center' }}
+                      >
+                         Hoàn thành phiếu nấu
                       </button>
                     )}
                   </div>
@@ -827,110 +807,102 @@ const getUnitLabel = useCallback(
         </main>
       </div>
 
-      {/* ====================================================================== */}
+     {/* ====================================================================== */}
       {/* CÁC MODALS TRỢ NĂNG XUẤT HIỆN KHI CẦN                                  */}
       {/* ====================================================================== */}
 
-      {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU */}
+      {/* 2. MODAL XÁC NHẬN GOM ĐƠN NẤU (CẬP NHẬT THEO ĐƠN HÀNG) */}
       {showAggModal && (
         <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="agg-modal-title">
-          <div className="sm-modal-box" style={{ maxWidth: '600px', width: '90%' }}>
+          <div className="sm-modal-box" style={{ maxWidth: '750px', width: '90%' }}>
             <div className="sm-modal-hd">
-              <h2 id="agg-modal-title" className="sm-modal-title">Gom đơn chi nhánh</h2>
+              <h2 id="agg-modal-title" className="sm-modal-title">Danh sách chờ gom đơn</h2>
               <button type="button" className="btn btn-ghost btn-xs" onClick={() => setShowAggModal(false)} aria-label="Đóng">✕</button>
             </div>
             
             <div className="sm-modal-bd" style={{ padding: '16px' }}>
               <p style={{ margin: "0 0 16px 0", color: "var(--ink2)" }}>
-                Vui lòng chọn các món bạn muốn ưu tiên gom thành mẻ nấu trước:
+                Chọn các đơn hàng bạn muốn xuất kho và bắt đầu nấu:
               </p>
               
-              {/* Vùng chứa bảng có thanh trượt */}
-              <div 
-                className="tbl-wrap ck-scrollbar" 
-                style={{ 
-                  maxHeight: '350px', 
-                  overflowY: 'auto', 
-                  overflowX: 'auto', 
-                  border: '1px solid var(--border)', 
-                  borderRadius: '8px' 
-                }}
-              >
+              <div className="tbl-wrap ck-scrollbar" style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
                 <table style={{ margin: 0 }}>
-                  {/* Cố định tiêu đề bảng khi cuộn */}
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'white' }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                     <tr>
                       <th style={{ textAlign: "center", width: 50 }}>Chọn</th>
-                      <th>Tên món ăn</th>
-                      <th style={{ textAlign: "center", width: 100 }}>Số lượng</th>
-                      <th style={{ textAlign: "center", width: 130 }}>Loại đơn</th>
+                      <th>Mã đơn</th>
+                      <th>Cửa hàng</th>
+                      <th style={{ textAlign: "center" }}>Loại đơn</th>
+                      <th style={{ textAlign: "center", width: 100 }}>Chi tiết</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Array.isArray(aggregationData) && aggregationData.length > 0 ? (
-                      aggregationData.map((item) => {
-                        const isSelected = selectedAggItems.includes(item.productId);
+                      aggregationData.map((order) => {
+                        const oId = order.orderId || order.id;
+                        const isSelected = selectedAggItems.includes(oId);
                         
-                        // 1. Lấy dữ liệu an toàn, ép kiểu về String và xóa khoảng trắng thừa
-                        const rawType = item.order_type || item.orderType || item.priority || item.type || "STANDARD";
-                        const typeStr = String(rawType).trim().toUpperCase();
-                        // 2. Phân loại màu sắc và nhãn (Dùng includes bắt từ khóa cho chắc chắn)
-let tagBg = "var(--sage-bg)";
-let tagColor = "var(--sage)";
-let displayType = "Đơn Thường"; // Mặc định
-
-if (typeStr.includes("URGENT") || typeStr.includes("KHẨN")) {
-  tagBg = "var(--rust-bg)";   // Nền đỏ
-  tagColor = "var(--rust)";   // Chữ đỏ
-  displayType = "Đơn Khẩn Cấp";
-} else if (typeStr.includes("COMPENSATION") || typeStr.includes("SỰ CỐ")) { // Đổi INCIDENT/ISSUE thành COMPENSATION
-  tagBg = "var(--amber-bg)";  // Nền vàng/cam
-  tagColor = "var(--amber)";  // Chữ vàng/cam
-  displayType = "Đơn Sự Cố";
-} else if (typeStr.includes("STANDARD") || typeStr.includes("THƯỜNG")) {
-  tagBg = "var(--sage-bg)";   // Nền xanh lá
-  tagColor = "var(--sage)";   // Chữ xanh lá
-  displayType = "Đơn Thường";
-} else {
-  // Lỡ Backend trả về mã lạ thì hiển thị luôn để dễ debug
-  tagBg = "var(--slate-bg)";
-  tagColor = "var(--slate)";
-  displayType = rawType;
-}
+                        const typeStr = String(order.orderType || order.type || "STANDARD").toUpperCase();
+                        let tagBg = "var(--sage-bg)", tagColor = "var(--sage)", displayType = "Đơn Thường";
+                        
+                        // Thêm logic phân loại tag cho Khẩn cấp và Sự cố
+                        if (typeStr.includes("URGENT") || typeStr.includes("KHẨN")) {
+                          tagBg = "var(--rust-bg)"; 
+                          tagColor = "var(--rust)"; 
+                          displayType = "Khẩn cấp";
+                        } else if (typeStr.includes("COMPENSATION") || typeStr.includes("SỰ CỐ")) {
+                          tagBg = "var(--amber-bg)"; 
+                          tagColor = "var(--amber)"; 
+                          displayType = "Đơn Sự Cố";
+                        }
 
                         return (
-                          <tr 
-                            key={item.productId} 
-                            onClick={() => toggleAggItem(item.productId)}
-                            style={{ cursor: 'pointer', background: isSelected ? 'var(--amber-bg)' : 'transparent' }}
-                          >
-                            <td style={{ textAlign: "center" }}>
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={() => toggleAggItem(item.productId)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </td>
-                            <td style={{ fontWeight: 600 }}>
-                              {item.productName || item.product_name || "Món ăn"}
-                            </td>
-                            <td style={{ textAlign: "center", fontWeight: 700, color: "var(--amber)", fontSize: "16px" }}>
-                              {item.totalQuantity || item.total_quantity || 0}
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <span className="tag tag-s" style={{ background: tagBg, color: tagColor, fontWeight: 600, width: '100%', display: 'inline-block' }}>
-                                {displayType}
-                              </span>
-                            </td>
-                          </tr>
+                          <React.Fragment key={oId}>
+                            {/* DÒNG THÔNG TIN ĐƠN HÀNG */}
+                            <tr style={{ background: isSelected ? 'var(--amber-bg)' : 'transparent', cursor: 'pointer' }} onClick={() => toggleAggItem(oId)}>
+                              <td style={{ textAlign: "center" }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={isSelected} 
+                                  onChange={() => toggleAggItem(oId)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                />
+                              </td>
+                              <td style={{ fontWeight: 700, color: "var(--slate)" }}>{oId}</td>
+                              <td style={{ fontWeight: 600 }}>{order.storeName || "Chi nhánh chưa rõ"}</td>
+                              <td style={{ textAlign: "center" }}>
+                                <span className="tag tag-s" style={{ background: tagBg, color: tagColor, fontWeight: 700 }}>
+                                  {displayType}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <button 
+                                  type="button" 
+                                  className="btn btn-ghost btn-xs"
+                                  title="Xem chi tiết"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingOrderDetails(order); // Mở modal popup chi tiết
+                                  }}
+                                  style={{ 
+                                    color: "var(--ink3)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    width: "100%"
+                                  }}
+                                >
+                                  <Eye size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          </React.Fragment>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={4} style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--ink3)' }}>
-                          Không có dữ liệu gom đơn
-                        </td>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--ink3)' }}>Không có đơn hàng nào chờ gom.</td>
                       </tr>
                     )}
                   </tbody>
@@ -945,84 +917,271 @@ if (typeStr.includes("URGENT") || typeStr.includes("KHẨN")) {
                 className="btn btn-amber" 
                 onClick={handleConfirmAggregation}
                 disabled={selectedAggItems.length === 0}
-                style={{ opacity: selectedAggItems.length === 0 ? 0.6 : 1 }}
               >
-                Gom {selectedAggItems.length} món &amp; Xuất kho
+                Gom {selectedAggItems.length} đơn & Xuất kho
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. MODAL CÔNG THỨC / BOM — layout sáng (ĐÃ THÊM THANH CUỘN) */}
-      {selectedRecipeRun && (
-        <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="bom-modal-title">
-          <div 
-            className="sm-modal-box sm-modal-lg"
-            /* Ép chiều cao tối đa và thiết lập Flexbox */
-            style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}
-          >
-            <div className="sm-modal-hd" style={{ flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div
-                  className="card-icon"
-                  style={{ background: "var(--amber-bg)", color: "var(--amber)" }}
-                >
-                  <ChefHat size={18} />
-                </div>
-                <div>
-                  <h3 id="bom-modal-title" className="sm-modal-title">Định mức sản xuất (BOM)</h3>
-                  <p className="sm-modal-sub">{selectedRecipeRun.name}</p>
-                </div>
+      {/* MODAL POPUP: CHI TIẾT MÓN ĂN TRONG ĐƠN */}
+      {viewingOrderDetails && (
+        <div className="sm-dim" style={{ zIndex: 1000 }} role="dialog" aria-modal="true">
+          <div className="sm-modal-box" style={{ maxWidth: '450px', width: '90%' }}>
+            
+            <div className="sm-modal-hd">
+              <div>
+                <h2 className="sm-modal-title" style={{ fontSize: "16px" }}>Chi tiết món cần nấu</h2>
+                <p className="sm-modal-sub" style={{ margin: 0, fontSize: "13px", color: "var(--ink3)" }}>
+                  Mã đơn: <span style={{ fontWeight: 600, color: "var(--ink)" }}>{viewingOrderDetails.orderId || viewingOrderDetails.id}</span>
+                </p>
               </div>
-              <button type="button" className="btn btn-ghost btn-xs" onClick={() => setSelectedRecipeRun(null)} aria-label="Đóng">✕</button>
+              <button 
+                type="button" 
+                className="btn btn-ghost btn-xs" 
+                onClick={() => setViewingOrderDetails(null)}
+              >
+                ✕
+              </button>
             </div>
 
-            {/* VÙNG CUỘN NỘI DUNG: Thêm flex: 1 và overflowY: auto */}
-            <div 
-              className="sm-modal-bd ck-scrollbar" 
-              style={{ flex: 1, overflowY: 'auto', paddingRight: '6px' }}
+            <div className="sm-modal-bd ck-scrollbar" style={{ padding: '16px', maxHeight: '50vh', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                {(viewingOrderDetails.items || []).map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface2)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{item.productName || item.name}</span>
+                    <span style={{ fontWeight: 800, color: 'var(--amber)', fontSize: "16px" }}>x{item.quantity}</span>
+                  </div>
+                ))}
+                
+                {(!viewingOrderDetails.items || viewingOrderDetails.items.length === 0) && (
+                  <div style={{ textAlign: 'center', color: 'var(--ink4)', padding: '20px', fontStyle: 'italic' }}>
+                    Không có dữ liệu món.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sm-modal-ft">
+              <button 
+                type="button" 
+                className="btn btn-sage" 
+                style={{ width: '100%', justifyContent: 'center' }} 
+                onClick={() => setViewingOrderDetails(null)}
+              >
+                Đóng
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 3. MODAL DANH SÁCH MÓN CẦN NẤU */}
+{selectedRecipeRun && (
+  <div className="sm-dim" role="dialog" aria-modal="true" aria-labelledby="bom-modal-title">
+    <div
+      className="sm-modal-box sm-modal-lg"
+      style={{ display: "flex", flexDirection: "column", maxHeight: "90vh" }}
+    >
+      <div className="sm-modal-hd" style={{ flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="card-icon" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}>
+            <ChefHat size={18} />
+          </div>
+          <div>
+            <h3 id="bom-modal-title" className="sm-modal-title">Danh sách món cần nấu</h3>
+            <p className="sm-modal-sub">{selectedRecipeRun.name}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs"
+          onClick={() => {
+            setSelectedRecipeRun(null);
+            setExpandedRecipeIndex(null);
+          }}
+          aria-label="Đóng"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* VÙNG CUỘN */}
+      <div className="sm-modal-bd ck-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+          {(selectedRecipeRun.items || []).map((item, idx) => (
+            <div
+              key={idx}
+              style={{
+                background: "var(--surface2)",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                overflow: "hidden",
+              }}
             >
-              <div className="sm-highlight-box">
-                <div className="sm-hl-label">Tổng sản lượng cần nấu</div>
-                <div className="sm-hl-val">
-                  {selectedRecipeRun.totalQty}{" "}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink3)" }}>phần ăn</span>
+              {/* DÒNG MÓN ĂN — BỎ CHECKBOX, ĐỔI NÚT THÀNH ICON MẮT */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                }}
+              >
+                {/* Tên món */}
+                <span style={{ fontWeight: 600, fontSize: "15px", color: "var(--ink)" }}>
+                  {item.productName || item.name}
+                </span>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  {/* Số lượng */}
+                  <span style={{ fontWeight: 800, fontSize: "16px", color: "var(--amber)" }}>
+                    x{item.quantity}
+                  </span>
+
+                  {/* NÚT CON MẮT → mở modal popup công thức */}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs"
+                    title="Xem công thức"
+                    onClick={() =>
+                      setViewingItemFormula({
+                        productName: item.productName || item.name,
+                        formulas: item.formulas || [],
+                      })
+                    }
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      color: "var(--ink3)",
+                    }}
+                  >
+                    <Eye size={16} />
+                  </button>
                 </div>
               </div>
-              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ink3)", margin: "0 0 10px" }}>
-                Nguyên liệu cần xuất kho
-              </p>
-              {selectedRecipeRun.bom ? (
-                selectedRecipeRun.bom.map((ing, i) => {
-                  const totalNeeded = (ing.qtyPerItem * selectedRecipeRun.totalQty).toFixed(2);
-                  return (
-                    <div key={i} className="sm-bom-row">
-                      <span style={{ color: "var(--ink)", fontWeight: 600 }}>{ing.name}</span>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: '6px' }}>
-  <span className="mono" style={{ fontSize: 15, fontWeight: 800, color: "var(--slate)" }}>
-    {totalNeeded}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sm-modal-ft" style={{ flexShrink: 0 }}>
+        <button
+          type="button"
+          className="btn btn-sage"
+          style={{ width: "100%", justifyContent: "center" }}
+          onClick={() => {
+            setSelectedRecipeRun(null);
+            setExpandedRecipeIndex(null);
+          }}
+        >
+          Xác nhận &amp; đóng
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* 3b. MODAL POPUP CÔNG THỨC CỦA 1 MÓN */}
+{viewingItemFormula && (
+  <div
+    className="sm-dim"
+    role="dialog"
+    aria-modal="true"
+    style={{ zIndex: 1100 }}
+    onClick={() => setViewingItemFormula(null)}
+  >
+    <div
+      className="sm-modal-box"
+      style={{ maxWidth: "420px", width: "90%", display: "flex", flexDirection: "column", maxHeight: "80vh" }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* HEADER */}
+      <div className="sm-modal-hd" style={{ flexShrink: 0 }}>
+        <div>
+          <h3 className="sm-modal-title" style={{ fontSize: "16px" }}>
+            Công thức nguyên liệu
+          </h3>
+          <p className="sm-modal-sub" style={{ margin: 0, fontSize: "13px", color: "var(--amber)", fontWeight: 700 }}>
+            {viewingItemFormula.productName}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs"
+          onClick={() => setViewingItemFormula(null)}
+          aria-label="Đóng"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* BODY */}
+      <div
+        className="sm-modal-bd ck-scrollbar"
+        style={{ flex: 1, overflowY: "auto", padding: "16px" }}
+      >
+        <p style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase" }}>
+          Định mức nguyên liệu (cho 1 phần)
+        </p>
+
+        {viewingItemFormula.formulas.length > 0 ? (
+          <div style={{ display: "grid", gap: "8px" }}>
+            {viewingItemFormula.formulas.map((ing, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "var(--surface2)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <span style={{ fontWeight: 500, color: "var(--ink)", fontSize: 14 }}>
+                  {ing.ingredientName || ing.name}
+                </span>
+                <div style={{ display: "flex", gap: 6, alignItems: "baseline", minWidth: 90, justifyContent: "flex-end" }}>
+  <span style={{ fontWeight: 700, color: "var(--slate)", fontSize: 15 }}>
+    {Number(ing.amountNeeded || ing.quantity || 0).toFixed(2)}
   </span>
-  <span style={{ fontSize: 10, color: "var(--ink4)", textTransform: "uppercase", minWidth: '52px', textAlign: 'left' }}>
+  <span style={{ fontSize: 11, color: "var(--ink4)", minWidth: 52, textAlign: "left" }}>
     {getUnitLabel(ing.unit)}
   </span>
 </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p style={{ fontSize: 12, color: "var(--ink4)", fontStyle: "italic", margin: 0 }}>Dữ liệu công thức đang được cập nhật...</p>
-              )}
-            </div>
-
-            <div className="sm-modal-ft" style={{ flexShrink: 0 }}>
-              <button type="button" className="btn btn-sage" style={{ flex: 1, paddingLeft :175 }} onClick={() => setSelectedRecipeRun(null)}>
-                Xác nhận &amp; đóng
-              </button>
-            </div>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{ textAlign: "center", padding: "24px 0", color: "var(--ink4)", fontStyle: "italic", fontSize: 13 }}>
+            Chưa có dữ liệu công thức cho món này.
+          </div>
+        )}
+      </div>
+
+      {/* FOOTER */}
+      <div className="sm-modal-ft" style={{ flexShrink: 0 }}>
+        <button
+          type="button"
+          className="btn btn-sage"
+          style={{ width: "100%", justifyContent: "center" }}
+          onClick={() => setViewingItemFormula(null)}
+        >
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* 4. MODAL BÁO LỖI */}
       {errorModal.show && (
