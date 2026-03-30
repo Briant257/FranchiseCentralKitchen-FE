@@ -1131,3 +1131,101 @@ input.ck-border-gray-600:focus {
 .ck-mr-1 {
   margin-right: 0.25rem;
 }
+
+/* ========== Chế độ sáng (Admin) — class ck-theme-light trên .ck-root ========== */
+.ck-root.ck-theme-light {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.ck-root.ck-theme-light .ck-grain {
+  opacity: 0.02;
+}
+.ck-root.ck-theme-light .ck-header {
+  background: linear-gradient(to right, #e2e8f0, #f8fafc);
+  border-bottom-color: #cbd5e1;
+}
+.ck-root.ck-theme-light .ck-text-white {
+  color: #0f172a !important;
+}
+.ck-root.ck-theme-light .ck-text-gray-400 {
+  color: #64748b !important;
+}
+.ck-root.ck-theme-light .ck-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.ck-root.ck-theme-light .ck-theme-toggle:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.ck-root.ck-theme-light .ingredient-polished {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface2: #f1f5f9;
+  --surface3: #e2e8f0;
+  --border: #cbd5e1;
+  --border2: #94a3b8;
+  --text: #0f172a;
+  --text2: #334155;
+  --text3: #64748b;
+  /* Pill filter đang chọn: nền đậm — chữ phải sáng */
+  --accent: #0f172a;
+  --filt-active-text: #f8fafc;
+}
+.ck-root.ck-theme-light .ingredient-polished .import-history-items {
+  background: #f1f5f9;
+}
+.ck-root.ck-theme-light .ingredient-polished .import-history-ticket--rich {
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.07);
+}
+.ck-root.ck-theme-light .ingredient-polished .import-history-card__ticket-id {
+  color: #0d9488;
+}
+.ck-root.ck-theme-light .ingredient-polished .import-history-card__icon {
+  color: #0f766e;
+  border-color: rgba(13, 148, 136, 0.35);
+  background: linear-gradient(
+    135deg,
+    rgba(13, 148, 136, 0.15),
+    rgba(13, 148, 136, 0.06)
+  );
+}
+.ck-root.ck-theme-light .ck-modal-overlay {
+  background: rgba(15, 23, 42, 0.45);
+}
+.ck-root.ck-theme-light .ck-modal-box {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+  border-color: #cbd5e1;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+}
+
+.ck-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5e7eb;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.ck-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}

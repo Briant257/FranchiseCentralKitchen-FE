@@ -11,6 +11,8 @@ import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import NotificationBell from "../../components/common/NotificationBell";
+import ThemeToggleButton from "../../components/common/ThemeToggleButton";
+import { useUiTheme } from "../../context/UiThemeContext";
 import api from "../../services/api";
 
 const TABS = {
@@ -41,6 +43,7 @@ const PAGE_META = {
 };
 
 const SupplyCoordinatorPage = ({ onLogout, userData, onProfileUpdated }) => {
+  const { uiTheme } = useUiTheme();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
 
@@ -185,7 +188,9 @@ const [historyPage, setHistoryPage] = useState(1);
 
   if (loading && readyOrders.length === 0 && activeShipments.length === 0) {
     return (
-      <div className="sm-page">
+      <div
+        className={`sm-page ${uiTheme === "dark" ? "sm-theme-dark" : ""}`.trim()}
+      >
         <div
           className="layout"
           style={{
@@ -232,7 +237,9 @@ const [historyPage, setHistoryPage] = useState(1);
 };
 
   return (
-    <div className="sm-page">
+    <div
+      className={`sm-page ${uiTheme === "dark" ? "sm-theme-dark" : ""}`.trim()}
+    >
       <ChangePasswordModal
         open={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
@@ -307,7 +314,8 @@ const [historyPage, setHistoryPage] = useState(1);
               <div className="tb-title">{meta.title}</div>
             </div>
             <div className="tb-actions">
-              <NotificationBell variant="light" />
+              <ThemeToggleButton />
+              <NotificationBell variant={uiTheme === "dark" ? "dark" : "light"} />
               <HeaderSettingsMenu
                 userData={userData}
                 showProfile={true}

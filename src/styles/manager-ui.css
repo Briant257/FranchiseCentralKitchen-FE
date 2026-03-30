@@ -8,6 +8,36 @@
   --mgr-radius-sm: 12px;
   --mgr-teal-dim: rgba(20, 184, 166, 0.12);
   --mgr-glow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  /* Chrome tối — override ở .ck-root.ck-theme-light .manager-ui */
+  --mgr-toolbar-inset: rgba(255, 255, 255, 0.04);
+  --mgr-input-date-bg: rgba(17, 24, 39, 0.85);
+  --mgr-chart-bg: rgba(17, 24, 39, 0.35);
+  --mgr-chart-bubble-bg: linear-gradient(180deg, #374151, #1f2937);
+  --mgr-search-bar-bg: rgba(17, 24, 39, 0.6);
+  --mgr-search-btn-bg: rgba(55, 65, 81, 0.9);
+  --mgr-search-btn-bg-hover: rgba(75, 85, 99, 0.95);
+  --mgr-empty-bg: rgba(17, 24, 39, 0.35);
+  --mgr-strip-item-bg: rgba(31, 41, 55, 0.85);
+  --mgr-icon-btn-bg: rgba(17, 24, 39, 0.6);
+  --mgr-config-card-bg: rgba(31, 41, 55, 0.75);
+  --mgr-table-head-bg: rgba(0, 0, 0, 0.25);
+  --mgr-table-row-border: rgba(75, 85, 99, 0.45);
+  --mgr-table-row-hover: rgba(255, 255, 255, 0.03);
+  --mgr-panel-head-bg: rgba(0, 0, 0, 0.12);
+  --mgr-aside-top: rgba(55, 65, 81, 0.35);
+  --mgr-store-card-foot-border: rgba(75, 85, 99, 0.6);
+  --mgr-empty-border: rgba(75, 85, 99, 0.55);
+  --mgr-row-bg: rgba(31, 41, 55, 0.65);
+  --mgr-row-border: rgba(75, 85, 99, 0.5);
+  --mgr-row-hover-bg: rgba(55, 65, 81, 0.55);
+  --mgr-stocktake-input-bg: rgba(15, 23, 42, 0.6);
+  --mgr-stocktake-input-text: #e2e8f0;
+  --mgr-stocktake-input-border: rgba(55, 65, 81, 0.8);
+  --mgr-stocktake-note-text: #d1d5db;
+  --mgr-pagination-row-bg: #0d1117;
+  --mgr-btn-secondary-bg: #1f2937;
+  --mgr-btn-secondary-text: #9ca3af;
+  --mgr-btn-secondary-border: #374151;
 }
 
 /* —— Tiêu đề section —— */
@@ -56,7 +86,7 @@
   background: var(--surface, #1f2937);
   border: 1.5px solid var(--border, #4b5563);
   border-radius: var(--mgr-radius-sm);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 var(--mgr-toolbar-inset);
 }
 .manager-ui .mgr-toolbar__grow {
   display: flex;
@@ -70,7 +100,7 @@
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--border, #4b5563);
-  background: rgba(17, 24, 39, 0.85);
+  background: var(--mgr-input-date-bg);
   color: var(--text, #f9fafb);
   font-size: 12px;
   font-family: var(--fm, "JetBrains Mono", monospace);
@@ -264,7 +294,7 @@
   gap: 12px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border, #4b5563);
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--mgr-panel-head-bg);
 }
 .manager-ui .mgr-panel__title {
   margin: 0;
@@ -294,7 +324,7 @@
     linear-gradient(rgba(45, 212, 191, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(45, 212, 191, 0.03) 1px, transparent 1px);
   background-size: 24px 24px;
-  background-color: rgba(17, 24, 39, 0.35);
+  background-color: var(--mgr-chart-bg);
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -325,7 +355,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #374151, #1f2937);
+  background: var(--mgr-chart-bubble-bg);
   border: 1px solid var(--border, #4b5563);
   border-radius: 10px;
   z-index: 2;
@@ -428,8 +458,8 @@
   gap: 10px;
   padding: 12px 14px;
   border-radius: var(--mgr-radius-sm);
-  border: 1px solid rgba(75, 85, 99, 0.5);
-  background: rgba(31, 41, 55, 0.65);
+  border: 1px solid var(--mgr-row-border);
+  background: var(--mgr-row-bg);
   margin-bottom: 8px;
   transition:
     transform 0.15s ease,
@@ -441,25 +471,25 @@
 }
 
 .ck-scrollbar::-webkit-scrollbar {
-  display: none; 
+  display: none;
 }
 
 .ck-scrollbar {
-  -ms-overflow-style: none; 
-  scrollbar-width: none;  
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .hide-scrollbar {
-  -ms-overflow-style: none;  
-  scrollbar-width: none;     
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .hide-scrollbar::-webkit-scrollbar {
-  display: none;            
+  display: none;
 }
 .manager-ui .mgr-row:hover {
   transform: translateY(-1px);
   border-color: rgba(45, 212, 191, 0.35);
-  background: rgba(55, 65, 81, 0.55);
+  background: var(--mgr-row-hover-bg);
 }
 .manager-ui .mgr-row--alert {
   border-color: rgba(239, 68, 68, 0.25);
@@ -526,7 +556,7 @@
   border-radius: var(--mgr-radius-sm);
   overflow: hidden;
   border: 1.5px solid var(--border, #4b5563);
-  background: rgba(17, 24, 39, 0.6);
+  background: var(--mgr-search-bar-bg);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -553,13 +583,13 @@
   font-size: 13px;
   border: none;
   border-left: 1px solid var(--border, #4b5563);
-  background: rgba(55, 65, 81, 0.9);
+  background: var(--mgr-search-btn-bg);
   color: var(--teal-text, #5eead4);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 .manager-ui .mgr-search-bar button:hover {
-  background: rgba(75, 85, 99, 0.95);
+  background: var(--mgr-search-btn-bg-hover);
 }
 .manager-ui .mgr-search-bar--rose:focus-within {
   border-color: rgba(244, 63, 94, 0.65);
@@ -617,20 +647,20 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text3, #9ca3af);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--mgr-table-head-bg);
   border-bottom: 1px solid var(--border, #4b5563);
 }
 .manager-ui .mgr-table-wrap tbody td {
   padding: 14px 16px;
   font-size: 13px;
-  border-top: 1px solid rgba(75, 85, 99, 0.45);
+  border-top: 1px solid var(--mgr-table-row-border);
   vertical-align: middle;
 }
 .manager-ui .mgr-table-wrap tbody tr {
   transition: background 0.15s ease;
 }
 .manager-ui .mgr-table-wrap tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--mgr-table-row-hover);
 }
 .manager-ui .mgr-table-wrap tbody tr.mgr-tr--active {
   background: rgba(20, 184, 166, 0.08);
@@ -681,8 +711,8 @@
   text-align: center;
   padding: 2.5rem 1.5rem;
   border-radius: var(--mgr-radius);
-  border: 2px dashed rgba(75, 85, 99, 0.55);
-  background: rgba(17, 24, 39, 0.35);
+  border: 2px dashed var(--mgr-empty-border);
+  background: var(--mgr-empty-bg);
   color: var(--text3, #9ca3af);
 }
 .manager-ui .mgr-empty__icon {
@@ -719,7 +749,7 @@
   padding: 14px 16px;
   border-radius: var(--mgr-radius-sm);
   border: 1px solid var(--border, #4b5563);
-  background: rgba(31, 41, 55, 0.85);
+  background: var(--mgr-strip-item-bg);
 }
 .manager-ui .mgr-strip-item__label {
   font-size: 10px;
@@ -785,7 +815,7 @@
   border: 1.5px solid var(--border, #4b5563);
   background: linear-gradient(
     180deg,
-    rgba(55, 65, 81, 0.35),
+    var(--mgr-aside-top),
     var(--surface, #1f2937)
   );
   padding: 22px;
@@ -813,7 +843,7 @@
   justify-content: center;
   border-radius: 10px;
   border: 1px solid var(--border, #4b5563);
-  background: rgba(17, 24, 39, 0.6);
+  background: var(--mgr-icon-btn-bg);
   color: var(--text3, #9ca3af);
   cursor: pointer;
   transition:
@@ -822,7 +852,7 @@
     border-color 0.15s ease;
 }
 .manager-ui .mgr-icon-btn:hover {
-  color: #fff;
+  color: var(--text, #fff);
   border-color: rgba(45, 212, 191, 0.45);
   background: rgba(45, 212, 191, 0.1);
 }
@@ -832,10 +862,10 @@
   display: flex;
   justify-content: center; /* Căn giữa các nút */
   align-items: center;
-  gap: 12px;                /* Khoảng cách 12px giữa 2 nút */
-   /* Xóa margin cũ để không bị lệch */
+  gap: 12px; /* Khoảng cách 12px giữa 2 nút */
+  /* Xóa margin cũ để không bị lệch */
   transition: all 0.2s;
-  
+
   /* Hiệu ứng tàng hình của file CSS tàng hình cũ của bạn */
   opacity: 0;
   visibility: hidden;
@@ -937,7 +967,7 @@ tr:hover .mgr-action-group {
   justify-content: space-between;
   align-items: center;
   padding-top: 16px;
-  border-top: 1px solid rgba(75, 85, 99, 0.6);
+  border-top: 1px solid var(--mgr-store-card-foot-border);
   font-size: 11px;
 }
 .manager-ui .mgr-store-card__cta {
@@ -991,7 +1021,7 @@ tr:hover .mgr-action-group {
   padding: 20px;
   border-radius: var(--mgr-radius-sm);
   border: 1px solid var(--border, #4b5563);
-  background: rgba(31, 41, 55, 0.75);
+  background: var(--mgr-config-card-bg);
   transition:
     border-color 0.2s ease,
     transform 0.15s ease;
@@ -1025,4 +1055,312 @@ tr:hover .mgr-action-group {
   margin: 0 0 16px;
   min-height: 20px;
   text-transform: capitalize;
+}
+
+/* —— Giao diện sáng (cùng cây với .ck-root.ck-theme-light) —— */
+.ck-root.ck-theme-light .manager-ui {
+  --mgr-glow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  --mgr-teal-dim: rgba(13, 148, 136, 0.14);
+  --mgr-toolbar-inset: rgba(15, 23, 42, 0.04);
+  --mgr-input-date-bg: #ffffff;
+  --mgr-chart-bg: rgba(241, 245, 249, 0.9);
+  --mgr-chart-bubble-bg: linear-gradient(180deg, #f1f5f9, #e2e8f0);
+  --mgr-search-bar-bg: #f1f5f9;
+  --mgr-search-btn-bg: #e2e8f0;
+  --mgr-search-btn-bg-hover: #cbd5e1;
+  --mgr-empty-bg: rgba(248, 250, 252, 0.95);
+  --mgr-empty-border: rgba(148, 163, 184, 0.55);
+  --mgr-strip-item-bg: #f1f5f9;
+  --mgr-icon-btn-bg: #f1f5f9;
+  --mgr-config-card-bg: #ffffff;
+  --mgr-table-head-bg: #f1f5f9;
+  --mgr-table-row-border: rgba(148, 163, 184, 0.45);
+  --mgr-table-row-hover: rgba(15, 23, 42, 0.045);
+  --mgr-panel-head-bg: rgba(241, 245, 249, 0.98);
+  --mgr-aside-top: rgba(148, 163, 184, 0.22);
+  --mgr-store-card-foot-border: rgba(148, 163, 184, 0.55);
+  --mgr-row-bg: #f8fafc;
+  --mgr-row-border: rgba(148, 163, 184, 0.55);
+  --mgr-row-hover-bg: #f1f5f9;
+  --mgr-stocktake-input-bg: #ffffff;
+  --mgr-stocktake-input-text: #0f172a;
+  --mgr-stocktake-input-border: #cbd5e1;
+  --mgr-stocktake-note-text: #0f172a;
+  --mgr-pagination-row-bg: #f1f5f9;
+  --mgr-btn-secondary-bg: #f1f5f9;
+  --mgr-btn-secondary-text: #475569;
+  --mgr-btn-secondary-border: #cbd5e1;
+}
+
+/* Kiểm kê kho — bảng & input theo theme */
+.manager-ui .mgr-stocktake-thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mgr-table-head-bg);
+}
+.manager-ui .mgr-stocktake-th {
+  padding: 14px 18px;
+  text-align: left;
+  color: var(--text3);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.manager-ui .mgr-stocktake-data-row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s ease;
+}
+.manager-ui .mgr-stocktake-data-row:hover {
+  background: var(--mgr-table-row-hover);
+}
+.manager-ui .mgr-stocktake-data-row.mgr-stocktake-row--warn {
+  background: rgba(239, 68, 68, 0.06);
+}
+.manager-ui .mgr-stocktake-data-row.mgr-stocktake-row--warn:hover {
+  background: rgba(239, 68, 68, 0.09);
+}
+.manager-ui .mgr-stocktake-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.manager-ui .mgr-stocktake-name--warn {
+  color: #fca5a5;
+}
+.manager-ui .mgr-stocktake-stock-val {
+  font-family: var(--fm, monospace);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+.manager-ui .mgr-stocktake-unit {
+  font-size: 11px;
+  color: var(--text3);
+  font-weight: 400;
+}
+.manager-ui .mgr-stocktake-input {
+  width: 130px;
+  background: var(--mgr-stocktake-input-bg);
+  color: var(--mgr-stocktake-input-text);
+  border: 1px solid var(--mgr-stocktake-input-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.manager-ui .mgr-stocktake-input:focus {
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow: 0 0 0 3px var(--mgr-teal-dim);
+}
+.manager-ui .mgr-stocktake-input.mgr-stocktake-input--alert {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+.manager-ui .mgr-stocktake-input.mgr-stocktake-input--alert:focus {
+  border-color: rgba(239, 68, 68, 0.75);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+.manager-ui .mgr-stocktake-input--full {
+  width: 100%;
+  font-weight: 500;
+  color: var(--mgr-stocktake-note-text);
+}
+.manager-ui .mgr-stocktake-pagination-row td {
+  padding: 16px 18px;
+  border: none;
+  background: var(--mgr-pagination-row-bg);
+}
+
+.manager-ui .mgr-btn--secondary {
+  background: var(--mgr-btn-secondary-bg) !important;
+  color: var(--mgr-btn-secondary-text) !important;
+  border: 1px solid var(--mgr-btn-secondary-border) !important;
+  border-radius: 12px;
+}
+.manager-ui .mgr-btn--secondary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* Lịch sử giao dịch franchise — theo ingredient-polished / theme */
+.manager-ui .mgr-franchise-history {
+  border-radius: var(--mgr-radius);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--mgr-glow);
+}
+.manager-ui .mgr-franchise-history__head {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.manager-ui .mgr-franchise-history__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text2);
+}
+.manager-ui .mgr-franchise-history table {
+  width: 100%;
+  text-align: left;
+  border-collapse: collapse;
+}
+.manager-ui .mgr-franchise-history thead {
+  background: var(--mgr-table-head-bg);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+}
+.manager-ui .mgr-franchise-history th {
+  padding: 1.15rem 1.25rem;
+}
+.manager-ui .mgr-franchise-history tbody td {
+  padding: 1.15rem 1.25rem;
+  font-size: 0.875rem;
+  border-top: 1px solid var(--mgr-table-row-border);
+  color: var(--text2);
+  vertical-align: middle;
+}
+.manager-ui .mgr-franchise-history tbody tr:hover {
+  background: var(--mgr-table-row-hover);
+}
+.manager-ui .mgr-franchise-empty {
+  text-align: center;
+  padding: 2.5rem 1rem !important;
+  font-style: italic;
+  color: var(--text3) !important;
+}
+.manager-ui .mgr-franchise-order-id {
+  font-family: var(--fm, monospace);
+  font-weight: 700;
+  color: #60a5fa;
+}
+.manager-ui .mgr-franchise-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.manager-ui .mgr-franchise-action-btn--view {
+  color: #60a5fa;
+}
+.manager-ui .mgr-franchise-action-btn--view:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+.manager-ui .mgr-franchise-action-btn--danger {
+  color: #f87171;
+}
+.manager-ui .mgr-franchise-action-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* Phân trang — dùng biến theme (tránh nền #1f2937 cố định) */
+.manager-ui .mgr-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.manager-ui .mgr-pagination__ellipsis {
+  color: var(--text3);
+  font-size: 13px;
+  padding: 0 4px;
+}
+.manager-ui .mgr-pagination__nav {
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  background: var(--surface2);
+  color: var(--text);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+  font-family: var(--ff, inherit);
+}
+.manager-ui .mgr-pagination__nav:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: var(--mgr-glow);
+}
+.manager-ui .mgr-pagination__nav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.manager-ui .mgr-pagination__page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text3);
+  font-weight: 600;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+  font-family: var(--ff, inherit);
+}
+.manager-ui button.mgr-pagination__page:hover {
+  transform: translateY(-2px);
+  background: var(--surface2);
+  color: var(--text);
+}
+.manager-ui .mgr-pagination__page--active {
+  font-weight: 800;
+  border: 2px solid var(--teal, #14b8a6);
+  background: var(--mgr-teal-dim);
+  color: var(--teal-text, #5eead4);
+  cursor: default;
+}
+.manager-ui span.mgr-pagination__page--active {
+  display: inline-flex;
+}
+
+.ck-root.ck-theme-light .manager-ui .mgr-pagination__page--active {
+  color: #0f766e;
+}
+
+.ck-root.ck-theme-light .manager-ui .mgr-input-date {
+  color-scheme: light;
+}
+
+.ck-root.ck-theme-light .manager-ui .mgr-chart__bubble-val {
+  color: #0d9488;
+}
+
+.ck-root.ck-theme-light .manager-ui .mgr-search-bar button {
+  color: #0f766e;
 }

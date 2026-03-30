@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Lock, X } from "../icons/Icons";
 import api from "../../services/api";
 
@@ -8,6 +8,12 @@ import api from "../../services/api";
  * Ví dụ: { "oldPassword": "123", "newPassword": "MatKhaumoi@2026", "confirmPassword": "MatKhaumoi@2026" }
  */
 function ChangePasswordModal({ open, onClose }) {
+  const overlayRef = useRef(null);
+  const [variant, setVariant] = useState(() => {
+    if (typeof document === "undefined") return "ck";
+    return document.querySelector(".sm-page") ? "sm" : "ck";
+  });
+
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -67,10 +73,128 @@ function ChangePasswordModal({ open, onClose }) {
     onClose?.();
   };
 
+  // Quyết định modal theo layout của page (sm vs ck)
+  useEffect(() => {
+    if (!open) return;
+    const root = overlayRef.current;
+    const smRoot = root?.closest?.(".sm-page");
+    setVariant(smRoot ? "sm" : "ck");
+  }, [open]);
+
   if (!open) return null;
 
+  if (variant === "sm") {
+    return (
+      <div
+        ref={overlayRef}
+        className="sm-dim"
+        onClick={handleClose}
+        role="presentation"
+      >
+        <div
+          className="sm-modal-box"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-labelledby="change-password-title"
+        >
+          <div className="sm-modal-hd">
+            <h2 id="change-password-title" className="sm-modal-title">
+              Đổi mật khẩu
+            </h2>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={handleClose}
+              aria-label="Đóng"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div className="sm-modal-bd">
+              {success && (
+                <div
+                  className="ibox"
+                  style={{
+                    background: "var(--sage-bg)",
+                    borderColor: "var(--sage-border)",
+                    color: "var(--sage)",
+                    marginBottom: 14,
+                  }}
+                >
+                  {success}
+                </div>
+              )}
+              {error && (
+                <div className="ibox danger" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <div className="fg">
+                <label htmlFor="sm-change-old">Mật khẩu hiện tại</label>
+                <input
+                  id="sm-change-old"
+                  type="password"
+                  autoComplete="current-password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="vd: 123"
+                />
+              </div>
+
+              <div className="fg">
+                <label htmlFor="sm-change-new">Mật khẩu mới</label>
+                <input
+                  id="sm-change-new"
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="vd: MatKhaumoi@2026"
+                />
+              </div>
+
+              <div className="fg" style={{ marginBottom: 0 }}>
+                <label htmlFor="sm-change-confirm">Xác nhận mật khẩu mới</label>
+                <input
+                  id="sm-change-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="vd: MatKhaumoi@2026"
+                />
+              </div>
+            </div>
+
+            <div className="sm-modal-ft">
+              <button
+                type="button"
+                className="btn"
+                onClick={handleClose}
+                disabled={loading}
+              >
+                Đóng
+              </button>
+              <button type="submit" className="btn btn-rust" disabled={loading}>
+                {loading ? "⏳ Đang xử lý..." : "🔐 Đổi mật khẩu"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="ck-modal-overlay" onClick={handleClose} role="presentation">
+    <div
+      ref={overlayRef}
+      className="ck-modal-overlay"
+      onClick={handleClose}
+      role="presentation"
+    >
       <div
         className="ck-modal-box ck-max-w-md ck-w-full ck-p-8"
         onClick={(e) => e.stopPropagation()}
