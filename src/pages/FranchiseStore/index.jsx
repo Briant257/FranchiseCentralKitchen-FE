@@ -14,6 +14,8 @@ import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import NotificationBell from "../../components/common/NotificationBell";
+import ThemeToggleButton from "../../components/common/ThemeToggleButton";
+import { useUiTheme } from "../../context/UiThemeContext";
 
 const PAGE_META = {
   cart: {
@@ -277,6 +279,7 @@ const STATUS_MAP = {
 };
 
 const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
+  const { uiTheme } = useUiTheme();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
   const [activePage, setActivePage] = useState("cart");
@@ -1119,7 +1122,9 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
       : "");
 
   return (
-    <div className="sm-page">
+    <div
+      className={`sm-page ${uiTheme === "dark" ? "sm-theme-dark" : ""}`.trim()}
+    >
       <ChangePasswordModal
         open={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
@@ -1211,7 +1216,10 @@ const FranchiseStorePage = ({ onLogout, userData, onProfileUpdated }) => {
               <div className="tb-title">{meta.title}</div>
             </div>
             <div className="tb-actions">
-              <NotificationBell variant="light" />
+              <ThemeToggleButton />
+              <NotificationBell
+                variant={uiTheme === "dark" ? "dark" : "light"}
+              />
               <HeaderSettingsMenu
                 userData={userData}
                 showProfile={true}

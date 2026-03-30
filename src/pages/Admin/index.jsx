@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Users,
   CheckCircle,
@@ -11,11 +11,15 @@ import {
   Trash2,
   Search,
   Package,
+  Clock,
+  User,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import NotificationBell from "../../components/common/NotificationBell";
+import ThemeToggleButton from "../../components/common/ThemeToggleButton";
+import { useUiTheme } from "../../context/UiThemeContext";
 import {
   ADMIN_TABS,
   ROLE_LABELS,
@@ -34,6 +38,7 @@ function isAdminRoleUser(user) {
 }
 
 const AdminPage = ({ onLogout, userData }) => {
+  const { uiTheme } = useUiTheme();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [adminTab, setAdminTab] = useState("accounts");
   const [users, setUsers] = useState([]);
@@ -117,6 +122,33 @@ const AdminPage = ({ onLogout, userData }) => {
     items: [{ ingredientId: "", quantity: "", importPrice: "" }],
   });
   const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importHistoryList, setImportHistoryList] = useState([]);
+  const [importHistoryLoading, setImportHistoryLoading] = useState(false);
+  const [importHistoryExpandedId, setImportHistoryExpandedId] = useState(null);
+
+  const loadImportHistory = useCallback(async () => {
+    setImportHistoryLoading(true);
+    try {
+      const data = await api.getImportHistory();
+      const list = Array.isArray(data) ? data : [];
+      list.sort(
+        (a, b) =>
+          new Date(b.importDate || 0) - new Date(a.importDate || 0),
+      );
+      setImportHistoryList(list);
+    } catch (err) {
+      console.error("Lịch sử nhập hàng:", err);
+      setImportHistoryList([]);
+    } finally {
+      setImportHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (adminTab === "ingredients" && ingredientSubTab === "history") {
+      loadImportHistory();
+    }
+  }, [adminTab, ingredientSubTab, loadImportHistory]);
 
   const loadAccountsByFilter = async (filter) => {
     try {
@@ -355,6 +387,7 @@ const AdminPage = ({ onLogout, userData }) => {
         items: [{ ingredientId: "", quantity: "", importPrice: "" }],
       });
       loadAdminData();
+      loadImportHistory();
     } catch (err) {
       console.error("Import inventory:", err);
     } finally {
@@ -933,7 +966,9 @@ const AdminPage = ({ onLogout, userData }) => {
   ];
 
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black">
+    <div
+      className={`ck-root ck-min-h-screen ${uiTheme === "light" ? "ck-theme-light" : "ck-bg-black"}`}
+    >
       <div className="ck-grain" />
 
       <header className="ck-header ck-px-6 ck-py-4 ck-flex ck-items-center ck-justify-between">
@@ -949,7 +984,8 @@ const AdminPage = ({ onLogout, userData }) => {
           </div>
         </div>
         <div className="ck-flex ck-items-center ck-gap-2">
-          <NotificationBell variant="dark" />
+          <ThemeToggleButton />
+          <NotificationBell variant={uiTheme === "dark" ? "dark" : "light"} />
           <HeaderSettingsMenu
             userData={userData}
             showProfile={false}
@@ -2260,14 +2296,246 @@ const AdminPage = ({ onLogout, userData }) => {
                           fontWeight: 500,
                         }}
                       >
-                        Phiếu nhập gần đây
+                        Lịch sử nhập kho
                       </span>
+                      <button
+                        type="button"
+                        className="btn btn-outline-teal"
+                        disabled={importHistoryLoading}
+                        onClick={() => loadImportHistory()}
+                      >
+                        Làm mới
+                      </button>
                     </div>
-                    <div className="history-list">
+                    {importHistoryLoading ? (
                       <div className="history-empty">
-                        Chưa có phiếu nhập nào trong phiên này
+                        Đang tải lịch sử nhập hàng…
                       </div>
-                    </div>
+                    ) : importHistoryList.length === 0 ? (
+                      <div className="history-empty">
+                        Chưa có phiếu nhập nào.
+                      </div>
+                    ) : (
+                      <div className="history-list">
+                        {importHistoryList.map((ticket, ticketIdx) => {
+                          const tid = String(
+                            ticket.ticketId ?? ticket.id ?? ticketIdx,
+                          );
+                          const expanded = importHistoryExpandedId === tid;
+                          const items = Array.isArray(ticket.items)
+                            ? ticket.items
+                            : [];
+                          const total = Number(
+                            ticket.totalAmount ?? 0,
+                          ).toLocaleString("vi-VN");
+                          const status = String(
+                            ticket.status ?? "",
+                          ).toUpperCase();
+                          const statusBadgeClass =
+                            status === "COMPLETED"
+                              ? "b-ok"
+                              : status === "CANCELLED" ||
+                                  status === "FAILED"
+                                ? "b-empty"
+                                : "b-low";
+                          const statusLabelVi =
+                            status === "COMPLETED"
+                              ? "Hoàn tất"
+                              : status === "CANCELLED"
+                                ? "Đã hủy"
+                                : status === "FAILED"
+                                  ? "Thất bại"
+                                  : status === "PENDING"
+                                    ? "Chờ xử lý"
+                                    : status || "—";
+                          const dateStr = ticket.importDate
+                            ? new Date(ticket.importDate).toLocaleString(
+                                "vi-VN",
+                                {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )
+                            : "—";
+                          const previewItems = items.slice(0, 2);
+                          const moreItemCount = Math.max(
+                            0,
+                            items.length - previewItems.length,
+                          );
+                          return (
+                            <div
+                              key={tid}
+                              className="import-history-ticket import-history-ticket--rich"
+                            >
+                              <div className="import-history-card__layout">
+                                <div className="import-history-card__left">
+                                  <div
+                                    className="import-history-card__icon"
+                                    aria-hidden
+                                  >
+                                    <Package size={22} />
+                                  </div>
+                                  <div className="import-history-card__content">
+                                    <div className="import-history-card__title-row">
+                                      <span className="import-history-card__ticket-id">
+                                        {tid}
+                                      </span>
+                                      {status ? (
+                                        <span
+                                          className={`badge ${statusBadgeClass} import-history-card__status`}
+                                        >
+                                          {statusLabelVi}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <div className="import-history-card__meta-row">
+                                      <span className="import-history-card__meta-item">
+                                        <Clock size={14} />
+                                        {dateStr}
+                                      </span>
+                                      <span className="import-history-card__meta-dot">
+                                        ·
+                                      </span>
+                                      <span className="import-history-card__meta-item">
+                                        <User size={14} />
+                                        {ticket.createdByName ?? "—"}
+                                      </span>
+                                      {items.length > 0 ? (
+                                        <>
+                                          <span className="import-history-card__meta-dot">
+                                            ·
+                                          </span>
+                                          <span className="import-history-card__meta-count">
+                                            {items.length} mặt hàng
+                                          </span>
+                                        </>
+                                      ) : null}
+                                    </div>
+                                    {previewItems.length > 0 && (
+                                      <div className="import-history-card__preview">
+                                        {previewItems.map((it, pi) => (
+                                          <span
+                                            key={pi}
+                                            className="import-history-card__preview-chip"
+                                          >
+                                            {it.ingredientName ?? "—"}
+                                          </span>
+                                        ))}
+                                        {moreItemCount > 0 ? (
+                                          <span className="import-history-card__preview-more">
+                                            +{moreItemCount} mục
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    )}
+                                    {ticket.note ? (
+                                      <div className="import-history-card__note">
+                                        <span className="import-history-card__note-label">
+                                          Ghi chú
+                                        </span>
+                                        {ticket.note}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div className="import-history-card__aside">
+                                  <div className="import-history-card__aside-label">
+                                    Tổng giá trị
+                                  </div>
+                                  <div className="import-history-card__total">
+                                    {total}
+                                    <span className="import-history-card__currency">
+                                      đ
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="btn btn-teal import-history-card__cta"
+                                    onClick={() =>
+                                      setImportHistoryExpandedId(
+                                        expanded ? null : tid,
+                                      )
+                                    }
+                                  >
+                                    {expanded ? "Thu gọn bảng" : "Xem bảng chi tiết"}
+                                  </button>
+                                </div>
+                              </div>
+                              {expanded && (
+                                <div className="import-history-items">
+                                  {items.length === 0 ? (
+                                    <p
+                                      style={{
+                                        margin: 0,
+                                        fontSize: 13,
+                                        color: "var(--text3)",
+                                      }}
+                                    >
+                                      Phiếu không có dòng hàng chi tiết.
+                                    </p>
+                                  ) : (
+                                    <table>
+                                      <thead>
+                                        <tr>
+                                          <th>Nguyên liệu</th>
+                                          <th>SL</th>
+                                          <th>Đơn vị</th>
+                                          <th>Đơn giá</th>
+                                          <th>Thành tiền</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {items.map((row, i) => (
+                                          <tr key={i}>
+                                            <td className="ing-name">
+                                              {row.ingredientName ?? "—"}
+                                            </td>
+                                            <td
+                                              style={{
+                                                fontFamily: "var(--fm)",
+                                              }}
+                                            >
+                                              {Number(
+                                                row.quantity ?? 0,
+                                              ).toLocaleString("vi-VN")}
+                                            </td>
+                                            <td>
+                                              <span className="chip">
+                                                {row.unit ?? "—"}
+                                              </span>
+                                            </td>
+                                            <td>
+                                              {Number(
+                                                row.importPrice ?? 0,
+                                              ).toLocaleString("vi-VN")}
+                                              đ
+                                            </td>
+                                            <td className="price-val">
+                                              {Number(
+                                                row.totalPrice ??
+                                                  (Number(row.quantity) ||
+                                                    0) *
+                                                    (Number(
+                                                      row.importPrice,
+                                                    ) || 0),
+                                              ).toLocaleString("vi-VN")}
+                                              đ
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -2432,10 +2700,12 @@ const AdminPage = ({ onLogout, userData }) => {
                 <input
                   type="text"
                   value={newStore.name}
+                  readOnly={!!editingStore}
                   onChange={(e) =>
                     setNewStore({ ...newStore, name: e.target.value })
                   }
                   placeholder="vd: Cửa hàng Quận 1 - Chi nhánh A"
+                  style={editingStore ? { cursor: "not-allowed" } : undefined}
                 />
               </div>
               <div className="field">
@@ -2443,10 +2713,12 @@ const AdminPage = ({ onLogout, userData }) => {
                 <input
                   type="text"
                   value={newStore.address}
+                  readOnly={!!editingStore}
                   onChange={(e) =>
                     setNewStore({ ...newStore, address: e.target.value })
                   }
                   placeholder="vd: 123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM"
+                  style={editingStore ? { cursor: "not-allowed" } : undefined}
                 />
               </div>
               <div className="field">
@@ -2454,10 +2726,12 @@ const AdminPage = ({ onLogout, userData }) => {
                 <input
                   type="text"
                   value={newStore.phone}
+                  readOnly={!!editingStore}
                   onChange={(e) =>
                     setNewStore({ ...newStore, phone: e.target.value })
                   }
                   placeholder="vd: 0901234567"
+                  style={editingStore ? { cursor: "not-allowed" } : undefined}
                 />
               </div>
               {editingStore && (

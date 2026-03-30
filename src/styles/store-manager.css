@@ -29,6 +29,8 @@
   --white: #ffffff;
   --border: #e0d8cc;
   --border2: #ccc4b8;
+  --line: #e0d8cc;
+  --surface2: #f0ebe3;
   --shadow-sm: 0 1px 3px rgba(45, 34, 24, 0.08);
   --shadow-md: 0 4px 16px rgba(45, 34, 24, 0.1);
   --shadow-lg: 0 12px 40px rgba(45, 34, 24, 0.15);
@@ -1646,4 +1648,57 @@
 }
 .sm-page .ml-auto {
   margin-left: auto;
+}
+
+/* Chế độ tối — đồng bộ với UiThemeContext (store_app_ui_theme) */
+.sm-page.sm-theme-dark {
+  --cream: #141210;
+  --parchment: #1c1916;
+  --sand: #25221c;
+  --stone: #3a342c;
+  --bark: #8a7d70;
+  --walnut: #c4b8a8;
+  --espresso: #0f0d0b;
+  --ink: #f2ebe3;
+  --ink2: #d8cfc4;
+  --ink3: #a89e92;
+  --ink4: #6e665c;
+  --white: #1e1b17;
+  --border: #353028;
+  --border2: #454038;
+  --line: #353028;
+  --surface2: #25221c;
+  --amber-bg: rgba(212, 134, 10, 0.15);
+  --sage-bg: rgba(74, 124, 95, 0.15);
+  --slate-bg: rgba(61, 90, 112, 0.2);
+  --rust-bg: rgba(192, 57, 43, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.sm-page.sm-theme-dark .topbar {
+  background: var(--white);
+  border-bottom-color: var(--border);
+}
+
+.sm-page.sm-theme-dark .tb-title {
+  color: var(--ink);
+}
+
+.sm-page.sm-theme-dark .content {
+  background: var(--parchment);
+}
+
+/* Nút theme trên topbar sáng (mặc định sm-page) */
+.sm-page:not(.sm-theme-dark) .tb-actions .ck-theme-toggle {
+  border: 1px solid var(--border);
+  background: var(--parchment);
+  color: var(--ink);
+}
+.sm-page:not(.sm-theme-dark) .tb-actions .ck-theme-toggle:hover {
+  background: var(--sand);
+  border-color: var(--border2);
 }

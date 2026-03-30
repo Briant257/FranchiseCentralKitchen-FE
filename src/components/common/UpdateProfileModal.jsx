@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { User, Mail, X } from "../icons/Icons";
 import api from "../../services/api";
 
@@ -14,6 +14,12 @@ function UpdateProfileModal({
   initialEmail = "",
   onSuccess,
 }) {
+  const overlayRef = useRef(null);
+  const [variant, setVariant] = useState(() => {
+    if (typeof document === "undefined") return "ck";
+    return document.querySelector(".sm-page") ? "sm" : "ck";
+  });
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,6 +34,14 @@ function UpdateProfileModal({
       setSuccess("");
     }
   }, [open, initialFullName, initialEmail]);
+
+  // Quyết định modal theo layout của page (sm vs ck)
+  useEffect(() => {
+    if (!open) return;
+    const root = overlayRef.current;
+    const smRoot = root?.closest?.(".sm-page");
+    setVariant(smRoot ? "sm" : "ck");
+  }, [open]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -69,8 +83,106 @@ function UpdateProfileModal({
 
   if (!open) return null;
 
+  if (variant === "sm") {
+    return (
+      <div
+        ref={overlayRef}
+        className="sm-dim"
+        onClick={handleClose}
+        role="presentation"
+      >
+        <div
+          className="sm-modal-box"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-labelledby="update-profile-title"
+        >
+          <div className="sm-modal-hd">
+            <h2 id="update-profile-title" className="sm-modal-title">
+              Cập nhật hồ sơ cá nhân
+            </h2>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={handleClose}
+              aria-label="Đóng"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div className="sm-modal-bd">
+              {success && (
+                <div
+                  className="ibox"
+                  style={{
+                    background: "var(--sage-bg)",
+                    borderColor: "var(--sage-border)",
+                    color: "var(--sage)",
+                    marginBottom: 14,
+                  }}
+                >
+                  {success}
+                </div>
+              )}
+              {error && (
+                <div className="ibox danger" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <div className="fg">
+                <label htmlFor="sm-update-fullName">Họ tên (fullName) *</label>
+                <input
+                  id="sm-update-fullName"
+                  type="text"
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="vd: Nguyễn Văn B (Đã đổi tên)"
+                />
+              </div>
+
+              <div className="fg" style={{ marginBottom: 0 }}>
+                <label htmlFor="sm-update-email">Email *</label>
+                <input
+                  id="sm-update-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="vd: nguyenvanb_new@gmail.com"
+                />
+              </div>
+            </div>
+
+            <div className="sm-modal-ft">
+              <button
+                type="button"
+                className="btn"
+                onClick={handleClose}
+                disabled={loading}
+              >
+                Đóng
+              </button>
+              <button type="submit" className="btn btn-rust" disabled={loading}>
+                {loading ? "⏳ Đang lưu..." : "Lưu hồ sơ"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="ck-modal-overlay" onClick={handleClose} role="presentation">
+    <div
+      ref={overlayRef}
+      className="ck-modal-overlay"
+      onClick={handleClose}
+      role="presentation"
+    >
       <div
         className="ck-modal-box ck-max-w-md ck-w-full ck-p-8"
         onClick={(e) => e.stopPropagation()}

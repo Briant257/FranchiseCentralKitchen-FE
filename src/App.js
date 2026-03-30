@@ -9,8 +9,11 @@ import ManagerPage from "./pages/Manager"; // Tí nhớ tạo file này nha!
 import SupplyCoordinatorPage from "./pages/SupplyCoordinator"; //
 
 import "./styles/app.css";
+import ThemeToggleButton from "./components/common/ThemeToggleButton";
+import { useUiTheme } from "./context/UiThemeContext";
 
 function App() {
+  const { uiTheme } = useUiTheme();
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -98,8 +101,22 @@ function App() {
 
   // NẾU LỌT VÀO ROLE LẠ THÌ BÁO LỖI
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black ck-flex ck-items-center ck-justify-center">
+    <div
+      className={`ck-root ck-min-h-screen ck-flex ck-items-center ck-justify-center ${
+        uiTheme === "light" ? "ck-theme-light" : "ck-bg-black"
+      }`}
+    >
       <div className="ck-grain" />
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
+          right: 16,
+          zIndex: 10030,
+        }}
+      >
+        <ThemeToggleButton />
+      </div>
       <div className="ck-text-center">
         <h1 className="ck-text-4xl ck-font-black ck-text-white ck-mb-4">
           Chức năng đang phát triển
