@@ -824,7 +824,7 @@ const kitchenApi = {
 
 // --- API object thống nhất (tương thích code cũ) ---
 const api = {
-  init() { },
+  init() {},
 
   isAuthenticated: () => auth.isAuthenticated(),
   login: (username, password) => auth.login(username, password),
@@ -992,7 +992,9 @@ const api = {
 
   // 2. Lấy chi tiết đợt kiểm kê
   getStocktakeHistoryDetail: async (sessionCode) => {
-    return request(`/api/inventory/stocktake/history/${sessionCode}`, { method: "GET" });
+    return request(`/api/inventory/stocktake/history/${sessionCode}`, {
+      method: "GET",
+    });
   },
   checkoutStoreCart(body) {
     return request("/api/store/cart/checkout", {
@@ -1031,8 +1033,8 @@ const api = {
       const res = await request("/api/store/settings/profile");
       const body =
         res?.data != null &&
-          typeof res.data === "object" &&
-          !Array.isArray(res.data)
+        typeof res.data === "object" &&
+        !Array.isArray(res.data)
           ? res.data
           : res;
       return body && typeof body === "object" ? body : {};
