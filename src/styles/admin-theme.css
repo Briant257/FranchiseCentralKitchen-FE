@@ -170,6 +170,19 @@
   background: rgba(20, 184, 166, 0.2);
   box-shadow: 0 4px 14px rgba(20, 184, 166, 0.25);
 }
+
+/* Nút viền teal — theme sáng: chữ đậm, hover rõ */
+.ck-root.ck-theme-light .ingredient-polished .btn-outline-teal {
+  border-color: #0d9488;
+  color: #0f766e;
+  background: rgba(20, 184, 166, 0.12);
+}
+.ck-root.ck-theme-light .ingredient-polished .btn-outline-teal:hover {
+  color: #fff;
+  background: #0d9488;
+  border-color: #0f766e;
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+}
 .ingredient-polished .btn-sm {
   padding: 6px 12px;
   font-size: 12px;
@@ -1468,6 +1481,15 @@
   flex: 0 1 auto; /* Không cho phép nút bấm tự động giãn dài */
   min-width: auto; /* Hủy bỏ min-width 140px của menu chính */
   padding: 8px 20px; /* Trả lại padding chuẩn của nút Admin */
+}
+
+/* Tab phụ Sản phẩm / Danh mục — theme sáng: nền track rõ hơn */
+.ck-root.ck-theme-light .ingredient-polished.manager-shell .tabs.sub-tabs {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+.ck-root.ck-theme-light .ingredient-polished.manager-shell .tabs.sub-tabs .tab.active {
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
 }
 
 /* Class mới để tùy chỉnh nút Lưu quy đổi */

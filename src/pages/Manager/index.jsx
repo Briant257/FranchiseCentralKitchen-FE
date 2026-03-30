@@ -15,6 +15,8 @@ import ChangePasswordModal from "../../components/common/ChangePasswordModal";
 import UpdateProfileModal from "../../components/common/UpdateProfileModal";
 import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import NotificationBell from "../../components/common/NotificationBell";
+import ThemeToggleButton from "../../components/common/ThemeToggleButton";
+import { useUiTheme } from "../../context/UiThemeContext";
 import "../../styles/admin-theme.css";
 import "../../styles/manager-ui.css";
 
@@ -29,6 +31,8 @@ const MANAGER_TAB_ITEMS = [
 ];
 
 const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
+  const { uiTheme } = useUiTheme();
+  const isLight = uiTheme === "light";
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
   const [activeManagementTab, setActiveManagementTab] = useState("Bảng KPI");
@@ -294,10 +298,16 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                   border:
                     item === currentPage
                       ? "2px solid #14b8a6"
-                      : "1px solid #374151",
+                      : isLight
+                        ? "1px solid #cbd5e1"
+                        : "1px solid #374151",
                   cursor: item === currentPage ? "default" : "pointer",
                   background:
-                    item === currentPage ? "rgba(20,184,166,0.15)" : "#1f2937",
+                    item === currentPage
+                      ? "rgba(20,184,166,0.15)"
+                      : isLight
+                        ? "#f1f5f9"
+                        : "#1f2937",
                   color: item === currentPage ? "#2dd4bf" : "#9ca3af",
                   transition: "all 0.2s ease",
                   transform: "translateY(0)",
@@ -305,16 +315,21 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                 onMouseEnter={(e) => {
                   if (item !== currentPage) {
                     e.currentTarget.style.transform = "translateY(-3px)";
-                    e.currentTarget.style.background = "#374151";
-                    e.currentTarget.style.color = "#fff";
-                    e.currentTarget.style.boxShadow =
-                      "0 4px 12px rgba(0,0,0,0.3)";
+                    e.currentTarget.style.background = isLight
+                      ? "#e2e8f0"
+                      : "#374151";
+                    e.currentTarget.style.color = isLight ? "#0f172a" : "#fff";
+                    e.currentTarget.style.boxShadow = isLight
+                      ? "0 4px 12px rgba(15,23,42,0.12)"
+                      : "0 4px 12px rgba(0,0,0,0.3)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (item !== currentPage) {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.background = "#1f2937";
+                    e.currentTarget.style.background = isLight
+                      ? "#f1f5f9"
+                      : "#1f2937";
                     e.currentTarget.style.color = "#9ca3af";
                     e.currentTarget.style.boxShadow = "none";
                   }
@@ -952,7 +967,10 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   useEffect(() => setFranchiseOrderPage(1), [selectedStore]);
 
   return (
-    <div className="ck-root ck-min-h-screen ck-bg-black">
+    <div
+      data-manager-page
+      className={`ck-root ck-min-h-screen ${uiTheme === "light" ? "ck-theme-light" : "ck-bg-black"}`}
+    >
       <div className="ck-grain" />
 
       <header className="ck-header ck-px-6 ck-py-4 ck-flex ck-items-center ck-justify-between">
@@ -968,7 +986,8 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           </div>
         </div>
         <div className="ck-flex ck-items-center ck-gap-2">
-          <NotificationBell variant="dark" />
+          <ThemeToggleButton />
+          <NotificationBell variant={uiTheme === "dark" ? "dark" : "light"} />
           <HeaderSettingsMenu
             userData={userData}
             showProfile={true}
@@ -1474,7 +1493,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                     </div>
                     <div
                       className="mgr-stat-card__value"
-                      style={{ color: "#4ade80" }}
+                      style={{ color: isLight ? "#15803d" : "#4ade80" }}
                     >
                       {productStatistics?.activeProducts ?? "—"}
                     </div>
@@ -1575,7 +1594,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                         onChange={(e) =>
                           setFilterProductCategory(e.target.value)
                         }
-                        className="ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer"
+                        className={
+                          isLight
+                            ? "ck-bg-white ck-text-slate-900 ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-slate-300 ck-outline-none ck-cursor-pointer"
+                            : "ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer"
+                        }
                       >
                         <option value="Tất cả danh mục">Tất cả danh mục</option>
                         {categoriesList.map((cat) => (
@@ -1694,7 +1717,12 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                         </td>
                                         <td
                                           className="mgr-mono-muted"
-                                          style={{ color: "#86efac" }}
+                                          style={{
+                                            color: isLight
+                                              ? "#047857"
+                                              : "#86efac",
+                                            fontWeight: 600,
+                                          }}
                                         >
                                           {Number(
                                             prod.selling_price ||
@@ -1714,9 +1742,15 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                             <span
                                               className="mgr-pill"
                                               style={{
-                                                background:
-                                                  "rgba(245, 158, 11, 0.15)",
-                                                color: "#fbbf24",
+                                                background: isLight
+                                                  ? "rgba(245, 158, 11, 0.22)"
+                                                  : "rgba(245, 158, 11, 0.15)",
+                                                color: isLight
+                                                  ? "#9a3412"
+                                                  : "#fbbf24",
+                                                border: isLight
+                                                  ? "1px solid rgba(180, 83, 9, 0.35)"
+                                                  : undefined,
                                               }}
                                             >
                                               🟠 Bản nháp (Chưa có BOM)
@@ -1725,9 +1759,15 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                             <span
                                               className="mgr-pill"
                                               style={{
-                                                background:
-                                                  "rgba(75, 85, 99, 0.2)",
-                                                color: "#9ca3af",
+                                                background: isLight
+                                                  ? "rgba(71, 85, 105, 0.12)"
+                                                  : "rgba(75, 85, 99, 0.2)",
+                                                color: isLight
+                                                  ? "#475569"
+                                                  : "#9ca3af",
+                                                border: isLight
+                                                  ? "1px solid rgba(71, 85, 105, 0.25)"
+                                                  : undefined,
                                               }}
                                             >
                                               ⚫ Ngừng bán
@@ -2257,7 +2297,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                           ? "#f87171"
                                           : isLowStock
                                             ? "#fcd34d"
-                                            : "#fff",
+                                            : isLight
+                                              ? "#0f172a"
+                                              : "#fff",
                                       }}
                                     >
                                       <div
@@ -3106,9 +3148,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                           onClick={handleOpenHistory}
                           className="mgr-btn"
                           style={{
-                            background: "#1f2937",
-                            color: "#9ca3af",
-                            border: "1px solid #374151",
+                            background: isLight ? "#f1f5f9" : "#1f2937",
+                            color: isLight ? "#475569" : "#9ca3af",
+                            border: isLight
+                              ? "1px solid #cbd5e1"
+                              : "1px solid #374151",
                             borderRadius: "12px",
                             display: "flex",
                             alignItems: "center",
@@ -3144,15 +3188,19 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                       style={{
                         borderRadius: "16px",
                         overflow: "hidden",
-                        border: "1px solid #1f2937",
+                        border: isLight
+                          ? "1px solid #cbd5e1"
+                          : "1px solid #1f2937",
                       }}
                     >
                       {/* THANH TÌM KIẾM — thêm vào đây, trước phần bảng */}
                       <div
                         style={{
                           padding: "12px 18px",
-                          background: "#0d1117",
-                          borderBottom: "1px solid #1f2937",
+                          background: isLight ? "#f1f5f9" : "#0d1117",
+                          borderBottom: isLight
+                            ? "1px solid #cbd5e1"
+                            : "1px solid #1f2937",
                           display: "flex",
                           gap: "8px",
                         }}
@@ -3170,9 +3218,13 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                           }}
                           style={{
                             flex: 1,
-                            background: "rgba(15,23,42,0.6)",
-                            color: "#e5e7eb",
-                            border: "1px solid rgba(55,65,81,0.8)",
+                            background: isLight
+                              ? "#ffffff"
+                              : "rgba(15,23,42,0.6)",
+                            color: isLight ? "#0f172a" : "#e5e7eb",
+                            border: isLight
+                              ? "1px solid #94a3b8"
+                              : "1px solid rgba(55,65,81,0.8)",
                             borderRadius: "10px",
                             padding: "8px 14px",
                             fontSize: "13px",
@@ -3183,8 +3235,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                               "1px solid rgba(45,212,191,0.5)")
                           }
                           onBlur={(e) =>
-                            (e.currentTarget.style.border =
-                              "1px solid rgba(55,65,81,0.8)")
+                            (e.currentTarget.style.border = isLight
+                              ? "1px solid #94a3b8"
+                              : "1px solid rgba(55,65,81,0.8)")
                           }
                         />
                         <button
@@ -3215,9 +3268,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                             style={{
                               padding: "8px 12px",
                               borderRadius: "10px",
-                              background: "#374151",
-                              color: "#9ca3af",
-                              border: "none",
+                              background: isLight ? "#e2e8f0" : "#374151",
+                              color: isLight ? "#64748b" : "#9ca3af",
+                              border: isLight ? "1px solid #cbd5e1" : "none",
                               fontSize: "13px",
                               cursor: "pointer",
                             }}
@@ -3240,7 +3293,10 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                               position: "sticky",
                               top: 0,
                               zIndex: 2,
-                              background: "#111827",
+                              background: isLight ? "#f1f5f9" : "#111827",
+                              borderBottom: isLight
+                                ? "1px solid #cbd5e1"
+                                : undefined,
                             }}
                           >
                             <tr>
@@ -3382,7 +3438,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                         <tr
                                           key={idx}
                                           style={{
-                                            borderBottom: "1px solid #1f2937",
+                                            borderBottom: isLight
+                                              ? "1px solid #e2e8f0"
+                                              : "1px solid #1f2937",
                                             background: isOverLimit
                                               ? "rgba(239,68,68,0.06)"
                                               : "transparent",
@@ -3391,7 +3449,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                           onMouseEnter={(e) => {
                                             if (!isOverLimit)
                                               e.currentTarget.style.background =
-                                                "rgba(255,255,255,0.02)";
+                                                isLight
+                                                  ? "rgba(15,23,42,0.04)"
+                                                  : "rgba(255,255,255,0.02)";
                                           }}
                                           onMouseLeave={(e) => {
                                             e.currentTarget.style.background =
@@ -3424,7 +3484,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                                   fontWeight: "600",
                                                   color: isOverLimit
                                                     ? "#fca5a5"
-                                                    : "#e5e7eb",
+                                                    : isLight
+                                                      ? "#0f172a"
+                                                      : "#e5e7eb",
                                                   fontSize: "14px",
                                                 }}
                                               >
@@ -3448,7 +3510,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                                 style={{
                                                   fontFamily: "monospace",
                                                   fontWeight: "700",
-                                                  color: "#e5e7eb",
+                                                  color: isLight
+                                                    ? "#0f172a"
+                                                    : "#e5e7eb",
                                                   fontSize: "15px",
                                                 }}
                                               >
@@ -3457,7 +3521,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                               <span
                                                 style={{
                                                   fontSize: "11px",
-                                                  color: "#9ca3af",
+                                                  color: isLight
+                                                    ? "#64748b"
+                                                    : "#9ca3af",
                                                   fontWeight: "400",
                                                   minWidth: "52px",
                                                   textAlign: "left",
@@ -3495,29 +3561,47 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                                 }
                                                 style={{
                                                   width: "130px",
-                                                  background:
-                                                    "rgba(15, 23, 42, 0.6)",
+                                                  background: isLight
+                                                    ? "#ffffff"
+                                                    : "rgba(15, 23, 42, 0.6)",
                                                   color: isOverLimit
                                                     ? "#f87171"
-                                                    : "#e2e8f0",
-                                                  border: `1px solid ${isOverLimit ? "rgba(239,68,68,0.5)" : "rgba(55,65,81,0.8)"}`,
+                                                    : isLight
+                                                      ? "#0f172a"
+                                                      : "#e2e8f0",
+                                                  border: `1px solid ${
+                                                    isOverLimit
+                                                      ? "rgba(239,68,68,0.5)"
+                                                      : isLight
+                                                        ? "#cbd5e1"
+                                                        : "rgba(55,65,81,0.8)"
+                                                  }`,
                                                   borderRadius: "10px",
                                                   padding: "8px 12px",
                                                   fontSize: "13px",
                                                   fontWeight: "600",
                                                   outline: "none",
                                                   transition: "all 0.2s ease",
-                                                  boxShadow:
-                                                    "inset 0 1px 3px rgba(0,0,0,0.3)",
+                                                  boxShadow: isLight
+                                                    ? "inset 0 1px 2px rgba(15,23,42,0.06)"
+                                                    : "inset 0 1px 3px rgba(0,0,0,0.3)",
                                                 }}
                                                 onFocus={(e) => {
                                                   e.currentTarget.style.border = `1px solid ${isOverLimit ? "rgba(239,68,68,0.8)" : "rgba(45,212,191,0.5)"}`;
                                                   e.currentTarget.style.boxShadow = `0 0 0 3px ${isOverLimit ? "rgba(239,68,68,0.1)" : "rgba(45,212,191,0.1)"}`;
                                                 }}
                                                 onBlur={(e) => {
-                                                  e.currentTarget.style.border = `1px solid ${isOverLimit ? "rgba(239,68,68,0.5)" : "rgba(55,65,81,0.8)"}`;
+                                                  e.currentTarget.style.border = `1px solid ${
+                                                    isOverLimit
+                                                      ? "rgba(239,68,68,0.5)"
+                                                      : isLight
+                                                        ? "#cbd5e1"
+                                                        : "rgba(55,65,81,0.8)"
+                                                  }`;
                                                   e.currentTarget.style.boxShadow =
-                                                    "inset 0 1px 3px rgba(0,0,0,0.3)";
+                                                    isLight
+                                                      ? "inset 0 1px 2px rgba(15,23,42,0.06)"
+                                                      : "inset 0 1px 3px rgba(0,0,0,0.3)";
                                                 }}
                                               />
                                               {actualInput !== undefined &&
@@ -3576,18 +3660,23 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                               }
                                               style={{
                                                 width: "100%",
-                                                background:
-                                                  "rgba(15, 23, 42, 0.6)",
-                                                color: "#d1d5db",
-                                                border:
-                                                  "1px solid rgba(55,65,81,0.8)",
+                                                background: isLight
+                                                  ? "#ffffff"
+                                                  : "rgba(15, 23, 42, 0.6)",
+                                                color: isLight
+                                                  ? "#0f172a"
+                                                  : "#d1d5db",
+                                                border: isLight
+                                                  ? "1px solid #cbd5e1"
+                                                  : "1px solid rgba(55,65,81,0.8)",
                                                 borderRadius: "10px",
                                                 padding: "8px 12px",
                                                 fontSize: "13px",
                                                 outline: "none",
                                                 transition: "all 0.2s ease",
-                                                boxShadow:
-                                                  "inset 0 1px 3px rgba(0,0,0,0.3)",
+                                                boxShadow: isLight
+                                                  ? "inset 0 1px 2px rgba(15,23,42,0.06)"
+                                                  : "inset 0 1px 3px rgba(0,0,0,0.3)",
                                               }}
                                               onFocus={(e) => {
                                                 e.currentTarget.style.border =
@@ -3597,9 +3686,13 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                               }}
                                               onBlur={(e) => {
                                                 e.currentTarget.style.border =
-                                                  "1px solid rgba(55,65,81,0.8)";
+                                                  isLight
+                                                    ? "1px solid #cbd5e1"
+                                                    : "1px solid rgba(55,65,81,0.8)";
                                                 e.currentTarget.style.boxShadow =
-                                                  "inset 0 1px 3px rgba(0,0,0,0.3)";
+                                                  isLight
+                                                    ? "inset 0 1px 2px rgba(15,23,42,0.06)"
+                                                    : "inset 0 1px 3px rgba(0,0,0,0.3)";
                                               }}
                                             />
                                           </td>
@@ -3615,7 +3708,12 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                       style={{
                                         padding: "16px 18px",
                                         border: "none",
-                                        background: "#0d1117",
+                                        borderTop: isLight
+                                          ? "1px solid #e2e8f0"
+                                          : "1px solid #1f2937",
+                                        background: isLight
+                                          ? "#f8fafc"
+                                          : "#0d1117",
                                       }}
                                     >
                                       {renderPagination(
@@ -4082,7 +4180,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                         </div>
 
                         {editingRecipeIngredients.length === 0 ? (
-                          <div className="ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-8 ck-text-gray-500">
+                          <div
+                            className={`ck-flex ck-flex-col ck-items-center ck-justify-center ck-py-8 ${isLight ? "ck-text-slate-500" : "ck-text-gray-500"}`}
+                          >
                             <span className="ck-text-sm">
                               Chưa có nguyên liệu nào trong công thức
                             </span>
@@ -4094,17 +4194,34 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                             {editingRecipeIngredients.map((ing, i) => (
                               <div
                                 key={i}
-                                className="ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-3 ck-border ck-border-gray-700 ck-rounded-xl ck-bg-gray-900/30"
+                                className={
+                                  isLight
+                                    ? "ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-3 ck-border ck-border-slate-200 ck-rounded-xl ck-bg-slate-50"
+                                    : "ck-flex ck-flex-row ck-items-center ck-justify-between ck-p-3 ck-border ck-border-gray-700 ck-rounded-xl ck-bg-gray-900/30"
+                                }
                               >
                                 {/* Trái: Icon xanh Teal + Tên nguyên liệu */}
                                 <div className="ck-flex ck-items-center ck-gap-3">
                                   <div
                                     className="product-detail-formula-icon"
-                                    style={{ background: "#2d333f" }}
+                                    style={{
+                                      background: isLight
+                                        ? "#e2e8f0"
+                                        : "#2d333f",
+                                    }}
                                   >
-                                    <Package size={16} color="#00f2ff" />
+                                    <Package
+                                      size={16}
+                                      color={isLight ? "#0d9488" : "#00f2ff"}
+                                    />
                                   </div>
-                                  <span className="ck-text-sm ck-text-white ck-font-medium">
+                                  <span
+                                    className={
+                                      isLight
+                                        ? "ck-text-sm ck-text-slate-900 ck-font-medium"
+                                        : "ck-text-sm ck-text-white ck-font-medium"
+                                    }
+                                  >
                                     {ing.name}
                                   </span>
                                 </div>
@@ -4121,13 +4238,17 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                       );
                                       setEditingRecipeIngredients(arr);
                                     }}
-                                    className="ck-bg-gray-900 ck-text-white ck-px-2 ck-py-1.5 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-right ck-text-sm"
+                                    className={
+                                      isLight
+                                        ? "ck-bg-white ck-text-slate-900 ck-px-2 ck-py-1.5 ck-rounded-lg ck-border ck-border-slate-300 focus:ck-border-teal-500 ck-outline-none ck-text-right ck-text-sm"
+                                        : "ck-bg-gray-900 ck-text-white ck-px-2 ck-py-1.5 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-right ck-text-sm"
+                                    }
                                     style={{ width: "80px", flexShrink: 0 }}
                                   />
                                   <span
                                     style={{
                                       fontSize: "11px",
-                                      color: "#9ca3af",
+                                      color: isLight ? "#64748b" : "#9ca3af",
                                       fontWeight: "600",
                                       width: "64px",
                                       flexShrink: 0,
@@ -4160,7 +4281,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                           className="sep"
                           style={{
                             margin: "20px 0",
-                            borderTop: "1px solid #333",
+                            borderTop: isLight
+                              ? "1px solid #e2e8f0"
+                              : "1px solid #333",
                           }}
                         />
 
@@ -4169,7 +4292,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                             THÊM NGUYÊN LIỆU MỚI
                           </label>
                           <select
-                            className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
+                            className={
+                              isLight
+                                ? "ck-w-full ck-bg-white ck-text-slate-900 ck-px-3 ck-py-2.5 ck-rounded-xl ck-border ck-border-slate-300 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
+                                : "ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
+                            }
                             onChange={(e) => {
                               const val = e.target.value;
                               if (!val) return;
@@ -4251,9 +4378,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                           className="btn-cancel ck-flex-1 ck-py-3 ck-rounded-xl ck-font-bold ck-text-base"
                           onClick={() => setSelectedRecipe(null)}
                           style={{
-                            background: "#4b5563",
-                            color: "#fff",
-                            border: "none",
+                            background: isLight ? "#e2e8f0" : "#4b5563",
+                            color: isLight ? "#0f172a" : "#fff",
+                            border: isLight ? "1px solid #cbd5e1" : "none",
                             cursor: "pointer",
                             transition: "all 0.2s ease",
                           }}
@@ -4501,14 +4628,42 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                       </div>
                     </div>
 
-                    <div className="ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-3xl ck-overflow-hidden shadow-2xl">
-                      <div className="ck-p-6 ck-bg-gray-800/50 ck-border-b ck-border-gray-700 ck-flex ck-justify-between items-center">
-                        <h3 className="ck-font-black ck-text-gray-300 ck-uppercase tracking-widest text-sm">
+                    <div
+                      className="ck-rounded-3xl ck-overflow-hidden"
+                      style={{
+                        border: isLight
+                          ? "1px solid #cbd5e1"
+                          : "1px solid #374151",
+                        backgroundColor: isLight ? "#ffffff" : "#111827",
+                        boxShadow: isLight
+                          ? "0 4px 24px rgba(15, 23, 42, 0.08)"
+                          : "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                      }}
+                    >
+                      <div
+                        className="ck-p-6 ck-flex ck-justify-between items-center ck-border-b"
+                        style={{
+                          borderBottomColor: isLight ? "#e2e8f0" : "#374151",
+                          background: isLight
+                            ? "#f8fafc"
+                            : "rgba(31, 41, 55, 0.5)",
+                        }}
+                      >
+                        <h3
+                          className="ck-font-black ck-uppercase tracking-widest text-sm"
+                          style={{ color: isLight ? "#475569" : "#d1d5db" }}
+                        >
                           Lịch sử giao dịch chi nhánh
                         </h3>
                       </div>
                       <table className="ck-w-full ck-text-left ck-border-collapse">
-                        <thead className="ck-bg-gray-800 ck-text-gray-400 ck-text-[10px] uppercase tracking-tighter">
+                        <thead
+                          className={`ck-text-[10px] uppercase tracking-tighter ${isLight ? "" : "ck-bg-gray-800 ck-text-gray-400"}`}
+                          style={{
+                            background: isLight ? "#f1f5f9" : undefined,
+                            color: isLight ? "#64748b" : undefined,
+                          }}
+                        >
                           <tr>
                             <th className="ck-p-5">Mã đơn hàng</th>
                             <th className="ck-p-5">Thời gian đặt</th>
@@ -4536,7 +4691,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                 <tr>
                                   <td
                                     colSpan="5"
-                                    className="ck-p-10 ck-text-center ck-text-gray-500 italic"
+                                    className={`ck-p-10 ck-text-center italic ${isLight ? "ck-text-slate-500" : "ck-text-gray-500"}`}
                                   >
                                     Cửa hàng này chưa có dữ liệu giao dịch.
                                   </td>
@@ -4565,11 +4720,23 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                   return (
                                     <tr
                                       key={safeOrderId || idx}
-                                      className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors"
+                                      className={
+                                        isLight
+                                          ? "ck-border-t ck-border-slate-200 hover:ck-bg-slate-50 ck-transition-colors"
+                                          : "ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors"
+                                      }
                                     >
-                                      <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">
+                                      <td
+                                        className={`ck-p-5 ck-mono ck-font-bold ${isLight ? "ck-text-blue-700" : "ck-text-blue-400"}`}
+                                      >
                                         {safeOrderId || (
-                                          <span className="ck-text-gray-600">
+                                          <span
+                                            className={
+                                              isLight
+                                                ? "ck-text-slate-500"
+                                                : "ck-text-gray-600"
+                                            }
+                                          >
                                             Đang cập nhật
                                           </span>
                                         )}
@@ -4579,7 +4746,13 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                           </span>
                                         )}
                                       </td>
-                                      <td className="ck-p-5 ck-text-gray-400">
+                                      <td
+                                        className={
+                                          isLight
+                                            ? "ck-p-5 ck-text-slate-600"
+                                            : "ck-p-5 ck-text-gray-400"
+                                        }
+                                      >
                                         {order.createdAt
                                           ? new Date(
                                               order.createdAt,
@@ -4592,7 +4765,9 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                             })
                                           : order.date || "Chưa rõ"}
                                       </td>
-                                      <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
+                                      <td
+                                        className={`ck-p-5 ck-text-right ck-font-black ${isLight ? "ck-text-orange-600" : "ck-text-orange-400"}`}
+                                      >
                                         {Number(safeTotal).toLocaleString()}đ
                                       </td>
                                       <td className="ck-p-5 ck-text-center">
@@ -4619,7 +4794,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                               );
                                             }
                                           }}
-                                          className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-blue-500/20 ck-text-blue-400 ck-transition-all"
+                                          className={
+                                            isLight
+                                              ? "ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-slate-200 ck-bg-white hover:ck-bg-slate-100 ck-text-blue-600 ck-transition-all"
+                                              : "ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-blue-500/20 ck-text-blue-400 ck-transition-all"
+                                          }
                                           title="Xem chi tiết"
                                         >
                                           👁️
@@ -4656,7 +4835,11 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                                                 }
                                               }
                                             }}
-                                            className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-red-500/20 ck-text-red-400 ck-transition-all"
+                                            className={
+                                              isLight
+                                                ? "ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-slate-200 ck-bg-white hover:ck-bg-red-50 ck-text-red-600 ck-transition-all"
+                                                : "ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-lg ck-border ck-border-gray-700 ck-bg-gray-800 hover:ck-bg-red-500/20 ck-text-red-400 ck-transition-all"
+                                            }
                                             title="Hủy đơn"
                                           >
                                             🛑
@@ -6316,6 +6499,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
           onClick={() => setViewingNoteDetail(null)}
         >
           <div
+            className="manager-note-popup"
             style={{
               background: "#1a1d23",
               border: "1px solid #374151",
@@ -6392,6 +6576,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
             {/* Ghi chú */}
             <div
+              className="manager-note-popup__note-box"
               style={{
                 padding: "12px 14px",
                 background: "#242933",
@@ -6411,6 +6596,7 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                 Ghi chú hiện trường
               </p>
               <p
+                className="manager-note-popup__note-text"
                 style={{
                   margin: 0,
                   fontSize: "14px",

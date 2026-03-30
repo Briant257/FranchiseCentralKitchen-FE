@@ -1210,6 +1210,120 @@ input.ck-border-gray-600:focus {
   box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
 }
 
+/* Trang Manager: modal/popup dùng inline nền tối — ép sáng khi theme light */
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .ck-modal-box {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.12) !important;
+  color: #0f172a;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .form-header,
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .form-actions {
+  border-color: #e2e8f0 !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .form-header h3,
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .form-body h3 {
+  color: #0f172a !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .field label {
+  color: #64748b !important;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .ck-modal-overlay
+  .incident-card-item {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .ck-modal-overlay
+  .product-detail-value {
+  color: #334155 !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .section-label {
+  color: #64748b !important;
+  border-color: #e2e8f0 !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay .btn-close {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay table thead th {
+  color: #64748b !important;
+  border-color: #e2e8f0 !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .ck-modal-overlay table tbody td {
+  color: #334155 !important;
+  border-color: #e2e8f0 !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .manager-note-popup {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12) !important;
+}
+.ck-root.ck-theme-light[data-manager-page] .manager-note-popup h4 {
+  color: #0f172a !important;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .manager-note-popup
+  .manager-note-popup__note-box {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .manager-note-popup
+  .manager-note-popup__note-text {
+  color: #334155 !important;
+}
+
+/* Modal form (ingredient-form): header nền tối còn sót khi theme sáng Manager */
+.ck-root.ck-theme-light[data-manager-page]
+  .ingredient-form-modal.manager-ui
+  .ingredient-form-box
+  .form-header {
+  background: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .ingredient-form-modal.manager-ui
+  .ingredient-form-box
+  .form-header
+  h3 {
+  color: #0f172a !important;
+}
+
+/* Select trong .field — admin-theme (background #1f2937) thắng utility Tailwind */
+.ck-root.ck-theme-light[data-manager-page]
+  .ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  select {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  select:focus {
+  border-color: #14b8a6 !important;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15) !important;
+}
+.ck-root.ck-theme-light[data-manager-page]
+  .ingredient-form-modal
+  .ingredient-form-box
+  .form-body
+  .field
+  select
+  option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
 .ck-theme-toggle {
   display: inline-flex;
   align-items: center;
