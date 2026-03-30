@@ -134,6 +134,14 @@ const [backendWarningMsg, setBackendWarningMsg] = useState("");
   const [selectedSessionCode, setSelectedSessionCode] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // --- STATE TÌM KIẾM KIỂM KÊ KHO ---
+const [stocktakeSearchText, setStocktakeSearchText] = useState("");
+const [stocktakeAppliedSearch, setStocktakeAppliedSearch] = useState("");
+
+// --- STATE TÌM KIẾM FRANCHISE STORE ---
+const [franchiseStoreSearchText, setFranchiseStoreSearchText] = useState("");
+const [franchiseStoreAppliedSearch, setFranchiseStoreAppliedSearch] = useState("");
+
   // Mở popup và lấy danh sách
   const handleOpenHistory = async () => {
     setShowHistoryModal(true);
@@ -190,7 +198,7 @@ const [backendWarningMsg, setBackendWarningMsg] = useState("");
   const [recipePage, setRecipePage] = useState(1);
   const [franchiseOrderPage, setFranchiseOrderPage] = useState(1);
   const [franchiseStorePage, setFranchiseStorePage] = useState(1);
-
+const [viewingNoteDetail, setViewingNoteDetail] = useState(null);
   const renderPagination = (currentPage, totalItems, setPageFunc) => {
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
   if (totalPages <= 1) return null;
@@ -410,6 +418,8 @@ const [productStatistics, setProductStatistics] = useState(null);
   useEffect(() => {
     loadData();
   }, [loadData]);
+  useEffect(() => setStocktakePage(1), [stocktakeAppliedSearch]);
+useEffect(() => setFranchiseStorePage(1), [franchiseStoreAppliedSearch]);
 
   // ==========================================
   // HÀM XỬ LÝ KIỂM KÊ KHO
@@ -2590,170 +2600,247 @@ const [productStatistics, setProductStatistics] = useState(null);
       </div>
 
       {/* TABLE */}
-      <div className="mgr-table-wrap" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #1f2937' }}>
-        <div className="ck-max-h-[580px] ck-overflow-y-auto ck-scrollbar">
-          <table style={{ position: "relative", width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ position: "sticky", top: 0, zIndex: 2, background: '#111827' }}>
-              <tr>
-                <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '35%' }}>
-                  Tên nguyên liệu
-                </th>
-                <th style={{ padding: '14px 18px', textAlign: '', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '15%' }}>
-                  Tồn sổ
-                </th>
-                <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '20%' }}>
-                  Thực tế
-                </th>
-                <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Ghi chú hiện trường
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const currentStocktakeRows = inventory.slice((stocktakePage - 1) * ITEMS_PER_PAGE, stocktakePage * ITEMS_PER_PAGE);
-                return (
-                  <>
-                    {currentStocktakeRows.map((item, idx) => {
-                      const ingId = item.ingredientId || item.id || item.sku;
-                      const sysStock = Number(item.stock || 0);
-                      const actualInput = stocktakeForm[ingId]?.actualQty;
-                      let isOverLimit = false;
-                      let diff = 0;
-                      if (actualInput !== undefined && actualInput !== "") {
-                        const actual = Number(actualInput);
-                        diff = actual - sysStock;
-                        const diffPercent = sysStock > 0 ? (Math.abs(diff) / sysStock) * 100 : actual > 0 ? 100 : 0;
-                        isOverLimit = diffPercent > 50;
-                      }
+<div className="mgr-table-wrap" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #1f2937' }}>
 
-                      return (
-                        <tr
-                          key={idx}
-                          style={{
-                            borderBottom: '1px solid #1f2937',
-                            background: isOverLimit ? 'rgba(239,68,68,0.06)' : 'transparent',
-                            transition: 'background 0.2s'
-                          }}
-                          onMouseEnter={e => { if (!isOverLimit) e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = isOverLimit ? 'rgba(239,68,68,0.06)' : 'transparent' }}
-                        >
-                          {/* TÊN NGUYÊN LIỆU */}
-                          <td style={{ padding: '12px 18px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              {isOverLimit && (
-                                <span style={{ fontSize: '14px', flexShrink: 0 }}>🔴</span>
-                              )}
-                              <span style={{ fontWeight: '600', color: isOverLimit ? '#fca5a5' : '#e5e7eb', fontSize: '14px' }}>
-                                {item.ingredientName || item.name}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* TỒN SỔ */}
-                          <td style={{ padding: '12px 18px' }}>
-  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-start', gap: '8px' }}>
-  <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#e5e7eb', fontSize: '15px', }}>
-    {sysStock}
-  </span>
-  <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '400', minWidth: '52px', textAlign: 'left' }}>
-    {getUnitLabel(item.unit)}
-  </span>
-</div>
-                          </td>
-
-                          {/* ĐẾM THỰC TẾ */}
-<td style={{ padding: '10px 18px' }}>
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+  {/* THANH TÌM KIẾM — thêm vào đây, trước phần bảng */}
+  <div style={{ padding: '12px 18px', background: '#0d1117', borderBottom: '1px solid #1f2937', display: 'flex', gap: '8px' }}>
     <input
-      type="number"
-      min="0"
-      step="0.01"
-      placeholder="Nhập SL..."
-      value={stocktakeForm[ingId]?.actualQty ?? ""}
-      onChange={(e) => handleStocktakeChange(ingId, "actualQty", e.target.value)}
+      type="text"
+      placeholder="Tìm nguyên liệu cần kiểm kê…"
+      value={stocktakeSearchText}
+      onChange={(e) => setStocktakeSearchText(e.target.value)}
+      onKeyDown={(e) => { if (e.key === "Enter") setStocktakeAppliedSearch(stocktakeSearchText); }}
       style={{
-        width: '130px',                                           // ← dài hơn
-        background: 'rgba(15, 23, 42, 0.6)',                     // ← mềm hơn
-        color: isOverLimit ? '#f87171' : '#e2e8f0',
-        border: `1px solid ${isOverLimit ? 'rgba(239,68,68,0.5)' : 'rgba(55,65,81,0.8)'}`,
-        borderRadius: '10px',                                     // ← bo tròn hơn
-        padding: '8px 12px',                                      // ← padding thoáng hơn
+        flex: 1,
+        background: 'rgba(15,23,42,0.6)',
+        color: '#e5e7eb',
+        border: '1px solid rgba(55,65,81,0.8)',
+        borderRadius: '10px',
+        padding: '8px 14px',
         fontSize: '13px',
-        fontWeight: '600',
         outline: 'none',
-        transition: 'all 0.2s ease',
-        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
       }}
-      onFocus={e => {
-        e.currentTarget.style.border = `1px solid ${isOverLimit ? 'rgba(239,68,68,0.8)' : 'rgba(45,212,191,0.5)'}`;
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${isOverLimit ? 'rgba(239,68,68,0.1)' : 'rgba(45,212,191,0.1)'}`;
-      }}
-      onBlur={e => {
-        e.currentTarget.style.border = `1px solid ${isOverLimit ? 'rgba(239,68,68,0.5)' : 'rgba(55,65,81,0.8)'}`;
-        e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
-      }}
+      onFocus={e => e.currentTarget.style.border = '1px solid rgba(45,212,191,0.5)'}
+      onBlur={e => e.currentTarget.style.border = '1px solid rgba(55,65,81,0.8)'}
     />
-    {actualInput !== undefined && actualInput !== "" && (
-      <div style={{ fontSize: '11px', fontWeight: '600' }} className="ck-animate-fade-in">
-        {diff === 0 ? (
-          <span style={{ color: '#4ade80' }}>✅ Khớp</span>
-        ) : diff > 0 ? (
-          <span style={{ color: '#60a5fa' }}>↗ Dư {diff}</span>
-        ) : (
-          <span style={{ color: '#f87171' }}>↘ Hao {Math.abs(diff)}</span>
-        )}
-      </div>
+    <button
+      type="button"
+      onClick={() => setStocktakeAppliedSearch(stocktakeSearchText)}
+      style={{
+        padding: '8px 18px',
+        borderRadius: '10px',
+        background: '#0f766e',
+        color: '#fff',
+        border: 'none',
+        fontSize: '13px',
+        fontWeight: '700',
+        cursor: 'pointer',
+      }}
+    >
+      Tìm
+    </button>
+    {stocktakeAppliedSearch && (
+      <button
+        type="button"
+        onClick={() => { setStocktakeSearchText(""); setStocktakeAppliedSearch(""); }}
+        style={{
+          padding: '8px 12px',
+          borderRadius: '10px',
+          background: '#374151',
+          color: '#9ca3af',
+          border: 'none',
+          fontSize: '13px',
+          cursor: 'pointer',
+        }}
+      >
+        ✕
+      </button>
     )}
   </div>
-</td>
 
-{/* GHI CHÚ */}
-<td style={{ padding: '10px 18px' }}>
-  <input
-    type="text"
-    placeholder="VD: Đổ vỡ, rò rỉ..."
-    value={stocktakeForm[ingId]?.note ?? ""}
-    onChange={(e) => handleStocktakeChange(ingId, "note", e.target.value)}
-    style={{
-      width: '100%',
-      background: 'rgba(15, 23, 42, 0.6)',
-      color: '#d1d5db',
-      border: '1px solid rgba(55,65,81,0.8)',
-      borderRadius: '10px',
-      padding: '8px 12px',
-      fontSize: '13px',
-      outline: 'none',
-      transition: 'all 0.2s ease',
-      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
-    }}
-    onFocus={e => {
-      e.currentTarget.style.border = '1px solid rgba(45,212,191,0.5)';
-      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(45,212,191,0.1)';
-    }}
-    onBlur={e => {
-      e.currentTarget.style.border = '1px solid rgba(55,65,81,0.8)';
-      e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
-    }}
-  />
-</td>
-                        </tr>
-                      );
-                    })}
+  <div className="ck-max-h-[580px] ck-overflow-y-auto ck-scrollbar">
+    <table style={{ position: "relative", width: '100%', borderCollapse: 'collapse' }}>
+      <thead style={{ position: "sticky", top: 0, zIndex: 2, background: '#111827' }}>
+        <tr>
+          <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '35%' }}>
+            Tên nguyên liệu
+          </th>
+          <th style={{ padding: '14px 18px', textAlign: '', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '15%' }}>
+            Tồn sổ
+          </th>
+          <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', width: '20%' }}>
+            Thực tế
+          </th>
+          <th style={{ padding: '14px 18px', textAlign: 'left', color: '#6b7280', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Ghi chú hiện trường
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {(() => {
+          // ---- THÊM ĐOẠN LỌC NÀY ----
+          const filteredStocktake = inventory.filter((item) => {
+            if (!stocktakeAppliedSearch) return true;
+            const name = (item.ingredientName || item.name || "").toLowerCase();
+            const id = (item.ingredientId || item.id || item.sku || "").toLowerCase();
+            const keyword = stocktakeAppliedSearch.toLowerCase();
+            return name.includes(keyword) || id.includes(keyword);
+          });
+          // ---- KẾT THÚC ĐOẠN LỌC ----
 
-                    {/* PHÂN TRANG ĐẸP */}
-                    <tr>
-                      <td colSpan={4} style={{ padding: '16px 18px', border: 'none', background: '#0d1117' }}>
-                        {renderPagination(stocktakePage, inventory.length, setStocktakePage)}
+          const currentStocktakeRows = filteredStocktake.slice(
+            (stocktakePage - 1) * ITEMS_PER_PAGE,
+            stocktakePage * ITEMS_PER_PAGE
+          );
+
+          return (
+            <>
+              {currentStocktakeRows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
+                    Không tìm thấy nguyên liệu nào phù hợp.
+                  </td>
+                </tr>
+              ) : (
+                currentStocktakeRows.map((item, idx) => {
+                  const ingId = item.ingredientId || item.id || item.sku;
+                  const sysStock = Number(item.stock || 0);
+                  const actualInput = stocktakeForm[ingId]?.actualQty;
+                  let isOverLimit = false;
+                  let diff = 0;
+                  if (actualInput !== undefined && actualInput !== "") {
+                    const actual = Number(actualInput);
+                    diff = actual - sysStock;
+                    const diffPercent = sysStock > 0 ? (Math.abs(diff) / sysStock) * 100 : actual > 0 ? 100 : 0;
+                    isOverLimit = diffPercent > 50 && Math.abs(diff) > 0.5;
+                  }
+
+                  return (
+                    <tr
+                      key={idx}
+                      style={{
+                        borderBottom: '1px solid #1f2937',
+                        background: isOverLimit ? 'rgba(239,68,68,0.06)' : 'transparent',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={e => { if (!isOverLimit) e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isOverLimit ? 'rgba(239,68,68,0.06)' : 'transparent' }}
+                    >
+                      {/* TÊN NGUYÊN LIỆU */}
+                      <td style={{ padding: '12px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {isOverLimit && <span style={{ fontSize: '14px', flexShrink: 0 }}>🔴</span>}
+                          <span style={{ fontWeight: '600', color: isOverLimit ? '#fca5a5' : '#e5e7eb', fontSize: '14px' }}>
+                            {item.ingredientName || item.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* TỒN SỔ */}
+                      <td style={{ padding: '12px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-start', gap: '8px' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#e5e7eb', fontSize: '15px' }}>
+                            {sysStock}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '400', minWidth: '52px', textAlign: 'left' }}>
+                            {getUnitLabel(item.unit)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* ĐẾM THỰC TẾ */}
+                      <td style={{ padding: '10px 18px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Nhập SL..."
+                            value={stocktakeForm[ingId]?.actualQty ?? ""}
+                            onChange={(e) => handleStocktakeChange(ingId, "actualQty", e.target.value)}
+                            style={{
+                              width: '130px',
+                              background: 'rgba(15, 23, 42, 0.6)',
+                              color: isOverLimit ? '#f87171' : '#e2e8f0',
+                              border: `1px solid ${isOverLimit ? 'rgba(239,68,68,0.5)' : 'rgba(55,65,81,0.8)'}`,
+                              borderRadius: '10px',
+                              padding: '8px 12px',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              outline: 'none',
+                              transition: 'all 0.2s ease',
+                              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
+                            }}
+                            onFocus={e => {
+                              e.currentTarget.style.border = `1px solid ${isOverLimit ? 'rgba(239,68,68,0.8)' : 'rgba(45,212,191,0.5)'}`;
+                              e.currentTarget.style.boxShadow = `0 0 0 3px ${isOverLimit ? 'rgba(239,68,68,0.1)' : 'rgba(45,212,191,0.1)'}`;
+                            }}
+                            onBlur={e => {
+                              e.currentTarget.style.border = `1px solid ${isOverLimit ? 'rgba(239,68,68,0.5)' : 'rgba(55,65,81,0.8)'}`;
+                              e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
+                            }}
+                          />
+                          {actualInput !== undefined && actualInput !== "" && (
+                            <div style={{ fontSize: '11px', fontWeight: '600' }} className="ck-animate-fade-in">
+                              {diff === 0 ? (
+                                <span style={{ color: '#4ade80' }}>✅ Khớp</span>
+                              ) : diff > 0 ? (
+                                <span style={{ color: '#60a5fa' }}>↗ Dư {diff}</span>
+                              ) : (
+                                <span style={{ color: '#f87171' }}>↘ Hao {Math.abs(diff)}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* GHI CHÚ */}
+                      <td style={{ padding: '10px 18px' }}>
+                        <input
+                          type="text"
+                          placeholder="VD: Đổ vỡ, rò rỉ..."
+                          value={stocktakeForm[ingId]?.note ?? ""}
+                          onChange={(e) => handleStocktakeChange(ingId, "note", e.target.value)}
+                          style={{
+                            width: '100%',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            color: '#d1d5db',
+                            border: '1px solid rgba(55,65,81,0.8)',
+                            borderRadius: '10px',
+                            padding: '8px 12px',
+                            fontSize: '13px',
+                            outline: 'none',
+                            transition: 'all 0.2s ease',
+                            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
+                          }}
+                          onFocus={e => {
+                            e.currentTarget.style.border = '1px solid rgba(45,212,191,0.5)';
+                            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(45,212,191,0.1)';
+                          }}
+                          onBlur={e => {
+                            e.currentTarget.style.border = '1px solid rgba(55,65,81,0.8)';
+                            e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
+                          }}
+                        />
                       </td>
                     </tr>
-                  </>
-                );
-              })()}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  );
+                })
+              )}
+
+              {/* PHÂN TRANG — dùng filteredStocktake.length thay vì inventory.length */}
+              <tr>
+                <td colSpan={4} style={{ padding: '16px 18px', border: 'none', background: '#0d1117' }}>
+                  {renderPagination(stocktakePage, filteredStocktake.length, setStocktakePage)}
+                </td>
+              </tr>
+            </>
+          );
+        })()}
+      </tbody>
+    </table>
+  </div>
+</div>
 
       {/* POPUP CẢNH BÁO ĐỎ — GIỮ NGUYÊN LOGIC */}
       {showForceConfirmModal && (
@@ -3146,7 +3233,7 @@ const [productStatistics, setProductStatistics] = useState(null);
   </div>
 )}
 
-            {/* ================== 8. TAB CỬA HÀNG FRANCHISE ================== */}
+          {/* ================== 8. TAB CỬA HÀNG FRANCHISE ================== */}
 {activeManagementTab === "Cửa hàng Franchise" && (
   <div className="ck-flex ck-flex-col ck-gap-6 ck-animate-fade-in mgr-section">
     {!selectedStore ? (
@@ -3154,15 +3241,11 @@ const [productStatistics, setProductStatistics] = useState(null);
         <div className="mgr-section-head ck-flex ck-justify-between ck-items-start">
           <div>
             <div className="mgr-section-head__eyebrow">Mạng lưới</div>
-            <h2 className="mgr-section-head__title">
-              Cửa hàng franchise
-            </h2>
+            <h2 className="mgr-section-head__title">Cửa hàng franchise</h2>
             <p className="mgr-section-head__sub">
               Chọn chi nhánh để xem lịch sử giao dịch. Trạng thái hiển thị theo dữ liệu cửa hàng trên hệ thống.
             </p>
           </div>
-          
-          {/* NÚT QUẢN LÝ SỰ CỐ ĐÃ ĐỒNG BỘ CSS */}
           <div className="ck-flex ck-gap-3">
             <button
               type="button"
@@ -3180,90 +3263,113 @@ const [productStatistics, setProductStatistics] = useState(null);
             </button>
           </div>
         </div>
-        
-        <div className="mgr-store-grid">
-          {stores.length === 0 ? (
-            <div
-              className="mgr-empty"
-              style={{ gridColumn: "1 / -1" }}
+
+        {/* THANH TÌM KIẾM */}
+        <div className="mgr-search-row">
+          <div className="mgr-search-bar mgr-search-bar--rose">
+            <input
+              type="text"
+              placeholder="Tìm theo tên hoặc địa chỉ cửa hàng…"
+              value={franchiseStoreSearchText}
+              onChange={(e) => setFranchiseStoreSearchText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setFranchiseStoreAppliedSearch(franchiseStoreSearchText);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setFranchiseStoreAppliedSearch(franchiseStoreSearchText)}
             >
-              <div className="mgr-empty__icon">🏪</div>
-              <p className="mgr-empty__title">Chưa có cửa hàng</p>
-              <p className="mgr-empty__sub">
-                Dữ liệu chi nhánh sẽ hiện khi Admin tạo cửa hàng và đồng bộ quyền xem.
-              </p>
-            </div>
-          ) : (
-            stores
-              .slice(
-                (franchiseStorePage - 1) * ITEMS_PER_PAGE,
-                franchiseStorePage * ITEMS_PER_PAGE
-              )
-              .map((store) => {
-                const isStoreActive =
-                  store.isActive === true ||
-                  store.active === true ||
-                  store.is_active === true ||
-                  store.status === "ACTIVE";
-                return (
-                  <div
-                    key={store.id || store.storeId}
-                    onClick={async () => {
-                      setSelectedStore(store);
-                      setFranchiseOrderPage(1); // Reset trang đơn hàng về 1 khi chọn cửa hàng mới
-                      try {
-                        const res = await api.getStoreHistoryForManager(
-                          store.id || store.storeId,
-                        );
-                        setAllOrders(
-                          Array.isArray(res)
-                            ? res
-                            : res?.data || res?.items || [],
-                        );
-                      } catch (e) {
-                        setAllOrders([]);
-                      }
-                    }}
-                    className="mgr-store-card"
-                  >
-                    <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
-                      <div className="mgr-store-card__icon">
-                        <Store className="ck-text-red-400" size={28} />
-                      </div>
-                      <span
-                        className={`mgr-pill ${isStoreActive ? "mgr-pill--ok" : "mgr-pill--danger"}`}
-                      >
-                        {isStoreActive ? "Đang chạy" : "Tạm dừng"}
-                      </span>
-                    </div>
-                    <h3 className="mgr-store-card__name">
-                      {store.name}
-                    </h3>
-                    <p className="mgr-store-card__addr">
-                      {store.address || "—"}
-                    </p>
-                    <div className="mgr-store-card__foot">
-                      <span
-                        className="mgr-mono-muted"
-                        style={{ fontSize: 10 }}
-                      >
-                        {store.id || store.storeId}
-                      </span>
-                      <span className="mgr-store-card__cta">
-                        Chi tiết →
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-          )}
+              Tìm
+            </button>
+          </div>
         </div>
 
-        {/* HIỂN THỊ PHÂN TRANG CHO DANH SÁCH CỬA HÀNG */}
-        {stores.length > 0 && renderPagination(franchiseStorePage, stores.length, setFranchiseStorePage)}
+        {/* ---- TÍNH filteredStores MỘT LẦN, DÙNG Ở NHIỀU CHỖ DƯỚI ---- */}
+        {(() => {
+          const filteredStores = stores.filter((store) => {
+            if (!franchiseStoreAppliedSearch) return true;
+            const name = (store.name || "").toLowerCase();
+            const address = (store.address || "").toLowerCase();
+            const id = String(store.id || store.storeId || "").toLowerCase();
+            const keyword = franchiseStoreAppliedSearch.toLowerCase();
+            return name.includes(keyword) || address.includes(keyword) || id.includes(keyword);
+          });
 
+          return (
+            <>
+              <div className="mgr-store-grid">
+                {/* EMPTY STATE: không có cửa hàng nào (kể cả sau khi lọc) */}
+                {filteredStores.length === 0 ? (
+                  <div className="mgr-empty" style={{ gridColumn: "1 / -1" }}>
+                    <div className="mgr-empty__icon">🏪</div>
+                    <p className="mgr-empty__title">
+                      {stores.length === 0 ? "Chưa có cửa hàng" : "Không tìm thấy cửa hàng phù hợp"}
+                    </p>
+                    <p className="mgr-empty__sub">
+                      {stores.length === 0
+                        ? "Dữ liệu chi nhánh sẽ hiện khi Admin tạo cửa hàng và đồng bộ quyền xem."
+                        : "Thử tìm với từ khóa khác."}
+                    </p>
+                  </div>
+                ) : (
+                  // DÙNG filteredStores.slice(...) thay vì stores.slice(...)
+                  filteredStores
+                    .slice(
+                      (franchiseStorePage - 1) * ITEMS_PER_PAGE,
+                      franchiseStorePage * ITEMS_PER_PAGE
+                    )
+                    .map((store) => {
+                      const isStoreActive =
+                        store.isActive === true ||
+                        store.active === true ||
+                        store.is_active === true ||
+                        store.status === "ACTIVE";
+                      return (
+                        <div
+                          key={store.id || store.storeId}
+                          onClick={async () => {
+                            setSelectedStore(store);
+                            setFranchiseOrderPage(1);
+                            try {
+                              const res = await api.getStoreHistoryForManager(store.id || store.storeId);
+                              setAllOrders(Array.isArray(res) ? res : res?.data || res?.items || []);
+                            } catch (e) {
+                              setAllOrders([]);
+                            }
+                          }}
+                          className="mgr-store-card"
+                        >
+                          <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
+                            <div className="mgr-store-card__icon">
+                              <Store className="ck-text-red-400" size={28} />
+                            </div>
+                            <span className={`mgr-pill ${isStoreActive ? "mgr-pill--ok" : "mgr-pill--danger"}`}>
+                              {isStoreActive ? "Đang chạy" : "Tạm dừng"}
+                            </span>
+                          </div>
+                          <h3 className="mgr-store-card__name">{store.name}</h3>
+                          <p className="mgr-store-card__addr">{store.address || "—"}</p>
+                          <div className="mgr-store-card__foot">
+                            <span className="mgr-mono-muted" style={{ fontSize: 10 }}>
+                              {store.id || store.storeId}
+                            </span>
+                            <span className="mgr-store-card__cta">Chi tiết →</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+
+              {/* PHÂN TRANG — dùng filteredStores.length thay vì stores.length */}
+              {filteredStores.length > 0 && renderPagination(franchiseStorePage, filteredStores.length, setFranchiseStorePage)}
+            </>
+          );
+        })()}
       </>
     ) : (
+      // PHẦN CHI TIẾT CỬA HÀNG — GIỮ NGUYÊN KHÔNG ĐỔI
       <div className="ck-flex ck-flex-col ck-gap-6 relative">
         <div className="mgr-hero" style={{ marginBottom: 0 }}>
           <div className="ck-flex ck-items-center ck-gap-4 ck-flex-wrap">
@@ -3277,17 +3383,12 @@ const [productStatistics, setProductStatistics] = useState(null);
               ←
             </button>
             <div>
-              <h2
-                className="mgr-hero__title"
-                style={{ marginBottom: 4 }}
-              >
+              <h2 className="mgr-hero__title" style={{ marginBottom: 4 }}>
                 {selectedStore.name}
               </h2>
               <p className="mgr-panel__hint" style={{ margin: 0 }}>
                 Mã: {selectedStore.id || selectedStore.storeId}
-                {selectedStore.address
-                  ? ` · ${selectedStore.address}`
-                  : ""}
+                {selectedStore.address ? ` · ${selectedStore.address}` : ""}
               </p>
             </div>
           </div>
@@ -3312,7 +3413,10 @@ const [productStatistics, setProductStatistics] = useState(null);
             <tbody className="ck-text-sm">
               {(() => {
                 const safeAllOrders = Array.isArray(allOrders) ? allOrders : [];
-                const currentFranchiseRows = safeAllOrders.slice((franchiseOrderPage - 1) * ITEMS_PER_PAGE, franchiseOrderPage * ITEMS_PER_PAGE);
+                const currentFranchiseRows = safeAllOrders.slice(
+                  (franchiseOrderPage - 1) * ITEMS_PER_PAGE,
+                  franchiseOrderPage * ITEMS_PER_PAGE
+                );
 
                 if (safeAllOrders.length === 0) {
                   return (
@@ -3330,7 +3434,6 @@ const [productStatistics, setProductStatistics] = useState(null);
                       const canCancel = !["Hoàn thành", "completed", "DELIVERED", "Đã hủy", "cancelled", "CANCELLED"].includes(order.status);
                       const safeOrderId = order.orderId || order.id || order._id;
                       const safeTotal = order.totalAmount || order.totalPrice || order.total || 0;
-
                       return (
                         <tr key={safeOrderId || idx} className="ck-border-t ck-border-gray-800 hover:ck-bg-gray-800/50 ck-transition-colors">
                           <td className="ck-p-5 ck-mono ck-text-blue-400 ck-font-bold">
@@ -3338,7 +3441,9 @@ const [productStatistics, setProductStatistics] = useState(null);
                             {order.orderType === "URGENT" && <span className="text-red-500 text-xs ml-1">🔥</span>}
                           </td>
                           <td className="ck-p-5 ck-text-gray-400">
-                            {order.createdAt ? new Date(order.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : order.date || "Chưa rõ"}
+                            {order.createdAt
+                              ? new Date(order.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                              : order.date || "Chưa rõ"}
                           </td>
                           <td className="ck-p-5 ck-text-right ck-font-black ck-text-orange-400">
                             {Number(safeTotal).toLocaleString()}đ
@@ -4016,69 +4121,73 @@ const [productStatistics, setProductStatistics] = useState(null);
                 </tr>
               </thead>
               <tbody>
-  {stocktakeHistory.map((history, idx) => (
-    <tr
-      key={idx}
-      style={{
-        borderBottom: '1px solid #2d3748',
-        transition: 'all 0.2s ease',
-        transform: 'translateY(0)',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-        // Hiện nút Xem
-        const btn = e.currentTarget.querySelector('.btn-xem');
-        if (btn) btn.style.opacity = '1';
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-        // Ẩn nút Xem
-        const btn = e.currentTarget.querySelector('.btn-xem');
-        if (btn) btn.style.opacity = '0';
-      }}
-    >
-      <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 'bold', color: '#4fd1c5', textAlign: 'center' }}>
-        {history.sessionCode}
-      </td>
-      <td style={{ padding: '14px 16px', color: '#d1d5db', textAlign: 'center' }}>
-        {new Date(history.stocktakeDate).toLocaleString("vi-VN")}
-      </td>
-      <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#fff', textAlign: 'center' }}>
-        {history.totalIngredientsChanged} món
-      </td>
-      <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'center' }}>
-        <span style={{
-          color: history.totalQuantityVariance < 0 ? '#f87171' : history.totalQuantityVariance > 0 ? '#60a5fa' : '#4ade80',
-          fontWeight: 'bold'
-        }}>
-          {history.totalQuantityVariance > 0 ? "+" : ""}{history.totalQuantityVariance}
-        </span>
-      </td>
-      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-        <button
-          className="btn-xem"
-          onClick={() => handleViewHistoryDetail(history.sessionCode)}
-          style={{
-            opacity: 0,                        // ← ẩn mặc định
-            transition: 'all 0.2s ease',
-            fontSize: '12px',
-            background: '#374151',
-            color: '#fff',
-            border: 'none',
-            padding: '6px 16px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          Xem
-        </button>
-      </td>
-    </tr>
-  ))}
+  {stocktakeHistory.map((history, idx) => {
+    // Nhân -1 để đảo ngược dấu theo ý bạn (+ thành -, - thành +)
+    const displayVariance = -(history.totalQuantityVariance || 0);
+
+    return (
+      <tr
+        key={idx}
+        style={{
+          borderBottom: '1px solid #2d3748',
+          transition: 'all 0.2s ease',
+          transform: 'translateY(0)',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+          const btn = e.currentTarget.querySelector('.btn-xem');
+          if (btn) btn.style.opacity = '1';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = 'none';
+          const btn = e.currentTarget.querySelector('.btn-xem');
+          if (btn) btn.style.opacity = '0';
+        }}
+      >
+        <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 'bold', color: '#4fd1c5', textAlign: 'center' }}>
+          {history.sessionCode}
+        </td>
+        <td style={{ padding: '14px 16px', color: '#d1d5db', textAlign: 'center' }}>
+          {new Date(history.stocktakeDate).toLocaleString("vi-VN")}
+        </td>
+        <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#fff', textAlign: 'center' }}>
+          {history.totalIngredientsChanged} món
+        </td>
+        <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'center' }}>
+          {/* Dùng displayVariance đã đảo dấu để render màu và text */}
+          <span style={{
+            color: displayVariance < 0 ? '#f87171' : displayVariance > 0 ? '#60a5fa' : '#4ade80',
+            fontWeight: 'bold'
+          }}>
+            {displayVariance > 0 ? "+" : ""}{displayVariance}
+          </span>
+        </td>
+        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+          <button
+            className="btn-xem"
+            onClick={() => handleViewHistoryDetail(history.sessionCode)}
+            style={{
+              opacity: 0,
+              transition: 'all 0.2s ease',
+              fontSize: '12px',
+              background: '#374151',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            Xem
+          </button>
+        </td>
+      </tr>
+    );
+  })}
 </tbody>
             </table>
           )
@@ -4090,51 +4199,87 @@ const [productStatistics, setProductStatistics] = useState(null);
               Đang tải chi tiết...
             </div>
           ) : (
+              console.log("historyDetails:", historyDetails) ||
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
-              <thead>
-                <tr style={{ background: '#242933', color: '#9ca3af' }}>
-                  <th style={{ padding: '12px 16px', borderRadius: '10px 0 0 10px', textAlign: 'center' }}>Mã Món</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Nguyên liệu</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Hao hụt / Dư</th>
-                  <th style={{ padding: '12px 16px', borderRadius: '0 10px 10px 0', textAlign: 'center' }}>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyDetails.map((detail, idx) => (
-                  <tr 
-                    key={idx} 
-                    style={{ borderBottom: '1px solid #2d3748', transition: 'background 0.2s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#9ca3af', textAlign: 'center' }}>
-                      {detail.ingredient?.id}
-                    </td>
-                    <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#e5e7eb', textAlign: 'center' }}>
-                      {detail.ingredient?.name}
-                    </td>
-                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'center' }}>
-                      <span style={{ 
-                        color: detail.quantityDeducted > 0 ? '#f87171' : '#60a5fa',
-                        fontWeight: 'bold'
-                      }}>
-                        {detail.quantityDeducted > 0 ? "↘" : "↗"} {Math.abs(detail.quantityDeducted)}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#9ca3af', textAlign: 'center', maxWidth: '200px' }}>
-  <span style={{
-    display: 'block',
-    wordBreak: 'break-word',   // ← xuống dòng thay vì cắt
-    whiteSpace: 'normal',      // ← bỏ nowrap
-    lineHeight: '1.5',
-  }}>
-    {detail.note || "—"}
-  </span>
-</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+  <thead>
+    <tr style={{ background: '#242933', color: '#9ca3af' }}>
+      <th style={{ padding: '12px 16px', borderRadius: '10px 0 0 10px', textAlign: 'center' }}>Mã Món</th>
+      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Nguyên liệu</th>
+      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Hao hụt / Dư</th>
+      <th style={{ padding: '12px 16px', borderRadius: '0 10px 10px 0', textAlign: 'center' }}>Ghi chú</th>
+    </tr>
+  </thead>
+  <tbody>
+  {historyDetails.map((detail, idx) => {
+    // 1. Lấy đúng trường quantityChange từ API (fallback về 0 nếu undefined để chống NaN)
+    const rawDiff = detail.quantityChange ?? 0;
+
+    // 2. Xác định trạng thái Hao hụt (âm) hay Dư (dương) dựa trên số lượng
+    const isLoss = rawDiff < 0;
+
+    return (
+      <tr
+        key={idx}
+        style={{ borderBottom: '1px solid #2d3748', transition: 'background 0.2s' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      >
+        <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#9ca3af', textAlign: 'center' }}>
+          {detail.ingredient?.id}
+        </td>
+        <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#e5e7eb', textAlign: 'center' }}>
+          {detail.ingredient?.name}
+        </td>
+        <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'center' }}>
+          {/* 3. Hiển thị mũi tên và màu sắc dựa trên sự chênh lệch */}
+          <span style={{ color: isLoss ? '#f87171' : '#60a5fa', fontWeight: 'bold' }}>
+            {isLoss ? "↘" : "↗"} {Math.abs(rawDiff)}
+          </span>
+        </td>
+
+        {/* CỘT GHI CHÚ */}
+        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+          {(detail.note || detail.createdBy) ? (
+            <button
+              type="button"
+              onClick={() => setViewingNoteDetail({
+                note: detail.note || "Không có ghi chú",
+                // 4. Lấy đúng trường createdBy theo dữ liệu JSON
+                performedBy: detail.createdBy || "Hệ thống",
+              })}
+              style={{
+                background: 'transparent',
+                border: '1px solid #374151',
+                borderRadius: '8px',
+                padding: '5px 10px',
+                cursor: 'pointer',
+                color: '#9ca3af',
+                fontSize: '15px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(79,209,197,0.1)';
+                e.currentTarget.style.borderColor = '#4fd1c5';
+                e.currentTarget.style.color = '#4fd1c5';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = '#374151';
+                e.currentTarget.style.color = '#9ca3af';
+              }}
+              title="Xem ghi chú"
+            >
+              👁️
+            </button>
+          ) : (
+            <span style={{ color: '#4b5563', fontSize: '13px' }}>—</span>
+          )}
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+</table>
           )
         )}
       </div>
@@ -4564,6 +4709,75 @@ const [productStatistics, setProductStatistics] = useState(null);
           Đóng
         </button>
       </div>
+    </div>
+  </div>
+)}
+
+{/* POPUP MINI: GHI CHÚ CHI TIẾT */}
+{viewingNoteDetail && (
+  <div
+    style={{
+      position: 'fixed', inset: 0, zIndex: 10000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    }}
+    onClick={() => setViewingNoteDetail(null)}
+  >
+    <div
+      style={{
+        background: '#1a1d23', border: '1px solid #374151',
+        borderRadius: '16px', padding: '24px', width: '360px',
+        maxWidth: '90vw', boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h4 style={{ margin: 0, color: '#fff', fontSize: '16px' }}>📋 Chi tiết ghi chú</h4>
+        <button
+          type="button"
+          onClick={() => setViewingNoteDetail(null)}
+          style={{ background: '#333', border: 'none', borderRadius: '50%', width: '28px', height: '28px', color: '#fff', cursor: 'pointer', fontSize: '14px' }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Người thực hiện */}
+      <div style={{ marginBottom: '16px', padding: '12px 14px', background: 'rgba(79,209,197,0.08)', border: '1px solid rgba(79,209,197,0.2)', borderRadius: '10px' }}>
+        <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '700' }}>
+          Người thực hiện
+        </p>
+        <p style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#4fd1c5' }}>
+          {viewingNoteDetail.performedBy}
+        </p>
+      </div>
+
+      {/* Ghi chú */}
+      <div style={{ padding: '12px 14px', background: '#242933', border: '1px solid #333', borderRadius: '10px' }}>
+        <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '700' }}>
+          Ghi chú hiện trường
+        </p>
+        <p style={{ margin: 0, fontSize: '14px', color: '#e5e7eb', lineHeight: '1.6', wordBreak: 'break-word' }}>
+          {viewingNoteDetail.note}
+        </p>
+      </div>
+
+      {/* Nút đóng */}
+      <button
+        type="button"
+        onClick={() => setViewingNoteDetail(null)}
+        style={{
+          marginTop: '20px', width: '100%', padding: '10px',
+          background: '#374151', color: '#fff', border: 'none',
+          borderRadius: '10px', fontWeight: '700', fontSize: '14px',
+          cursor: 'pointer', transition: 'all 0.2s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = '#4b5563'}
+        onMouseLeave={e => e.currentTarget.style.background = '#374151'}
+      >
+        Đóng
+      </button>
     </div>
   </div>
 )}

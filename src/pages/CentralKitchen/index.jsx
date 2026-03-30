@@ -53,6 +53,11 @@ const [ingredientsPage, setIngredientsPage] = useState(1);
   const [ingredients, setIngredients] = useState([]);
   const [unitMasterData, setUnitMasterData] = useState([]);
 
+  const [productSearchText, setProductSearchText] = useState("");
+const [productAppliedSearch, setProductAppliedSearch] = useState("");
+const [ingredientSearchText, setIngredientSearchText] = useState("");
+const [ingredientAppliedSearch, setIngredientAppliedSearch] = useState("");
+
 const getUnitLabel = useCallback(
   (code) => {
     if (!code) return code;
@@ -165,13 +170,39 @@ const [viewingItemFormula, setViewingItemFormula] = useState(null);
     KITCHEN_PAGE_META[activeKitchenTab] || KITCHEN_PAGE_META["Tổng Quan"];
 
   const handleUpdateRunStatus = async (id, newStatus) => {
-    try {
-      await api.updateProductionRunStatus(id, newStatus);
-      await loadData();
-    } catch (err) {
-      setErrorModal({ show: true, message: err.message || "Lỗi hệ thống khi cập nhật trạng thái!" });
+  try {
+    // Nếu bấm "Bắt đầu nấu" → trừ kho TRƯỚC, rồi mới đổi trạng thái
+    if (newStatus === "COOKING") {
+      const run = productionRuns.find((r) => r.id === id);
+      
+      if (!run) {
+        throw new Error("Không tìm thấy phiếu nấu!");
+      }
+
+      // Lôi toàn bộ productId từ items của phiếu
+      const productIds = (run.items || [])
+        .map((item) => item.productId || item.product_id || item.id)
+        .filter(Boolean);
+
+      if (productIds.length === 0) {
+        throw new Error("Phiếu nấu này không có món nào để trừ kho!");
+      }
+
+      // Gọi API trừ kho — gửi full danh sách productId
+      await api.cookRunItems(id, productIds);
     }
-  };
+
+    // Sau đó mới đổi trạng thái bình thường
+    await api.updateProductionRunStatus(id, newStatus);
+    await loadData();
+
+  } catch (err) {
+    setErrorModal({
+      show: true,
+      message: err.message || "Lỗi hệ thống khi cập nhật trạng thái!",
+    });
+  }
+};
 
   const handleOpenAggregation = async () => {
     try {
@@ -238,6 +269,10 @@ const [viewingItemFormula, setViewingItemFormula] = useState(null);
   setKitchenSubTab(tab);
   setProductsPage(1);
   setIngredientsPage(1);
+   setProductAppliedSearch("");
+  setProductSearchText("");
+  setIngredientAppliedSearch("");
+  setIngredientSearchText("");
 };
 
   const handleViewRecipe = async (run) => {
@@ -573,104 +608,206 @@ const [viewingItemFormula, setViewingItemFormula] = useState(null);
 
                     {/* BẢNG SẢN PHẨM */}
                     {kitchenSubTab === "products" && (
-                      <>
-                        <div className="card-hd">
-                          <div className="card-title">Sản phẩm bếp trung tâm</div>
-                        </div>
-                        <div className="tbl-wrap">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Mã</th>
-                                <th>Sản phẩm</th>
-                                <th>Giá</th>
-                                <th>Trạng thái</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {products
-  .slice((productsPage - 1) * ITEMS_PER_PAGE, productsPage * ITEMS_PER_PAGE)
-  .map((p) => (
-  <tr key={p.id}>
-                                  <td className="mono" style={{ color: "var(--ink3)" }}>{p.id}</td>
-                                  <td style={{ fontWeight: 600 }}>
-                                    {p.name}{" "}
-                                    <span style={{ display: "block", fontSize: 11, color: "var(--ink4)", fontWeight: 500 }}>{p.category}</span>
-                                  </td>
-                                  <td style={{ fontWeight: 700, color: "var(--slate)" }}>{Number(p.price).toLocaleString()}₫</td>
-                                  <td>
-                                    <span
-                                      className="tag"
-                                      style={
-                                        p.isActive
-                                          ? { background: "var(--sage-bg)", color: "var(--sage)" }
-                                          : { background: "var(--rust-bg)", color: "var(--rust)" }
-                                      }
-                                    >
-                                      {p.isActive ? "Còn hàng" : "Hết hàng"}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        {renderPagination(productsPage, products.length, setProductsPage)}
-                      </>
-                    )}
+  <>
+    <div className="card-hd">
+      <div className="card-title">Sản phẩm bếp trung tâm</div>
+    </div>
 
-                    {/* BẢNG NGUYÊN LIỆU (ĐÃ BỎ NÚT NHẬP KHO) */}
+    {/* THANH TÌM KIẾM */}
+    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", gap: 8 }}>
+      <input
+        type="text"
+        placeholder="Tìm theo mã hoặc tên sản phẩm…"
+        value={productSearchText}
+        onChange={(e) => setProductSearchText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { setProductAppliedSearch(productSearchText); setProductsPage(1); } }}
+        style={{
+          flex: 1,
+          padding: "7px 12px",
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          background: "var(--surface2)",
+          color: "var(--ink)",
+          fontSize: 13,
+          outline: "none",
+        }}
+        onFocus={e => e.currentTarget.style.borderColor = "var(--amber)"}
+        onBlur={e => e.currentTarget.style.borderColor = "var(--border)"}
+      />
+      <button
+        type="button"
+        className="btn btn-amber btn-sm"
+        onClick={() => { setProductAppliedSearch(productSearchText); setProductsPage(1); }}
+      >
+        Tìm
+      </button>
+      {productAppliedSearch && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setProductSearchText(""); setProductAppliedSearch(""); setProductsPage(1); }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+
+    <div className="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mã</th>
+            <th>Sản phẩm</th>
+            <th>Giá</th>
+            <th>Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(() => {
+            const filtered = products.filter((p) => {
+              if (!productAppliedSearch) return true;
+              const kw = productAppliedSearch.toLowerCase();
+              return (
+                (p.id || "").toLowerCase().includes(kw) ||
+                (p.name || "").toLowerCase().includes(kw)
+              );
+            });
+            const paged = filtered.slice((productsPage - 1) * ITEMS_PER_PAGE, productsPage * ITEMS_PER_PAGE);
+            if (filtered.length === 0) return (
+              <tr><td colSpan={4} style={{ textAlign: "center", padding: 32, color: "var(--ink4)", fontStyle: "italic" }}>Không tìm thấy sản phẩm phù hợp.</td></tr>
+            );
+            return paged.map((p) => (
+              <tr key={p.id}>
+                <td className="mono" style={{ color: "var(--ink3)" }}>{p.id}</td>
+                <td style={{ fontWeight: 600 }}>
+                  {p.name}{" "}
+                  <span style={{ display: "block", fontSize: 11, color: "var(--ink4)", fontWeight: 500 }}>{p.category}</span>
+                </td>
+                <td style={{ fontWeight: 700, color: "var(--slate)" }}>{Number(p.price).toLocaleString()}₫</td>
+                <td>
+                  <span className="tag" style={p.isActive ? { background: "var(--sage-bg)", color: "var(--sage)" } : { background: "var(--rust-bg)", color: "var(--rust)" }}>
+                    {p.isActive ? "Còn hàng" : "Hết hàng"}
+                  </span>
+                </td>
+              </tr>
+            ));
+          })()}
+        </tbody>
+      </table>
+    </div>
+    {(() => {
+      const filtered = products.filter((p) => {
+        if (!productAppliedSearch) return true;
+        const kw = productAppliedSearch.toLowerCase();
+        return (p.id || "").toLowerCase().includes(kw) || (p.name || "").toLowerCase().includes(kw);
+      });
+      return renderPagination(productsPage, filtered.length, setProductsPage);
+    })()}
+  </>
+)}
+
                     {kitchenSubTab === "ingredients" && (
-                      <>
-                        <div className="card-hd">
-                          <div className="card-title">Danh sách nguyên liệu</div>
-                        </div>
-                        <div className="tbl-wrap">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Tên NL</th>
-                                <th>Giá nhập</th>
-                                <th>Định mức min</th>
-                                <th>Tồn kho thực tế</th>
-                                <th>Trạng thái</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ingredients
-  .slice((ingredientsPage - 1) * ITEMS_PER_PAGE, ingredientsPage * ITEMS_PER_PAGE)
-  .map((ing) => (
-  <tr key={ing.id}>
-                                  <td style={{ fontWeight: 600 }}>{ing.name}</td>
-                                  <td style={{ fontWeight: 700, color: "var(--slate)" }}>{ing.unitCost.toLocaleString()}₫</td>
-                                  <td style={{ color: "var(--ink3)" }}>
-                                    {ing.minThreshold} <span className="lowercase">{getUnitLabel(ing.unit)}</span>
-                                  </td>
-                                  <td style={{ fontWeight: 700 }}>
-                                    {ing.stock} <span className="lowercase">{getUnitLabel(ing.unit)}</span>
-                                  </td>
-                                  <td>
-                                    <span
-                                      className="tag"
-                                      style={
-                                        ing.status === "Đủ hàng"
-                                          ? { background: "var(--sage-bg)", color: "var(--sage)" }
-                                          : ing.status === "Cần nhập gấp"
-                                          ? { background: "var(--amber-bg)", color: "var(--amber)" }
-                                          : { background: "var(--rust-bg)", color: "var(--rust)" }
-                                      }
-                                    >
-                                      {ing.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                         {renderPagination(ingredientsPage, ingredients.length, setIngredientsPage)}
-                      </>
-                    )}
+  <>
+    <div className="card-hd">
+      <div className="card-title">Danh sách nguyên liệu</div>
+    </div>
+
+    {/* THANH TÌM KIẾM */}
+    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", gap: 8 }}>
+      <input
+        type="text"
+        placeholder="Tìm theo tên nguyên liệu…"
+        value={ingredientSearchText}
+        onChange={(e) => setIngredientSearchText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { setIngredientAppliedSearch(ingredientSearchText); setIngredientsPage(1); } }}
+        style={{
+          flex: 1,
+          padding: "7px 12px",
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          background: "var(--surface2)",
+          color: "var(--ink)",
+          fontSize: 13,
+          outline: "none",
+        }}
+        onFocus={e => e.currentTarget.style.borderColor = "var(--amber)"}
+        onBlur={e => e.currentTarget.style.borderColor = "var(--border)"}
+      />
+      <button
+        type="button"
+        className="btn btn-amber btn-sm"
+        onClick={() => { setIngredientAppliedSearch(ingredientSearchText); setIngredientsPage(1); }}
+      >
+        Tìm
+      </button>
+      {ingredientAppliedSearch && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setIngredientSearchText(""); setIngredientAppliedSearch(""); setIngredientsPage(1); }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+
+    <div className="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tên NL</th>
+            <th>Giá nhập</th>
+            <th>Định mức min</th>
+            <th>Tồn kho thực tế</th>
+            <th>Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(() => {
+            const filtered = ingredients.filter((ing) => {
+              if (!ingredientAppliedSearch) return true;
+              return (ing.name || "").toLowerCase().includes(ingredientAppliedSearch.toLowerCase());
+            });
+            const paged = filtered.slice((ingredientsPage - 1) * ITEMS_PER_PAGE, ingredientsPage * ITEMS_PER_PAGE);
+            if (filtered.length === 0) return (
+              <tr><td colSpan={5} style={{ textAlign: "center", padding: 32, color: "var(--ink4)", fontStyle: "italic" }}>Không tìm thấy nguyên liệu phù hợp.</td></tr>
+            );
+            return paged.map((ing) => (
+              <tr key={ing.id}>
+                <td style={{ fontWeight: 600 }}>{ing.name}</td>
+                <td style={{ fontWeight: 700, color: "var(--slate)" }}>{ing.unitCost.toLocaleString()}₫</td>
+                <td style={{ color: "var(--ink3)" }}>
+                  {ing.minThreshold} <span className="lowercase">{getUnitLabel(ing.unit)}</span>
+                </td>
+                <td style={{ fontWeight: 700 }}>
+                  {ing.stock} <span className="lowercase">{getUnitLabel(ing.unit)}</span>
+                </td>
+                <td>
+                  <span className="tag" style={
+                    ing.status === "Đủ hàng"
+                      ? { background: "var(--sage-bg)", color: "var(--sage)" }
+                      : ing.status === "Cần nhập gấp"
+                      ? { background: "var(--amber-bg)", color: "var(--amber)" }
+                      : { background: "var(--rust-bg)", color: "var(--rust)" }
+                  }>
+                    {ing.status}
+                  </span>
+                </td>
+              </tr>
+            ));
+          })()}
+        </tbody>
+      </table>
+    </div>
+    {(() => {
+      const filtered = ingredients.filter((ing) => {
+        if (!ingredientAppliedSearch) return true;
+        return (ing.name || "").toLowerCase().includes(ingredientAppliedSearch.toLowerCase());
+      });
+      return renderPagination(ingredientsPage, filtered.length, setIngredientsPage);
+    })()}
+  </>
+)}
                 </div>
               </div>
             </div>
