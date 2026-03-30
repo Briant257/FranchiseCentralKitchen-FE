@@ -581,29 +581,49 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     }
   };
 
-  const handleSaveProduct = async () => {
+ const handleSaveProduct = async () => {
     if (!newProduct.productName || !newProduct.sellingPrice)
       return alert("Vui lòng điền Tên và Giá bán!");
+
+    // Check trùng nguyên liệu (chỉ áp dụng khi tạo mới, vì sửa đã bị ẩn)
+    if (!editingProduct && newProduct.ingredients && newProduct.ingredients.length > 0) {
+      const validIngredients = newProduct.ingredients.filter(
+        (i) => (i.ingredientId ?? "").toString().trim() !== ""
+      );
+      const ingredientIds = validIngredients.map((ing) => String(ing.ingredientId).trim());
+      const uniqueIds = new Set(ingredientIds);
+      if (uniqueIds.size !== ingredientIds.length) {
+        alert("Lỗi: Bạn đang chọn trùng nguyên liệu trong công thức! Vui lòng gộp lại hoặc xóa dòng trùng.");
+        return; 
+      }
+    }
 
     const payload = {
       productId: newProduct.productId || undefined,
       productName: newProduct.productName,
       categoryId: newProduct.categoryId || (categoriesList[0]?.id ?? null),
       sellingPrice: Number(newProduct.sellingPrice),
-      baseUnit: "PHAN", // Mặc định cứng
+      baseUnit: "PHAN", 
       isActive: newProduct.isActive,
-      ingredients: newProduct.ingredients || [],
+      // Nếu đang sửa thì ép mảng rỗng để không gửi nguyên liệu bậy bạ xuống
+      ingredients: editingProduct ? [] : (newProduct.ingredients || []),
     };
 
     try {
       if (editingProduct) {
+        // NGHIỆP VỤ SỬA: CHỈ CẬP NHẬT THÔNG TIN CƠ BẢN
         const idToUpdate =
           editingProduct.product_id ||
           editingProduct.productId ||
           editingProduct.id;
+          
         await api.updateProduct(idToUpdate, payload);
+        
+        // ĐÃ XÓA TOÀN BỘ LOGIC api.saveRecipe() Ở ĐÂY ĐỂ TRÁNH LỖI BACKEND
+        
         alert("Cập nhật sản phẩm thành công!");
       } else {
+        // NGHIỆP VỤ TẠO MỚI: Gửi hết cả thông tin và BOM xuống
         await api.createProduct(payload);
         alert("Thêm sản phẩm thành công!");
       }
@@ -1833,6 +1853,21 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
 
                                                 // 4. Mở Modal lên
                                                 setShowAddProduct(true);
+                                                // Load BOM khi mở form sửa
+const pId = editingProduct?.product_id || editingProduct?.productId || editingProduct?.id || prod.product_id || prod.productId || prod.id;
+api.getRecipeOfProduct(pId)
+  .then((res) => {
+    if (res?.ingredients) {
+      setNewProduct((prev) => ({
+        ...prev,
+        ingredients: res.ingredients.map((ing) => ({
+          ingredientId: ing.ingredientId || ing.id,
+          amountNeeded: Number(ing.qty || ing.amountNeeded || 0),
+        })),
+      }));
+    }
+  })
+  .catch(() => {});
                                               }}
                                               className="mgr-icon-btn"
                                               style={{ padding: "6px 12px" }}
@@ -1953,127 +1988,217 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
                 {/* ========================================================= */}
 
                 {/* MODAL THÊM / SỬA SẢN PHẨM */}
-                {showAddProduct && (
-                  <div
-                    className="ck-fixed ck-inset-0 ck-z-50 ck-flex ck-items-center ck-justify-center ck-animate-fade-in"
-                    style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }}
-                  >
-                    <div
-                      className="mgr-aside ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-shadow-2xl"
-                      style={{
-                        width: "400px",
-                        maxWidth: "90vw",
-                        maxHeight: "90vh",
-                        overflowY: "auto",
-                        margin: 0,
-                      }}
-                    >
-                      <div className="mgr-aside__head">
-                        <div>
-                          <h3 className="mgr-aside__title">
-                            {editingProduct
-                              ? "Chi tiết sản phẩm"
-                              : "Thêm sản phẩm mới"}
-                          </h3>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowAddProduct(false)}
-                          className="mgr-icon-btn"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="ck-space-y-4 ck-text-sm ck-px-1">
-                        <div>
-                          <label className="ck-block ck-text-gray-400 ck-mb-1">
-                            Mã Sản Phẩm
-                          </label>
-                          <input
-                            type="text"
-                            readOnly={!!editingProduct}
-                            value={newProduct.productId}
-                            onChange={(e) =>
-                              setNewProduct({
-                                ...newProduct,
-                                productId: e.target.value,
-                              })
-                            }
-                            className={`ck-w-full ck-bg-gray-800 ${editingProduct ? "ck-text-gray-500" : "ck-text-white"} ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none`}
-                            placeholder={
-                              editingProduct ? "" : "Tự động tạo hoặc nhập mã"
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="ck-block ck-text-gray-400 ck-mb-1">
-                            Tên sản phẩm *
-                          </label>
-                          <input
-                            type="text"
-                            value={newProduct.productName}
-                            onChange={(e) =>
-                              setNewProduct({
-                                ...newProduct,
-                                productName: e.target.value,
-                              })
-                            }
-                            className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="ck-block ck-text-gray-400 ck-mb-1">
-                            Danh mục
-                          </label>
-                          <select
-                            value={newProduct.categoryId}
-                            onChange={(e) =>
-                              setNewProduct({
-                                ...newProduct,
-                                categoryId: e.target.value,
-                              })
-                            }
-                            className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
-                          >
-                            <option value="">-- Chọn danh mục --</option>
-                            {categoriesList.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="ck-mt-4">
-                          <label className="ck-block ck-text-gray-400 ck-mb-1">
-                            Giá Bán (₫)
-                          </label>
-                          <input
-                            type="number"
-                            value={newProduct.sellingPrice}
-                            onChange={(e) =>
-                              setNewProduct({
-                                ...newProduct,
-                                sellingPrice: e.target.value,
-                              })
-                            }
-                            className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none"
-                          />
-                        </div>
-                        <div className="ck-mt-4 ck-flex ck-items-center ck-gap-2"></div>
-                      </div>
-                      <div className="ck-mt-6">
-                        <button
-                          type="button"
-                          onClick={handleSaveProduct}
-                          className="mgr-btn mgr-btn--primary ck-w-full"
-                          style={{ justifyContent: "center" }}
-                        >
-                          {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+{showAddProduct && (
+  <>
+    {/* Thêm một chút CSS inline để ẩn thanh cuộn cho Webkit (Chrome, Safari) */}
+    <style>
+      {`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+      `}
+    </style>
+
+    <div
+      className="ck-fixed ck-inset-0 ck-z-50 ck-flex ck-items-center ck-justify-center ck-animate-fade-in"
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }}
+    >
+      <div
+        className="mgr-aside ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-shadow-2xl hide-scrollbar"
+        style={{
+          width: "550px", /* 1. CHỈNH BỰ BỀ NGANG TẠI ĐÂY (Cũ là 400px) */
+          maxWidth: "90vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          margin: 0,
+          msOverflowStyle: "none", /* 3. Ẩn scrollbar cho IE/Edge */
+          scrollbarWidth: "none",  /* 3. Ẩn scrollbar cho Firefox */
+          paddingBottom: "20px"    /* Thêm khoảng không dưới cùng cho thoáng */
+        }}
+      >
+        <div className="mgr-aside__head">
+          <div>
+            <h3 className="mgr-aside__title">
+              {editingProduct
+                ? "Chi tiết sản phẩm"
+                : "Thêm sản phẩm mới"}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddProduct(false)}
+            className="mgr-icon-btn"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <div className="ck-space-y-4 ck-text-sm ck-px-1">
+          <div>
+            <label className="ck-block ck-text-gray-400 ck-mb-1">
+              Mã Sản Phẩm
+            </label>
+            <input
+              type="text"
+              readOnly={!!editingProduct}
+              value={newProduct.productId}
+              onChange={(e) =>
+                setNewProduct({
+                  ...newProduct,
+                  productId: e.target.value,
+                })
+              }
+              className={`ck-w-full ck-bg-gray-800 ${editingProduct ? "ck-text-gray-500" : "ck-text-white"} ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none`}
+              placeholder={
+                editingProduct ? "" : "Tự động tạo hoặc nhập mã"
+              }
+            />
+          </div>
+          <div>
+            <label className="ck-block ck-text-gray-400 ck-mb-1">
+              Tên sản phẩm *
+            </label>
+            <input
+              type="text"
+              value={newProduct.productName}
+              onChange={(e) =>
+                setNewProduct({
+                  ...newProduct,
+                  productName: e.target.value,
+                })
+              }
+              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
+            />
+          </div>
+          <div>
+            <label className="ck-block ck-text-gray-400 ck-mb-1">
+              Danh mục
+            </label>
+            <select
+              value={newProduct.categoryId}
+              onChange={(e) =>
+                setNewProduct({
+                  ...newProduct,
+                  categoryId: e.target.value,
+                })
+              }
+              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
+            >
+              <option value="">-- Chọn danh mục --</option>
+              {categoriesList.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="ck-mt-4">
+            <label className="ck-block ck-text-gray-400 ck-mb-1">
+              Giá Bán (₫)
+            </label>
+            <input
+              type="number"
+              value={newProduct.sellingPrice}
+              onChange={(e) =>
+                setNewProduct({
+                  ...newProduct,
+                  sellingPrice: e.target.value,
+                })
+              }
+              className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none"
+            />
+          </div>
+
+          {/* ===== CÔNG THỨC NGUYÊN LIỆU (CHỈ HIỆN KHI THÊM MỚI) ===== */}
+          {!editingProduct && (
+            <div style={{
+              marginTop: "20px",
+              paddingTop: "20px",
+              borderTop: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: isLight ? "#64748b" : "#6b7280" }}>
+                    Công thức nguyên liệu
+                  </p>
+                  <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#4b5563", fontStyle: "italic" }}>
+                    Tùy chọn — có thể thêm sau
+                  </p>
+                </div>
+                {(newProduct.ingredients || []).length > 0 && (
+                  <span style={{ fontSize: "11px", fontWeight: "700", padding: "2px 8px", borderRadius: "20px", background: "rgba(20,184,166,0.15)", color: "#2dd4bf", border: "1px solid rgba(45,212,191,0.3)" }}>
+                    {(newProduct.ingredients || []).length} NL
+                  </span>
                 )}
+              </div>
+
+              {(newProduct.ingredients || []).length > 0 && (
+                <div className="ck-flex ck-flex-col ck-gap-2 ck-mb-3">
+                  {(newProduct.ingredients || []).map((row, idx) => (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", borderRadius: "10px", background: isLight ? "#f8fafc" : "rgba(15,23,42,0.5)", border: isLight ? "1px solid #e2e8f0" : "1px solid #1f2937" }}>
+                      <select
+                        value={row.ingredientId ?? ""}
+                        onChange={(e) => setNewProduct((prev) => ({
+                          ...prev,
+                          ingredients: prev.ingredients.map((it, i) => i === idx ? { ...it, ingredientId: e.target.value } : it),
+                        }))}
+                        style={{ flex: 1, minWidth: 0, background: isLight ? "#fff" : "#111827", color: isLight ? "#0f172a" : "#e5e7eb", border: isLight ? "1px solid #cbd5e1" : "1px solid #374151", borderRadius: "8px", padding: "6px 8px", fontSize: "12px", outline: "none" }}
+                      >
+                        <option value="">-- Chọn nguyên liệu --</option>
+                        {inventory.map((ing) => (
+                          <option key={ing.ingredientId ?? ing.id} value={ing.ingredientId ?? ing.id}>
+                            {ing.ingredientName ?? ing.name} ({ing.unit ?? "KG"})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number" min="0.001" step="0.001" placeholder="SL"
+                        value={row.amountNeeded ?? ""}
+                        onChange={(e) => setNewProduct((prev) => ({
+                          ...prev,
+                          ingredients: prev.ingredients.map((it, i) => i === idx ? { ...it, amountNeeded: Number(e.target.value) || 0 } : it),
+                        }))}
+                        style={{ width: "64px", flexShrink: 0, background: isLight ? "#fff" : "#111827", color: isLight ? "#0f172a" : "#e5e7eb", border: isLight ? "1px solid #cbd5e1" : "1px solid #374151", borderRadius: "8px", padding: "6px 8px", fontSize: "12px", outline: "none", textAlign: "right" }}
+                      />
+                      <button type="button"
+                        onClick={() => setNewProduct((prev) => ({ ...prev, ingredients: prev.ingredients.filter((_, i) => i !== idx) }))}
+                        className="ck-flex ck-items-center ck-justify-center ck-w-7 ck-h-7 ck-rounded-lg ck-text-gray-500 hover:ck-bg-red-500/10 hover:ck-text-red-400 ck-transition-all"
+                        title="Xóa" style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "15px" }}
+                      >➖</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button type="button"
+                onClick={() => setNewProduct((prev) => ({ ...prev, ingredients: [...(prev.ingredients || []), { ingredientId: "", amountNeeded: 0.1 }] }))}
+                style={{ width: "100%", padding: "10px", borderRadius: "10px", background: "transparent", color: isLight ? "#0d9488" : "#2dd4bf", border: isLight ? "1px dashed #0d9488" : "1px dashed rgba(45,212,191,0.4)", cursor: "pointer", fontSize: "12px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+              >
+                <span style={{ fontSize: "16px" }}>➕</span> Thêm nguyên liệu vào công thức
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 2. CÁCH NÚT TẠO SẢN PHẨM Ở ĐÂY */}
+        <div className="ck-px-1" style={{ marginTop: "32px" }}>
+          <button
+            type="button"
+            onClick={handleSaveProduct}
+            className="mgr-btn mgr-btn--primary ck-w-full"
+            style={{ 
+              justifyContent: "center", 
+              padding: "12px 0", // Cho nút bự và dễ bấm hơn một chút
+              fontSize: "15px" 
+            }}
+          >
+            {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  </>
+)}
 
                 {/* MODAL THÊM DANH MỤC */}
                 {showAddCategory && (
