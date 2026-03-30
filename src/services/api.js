@@ -102,6 +102,8 @@ function messageByPath(path, status) {
     return "Mã OTP không đúng hoặc mật khẩu mới không hợp lệ.";
   if (status === 403 && p.includes("/admin/accounts"))
     return "Bạn không có quyền thực hiện thao tác này. Chỉ tài khoản Admin mới thực hiện được — hãy đăng nhập bằng tài khoản Admin hoặc kiểm tra cấu hình quyền trên backend.";
+  if (status === 403 && p.includes("/notifications/broadcast"))
+    return "Chỉ tài khoản Admin mới có thể phát loa thông báo tới hệ thống.";
   return null;
 }
 
@@ -436,16 +438,6 @@ const auth = {
   deleteProduct: (id) => request(`/api/products/${id}`, { method: "DELETE" }),
   deleteMasterProduct: (id) =>
     request(`/api/products/${id}`, { method: "DELETE" }),
-
-  /** Danh sách đơn vị tính (Master Data). GET /api/common/units → { "Nhóm": [{ code, label }], ... } */
-  getCommonUnits: async () => {
-    try {
-      const res = await request("/api/common/units");
-      return res && typeof res === "object" ? res : {};
-    } catch {
-      return {};
-    }
-  },
 
   // --- Quản lý Cửa hàng ---
   getStores: async () => {
@@ -852,15 +844,6 @@ const api = {
 
   async getCategories() {
     return categoriesApi.getList();
-  },
-
-  async getCommonUnits() {
-    try {
-      const res = await request("/api/common/units");
-      return res && typeof res === "object" ? res : {};
-    } catch {
-      return {};
-    }
   },
 
   async getStores() {
@@ -1312,11 +1295,13 @@ const api = {
     );
   },
 
-  // Lấy toàn bộ Master Data đơn vị tính
+  /** Master đơn vị tính (UoM). GET /api/units → [{ value, label, group, isBase, isSales }, ...] */
   getUnits: async () => {
     try {
       const res = await request("/api/units");
-      return Array.isArray(res) ? res : [];
+      if (Array.isArray(res)) return res;
+      if (Array.isArray(res?.data)) return res.data;
+      return [];
     } catch {
       return [];
     }
@@ -1830,6 +1815,23 @@ const api = {
     return request("/api/notifications/read-all", {
       method: "PUT",
       body: JSON.stringify({}),
+    });
+  },
+
+  /**
+   * POST /api/notifications/broadcast — Admin phát thông báo theo vai trò.
+   * targetRoles rỗng [] = gửi tới toàn bộ user trên server (theo BE).
+   */
+  broadcastNotification({ targetRoles, title, message, type }) {
+    const roles = Array.isArray(targetRoles) ? targetRoles : [];
+    return request("/api/notifications/broadcast", {
+      method: "POST",
+      body: JSON.stringify({
+        targetRoles: roles,
+        title: title != null ? String(title) : "",
+        message: message != null ? String(message) : "",
+        type: type != null ? String(type) : "INFO",
+      }),
     });
   },
 

@@ -13,6 +13,12 @@ import {
   Package,
   Clock,
   User,
+  Megaphone,
+  AlertTriangle,
+  Info,
+  Siren,
+  Target,
+  Pencil,
 } from "../../components/icons/Icons";
 import api from "../../services/api";
 import ChangePasswordModal from "../../components/common/ChangePasswordModal";
@@ -20,6 +26,7 @@ import HeaderSettingsMenu from "../../components/common/HeaderSettingsMenu";
 import NotificationBell from "../../components/common/NotificationBell";
 import ThemeToggleButton from "../../components/common/ThemeToggleButton";
 import { useUiTheme } from "../../context/UiThemeContext";
+import { useUnits } from "../../context/UnitsContext";
 import {
   ADMIN_TABS,
   ROLE_LABELS,
@@ -31,6 +38,29 @@ const ADMIN_ACCOUNT_ROLE_VALUES = new Set(
   ADMIN_ACCOUNT_ROLE_OPTIONS.map((r) => r.value),
 );
 
+const BROADCAST_TITLE_MAX = 120;
+const BROADCAST_MESSAGE_MAX = 500;
+
+/** Lưới đối tượng nhận (theo thiết kế; mã gửi lên API). */
+const BROADCAST_RECIPIENT_ROLES = [
+  { value: "STORE_MANAGER", desc: "Cửa hàng" },
+  { value: "KITCHEN_MANAGER", desc: "Bếp" },
+  { value: "STAFF", desc: "Nhân viên" },
+  { value: "CUSTOMER", desc: "Khách hàng" },
+];
+
+const BROADCAST_TYPE_CARDS = [
+  { value: "INFO", label: "INFO", Icon: Info, tone: "info" },
+  {
+    value: "WARNING",
+    label: "WARNING",
+    Icon: AlertTriangle,
+    tone: "warning",
+  },
+  { value: "URGENT", label: "URGENT", Icon: Siren, tone: "urgent" },
+  { value: "SUCCESS", label: "SUCCESS", Icon: CheckCircle, tone: "success" },
+];
+
 function isAdminRoleUser(user) {
   if (!user) return false;
   if (user.role === "admin") return true;
@@ -39,6 +69,7 @@ function isAdminRoleUser(user) {
 
 const AdminPage = ({ onLogout, userData }) => {
   const { uiTheme } = useUiTheme();
+  const { labelFor, baseGrouped, salesGrouped, allGrouped } = useUnits();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [adminTab, setAdminTab] = useState("accounts");
   const [users, setUsers] = useState([]);
@@ -46,6 +77,8 @@ const AdminPage = ({ onLogout, userData }) => {
   const [emptyStoreIds, setEmptyStoreIds] = useState(new Set());
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  /** Danh sách công thức từ GET /api/formulas — dùng đếm “có công thức” (getProducts thường không gắn ingredients). */
+  const [formulaList, setFormulaList] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [accountFilter, setAccountFilter] = useState("all"); // 'all' | 'active' | 'inactive' | 'store'
   const [accountsList, setAccountsList] = useState([]); // list theo filter
@@ -99,7 +132,6 @@ const AdminPage = ({ onLogout, userData }) => {
     isActive: true,
     ingredients: [],
   });
-  const [units, setUnits] = useState({}); // { "Trọng lượng": [{ code, label }], ... }
   const [storeListFilter, setStoreListFilter] = useState("all"); // 'all' | 'closed'
   // Nguyên liệu
   const [showAddIngredient, setShowAddIngredient] = useState(false);
@@ -119,12 +151,20 @@ const AdminPage = ({ onLogout, userData }) => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importForm, setImportForm] = useState({
     note: "",
-    items: [{ ingredientId: "", quantity: "", importPrice: "" }],
+    items: [{ ingredientId: "", unit: "", quantity: "", importPrice: "" }],
   });
   const [importSubmitting, setImportSubmitting] = useState(false);
   const [importHistoryList, setImportHistoryList] = useState([]);
   const [importHistoryLoading, setImportHistoryLoading] = useState(false);
   const [importHistoryExpandedId, setImportHistoryExpandedId] = useState(null);
+  const [broadcastAllUsers, setBroadcastAllUsers] = useState(false);
+  const [broadcastTargetRoles, setBroadcastTargetRoles] = useState([]);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastType, setBroadcastType] = useState("WARNING");
+  const [broadcastSubmitting, setBroadcastSubmitting] = useState(false);
+  const [broadcastError, setBroadcastError] = useState(null);
+  const [broadcastSuccess, setBroadcastSuccess] = useState(false);
 
   const loadImportHistory = useCallback(async () => {
     setImportHistoryLoading(true);
@@ -169,21 +209,21 @@ const AdminPage = ({ onLogout, userData }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [u, s, c, p, ing, emptyStores, unitsRes] = await Promise.all([
+        const [u, s, c, p, ing, emptyStores, formulas] = await Promise.all([
           api.getUsers(),
           api.getStoresAll(),
           api.getCategories(),
           api.getProducts(),
           api.getIngredients(),
           api.getEmptyStores(),
-          api.getCommonUnits(),
+          api.getManagerRecipes().catch(() => []),
         ]);
         setUsers(Array.isArray(u) ? u : []);
         setStores(Array.isArray(s) ? s : []);
         setCategories(Array.isArray(c) ? c : []);
         setProducts(Array.isArray(p) ? p : []);
+        setFormulaList(Array.isArray(formulas) ? formulas : []);
         setIngredients(Array.isArray(ing) ? ing : []);
-        setUnits(unitsRes && typeof unitsRes === "object" ? unitsRes : {});
         const ids = new Set(
           (Array.isArray(emptyStores) ? emptyStores : []).map((es) =>
             String(es.storeId ?? es.id ?? ""),
@@ -207,21 +247,21 @@ const AdminPage = ({ onLogout, userData }) => {
 
   const loadAdminData = async () => {
     try {
-      const [u, s, c, p, ing, emptyStores, unitsRes] = await Promise.all([
+      const [u, s, c, p, ing, emptyStores, formulas] = await Promise.all([
         api.getUsers(),
         api.getStoresAll(),
         api.getCategories(),
         api.getProducts(),
         api.getIngredients(),
         api.getEmptyStores(),
-        api.getCommonUnits(),
+        api.getManagerRecipes().catch(() => []),
       ]);
       setUsers(Array.isArray(u) ? u : []);
       setStores(Array.isArray(s) ? s : []);
       setCategories(Array.isArray(c) ? c : []);
       setProducts(Array.isArray(p) ? p : []);
+      setFormulaList(Array.isArray(formulas) ? formulas : []);
       setIngredients(Array.isArray(ing) ? ing : []);
-      setUnits(unitsRes && typeof unitsRes === "object" ? unitsRes : {});
       const ids = new Set(
         (Array.isArray(emptyStores) ? emptyStores : []).map((es) =>
           String(es.storeId ?? es.id ?? ""),
@@ -335,7 +375,7 @@ const AdminPage = ({ onLogout, userData }) => {
       ...prev,
       items: [
         ...prev.items,
-        { ingredientId: "", quantity: "", importPrice: "" },
+        { ingredientId: "", unit: "", quantity: "", importPrice: "" },
       ],
     }));
   };
@@ -345,7 +385,7 @@ const AdminPage = ({ onLogout, userData }) => {
       ...prev,
       items:
         prev.items.length <= 1
-          ? [{ ingredientId: "", quantity: "", importPrice: "" }]
+          ? [{ ingredientId: "", unit: "", quantity: "", importPrice: "" }]
           : prev.items.filter((_, i) => i !== index),
     }));
   };
@@ -353,9 +393,17 @@ const AdminPage = ({ onLogout, userData }) => {
   const handleImportRowChange = (index, field, value) => {
     setImportForm((prev) => ({
       ...prev,
-      items: prev.items.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item,
-      ),
+      items: prev.items.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, [field]: value };
+        if (field === "ingredientId") {
+          const ing = ingredients.find(
+            (x) => String(x.ingredientId ?? x.id) === String(value),
+          );
+          next.unit = ing?.unit != null ? String(ing.unit).trim() : "";
+        }
+        return next;
+      }),
     }));
   };
 
@@ -375,7 +423,9 @@ const AdminPage = ({ onLogout, userData }) => {
           );
           return {
             ingredientId: i.ingredientId,
-            unit: ing?.unit || "KG",
+            unit: String(i.unit || ing?.unit || "KG")
+              .trim()
+              .toUpperCase(),
             quantity: Number(i.quantity) || 0,
             importPrice: Number(i.importPrice) || 0,
           };
@@ -384,7 +434,7 @@ const AdminPage = ({ onLogout, userData }) => {
       setShowImportModal(false);
       setImportForm({
         note: "",
-        items: [{ ingredientId: "", quantity: "", importPrice: "" }],
+        items: [{ ingredientId: "", unit: "", quantity: "", importPrice: "" }],
       });
       loadAdminData();
       loadImportHistory();
@@ -672,6 +722,50 @@ const AdminPage = ({ onLogout, userData }) => {
     }
   };
 
+  const toggleBroadcastRole = (role) => {
+    setBroadcastTargetRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
+    );
+  };
+
+  const handleBroadcastSubmit = async (e) => {
+    e.preventDefault();
+    setBroadcastError(null);
+    setBroadcastSuccess(false);
+    const title = broadcastTitle.trim();
+    const message = broadcastMessage.trim();
+    if (!title || !message) {
+      setBroadcastError(
+        "Còn trống — cần cả tiêu đề lẫn nội dung để phát loa.",
+      );
+      return;
+    }
+    const targetRoles = broadcastAllUsers ? [] : broadcastTargetRoles;
+    if (!broadcastAllUsers && targetRoles.length === 0) {
+      setBroadcastError(
+        "Chưa có người nhận — bật phát toàn hệ thống hoặc chọn ít nhất một nhóm.",
+      );
+      return;
+    }
+    setBroadcastSubmitting(true);
+    try {
+      await api.broadcastNotification({
+        targetRoles,
+        title,
+        message,
+        type: broadcastType,
+      });
+      setBroadcastSuccess(true);
+    } catch (err) {
+      setBroadcastError(
+        err?.message ||
+          "Chưa gửi được — thử lại hoặc kiểm tra quyền Admin / API.",
+      );
+    } finally {
+      setBroadcastSubmitting(false);
+    }
+  };
+
   const handleSaveStore = async () => {
     const { name, address, phone } = newStore;
     if (!name?.trim() || !address?.trim() || !phone?.trim()) {
@@ -909,17 +1003,41 @@ const AdminPage = ({ onLogout, userData }) => {
   const productStats = (() => {
     const total = products.length;
     const categoriesCount = categories.length;
-    const withFormula = products.filter(
-      (p) => p.ingredients && p.ingredients.length > 0,
-    ).length;
-    const prices = products
-      .map((p) => Number(p.sellingPrice ?? p.price ?? 0))
-      .filter((n) => n > 0);
-    const avgPrice =
-      prices.length > 0
-        ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
-        : 0;
-    return { total, categoriesCount, withFormula, avgPrice };
+
+    const productKey = (p) =>
+      String(p.productId ?? p.product_id ?? p.id ?? "").trim();
+
+    const formulaProductIds = new Set();
+    for (const f of formulaList) {
+      const fid = String(
+        f.productId ??
+          f.product_id ??
+          f.product?.productId ??
+          f.product?.id ??
+          "",
+      ).trim();
+      if (!fid) continue;
+      const lines =
+        f.ingredients ?? f.items ?? f.formulaIngredients ?? f.lines ?? [];
+      if (Array.isArray(lines) && lines.length > 0) {
+        formulaProductIds.add(fid);
+      }
+    }
+
+    const withFormula = products.filter((p) => {
+      const id = productKey(p);
+      if (!id) return false;
+      const emb = p.ingredients;
+      if (Array.isArray(emb) && emb.length > 0) {
+        const hasLine = emb.some(
+          (row) => row.ingredientId || row.id || row.ingredient_id,
+        );
+        if (hasLine) return true;
+      }
+      return formulaProductIds.has(id);
+    }).length;
+
+    return { total, categoriesCount, withFormula };
   })();
   const productCategoryOptions = [
     "all",
@@ -927,6 +1045,12 @@ const AdminPage = ({ onLogout, userData }) => {
       new Set(products.map((p) => getProductCategoryName(p)).filter(Boolean)),
     ),
   ];
+
+  const importGrandTotal = importForm.items.reduce(
+    (sum, row) =>
+      sum + (Number(row.quantity) || 0) * (Number(row.importPrice) || 0),
+    0,
+  );
 
   const adminStats = [
     {
@@ -1744,7 +1868,7 @@ const AdminPage = ({ onLogout, userData }) => {
                   </button>
                 </div>
 
-                <div className="stats">
+                <div className="stats stats--cols-3">
                   <div className="stat stat-s1">
                     <div className="stat-label">Tổng sản phẩm</div>
                     <div className="stat-val">{productStats.total}</div>
@@ -1766,15 +1890,6 @@ const AdminPage = ({ onLogout, userData }) => {
                       {productStats.withFormula}
                     </div>
                     <div className="stat-sub">đã cấu hình</div>
-                  </div>
-                  <div className="stat stat-s4">
-                    <div className="stat-label">Giá trung bình</div>
-                    <div className="stat-val" style={{ color: "var(--green)" }}>
-                      {productStats.avgPrice >= 1000
-                        ? `${(productStats.avgPrice / 1000).toFixed(0)}k`
-                        : productStats.avgPrice}
-                    </div>
-                    <div className="stat-sub">mỗi món</div>
                   </div>
                 </div>
 
@@ -1826,8 +1941,10 @@ const AdminPage = ({ onLogout, userData }) => {
                           const hasFormula =
                             p.ingredients && p.ingredients.length > 0;
                           const price = Number(p.sellingPrice ?? p.price ?? 0);
-                          const unit =
-                            (p.baseUnit || "").toString().trim() || "—";
+                          const unitRaw = (p.baseUnit || "").toString().trim();
+                          const unitDisplay = unitRaw
+                            ? labelFor(unitRaw)
+                            : "—";
                           const pcCatClass = `pc-cat pc-cat-${catName ? "cat" : "other"}`;
                           return (
                             <div
@@ -1913,7 +2030,7 @@ const AdminPage = ({ onLogout, userData }) => {
                                 <div className="pc-price">
                                   {price.toLocaleString("vi-VN")}đ
                                 </div>
-                                <span className="pc-unit">{unit}</span>
+                                <span className="pc-unit">{unitDisplay}</span>
                               </div>
                             </div>
                           );
@@ -2036,7 +2153,12 @@ const AdminPage = ({ onLogout, userData }) => {
                         setImportForm({
                           note: "",
                           items: [
-                            { ingredientId: "", quantity: "", importPrice: "" },
+                            {
+                              ingredientId: "",
+                              unit: "",
+                              quantity: "",
+                              importPrice: "",
+                            },
                           ],
                         });
                         setShowImportModal(true);
@@ -2217,7 +2339,7 @@ const AdminPage = ({ onLogout, userData }) => {
                                   </td>
                                   <td>
                                     <span className="chip">
-                                      {ing.unit ?? "KG"}
+                                      {labelFor(ing.unit || "KG")}
                                     </span>
                                   </td>
                                   <td>
@@ -2504,7 +2626,10 @@ const AdminPage = ({ onLogout, userData }) => {
                                             </td>
                                             <td>
                                               <span className="chip">
-                                                {row.unit ?? "—"}
+                                                {row.unit != null &&
+                                                String(row.unit).trim() !== ""
+                                                  ? labelFor(row.unit)
+                                                  : "—"}
                                               </span>
                                             </td>
                                             <td>
@@ -2538,6 +2663,243 @@ const AdminPage = ({ onLogout, userData }) => {
                     )}
                   </div>
                 )}
+              </>
+            )}
+
+            {adminTab === "broadcast" && (
+              <>
+                <div className="header">
+                  <div>
+                    <div className="header-eyebrow">Thông báo hệ thống</div>
+                    <div className="header-title">Phát loa</div>
+                  </div>
+                </div>
+                <div className="broadcast-shell">
+                  <form
+                    className="broadcast-form"
+                    onSubmit={handleBroadcastSubmit}
+                  >
+                    {broadcastSuccess ? (
+                      <div
+                        className="broadcast-alert broadcast-alert--ok"
+                        role="status"
+                      >
+                        <div
+                          className="broadcast-alert__shimmer"
+                          aria-hidden
+                        />
+                        <div className="broadcast-alert__row">
+                          <span className="broadcast-alert__icon-wrap broadcast-alert__icon-wrap--ok">
+                            <CheckCircle size={22} />
+                          </span>
+                          <div className="broadcast-alert__copy">
+                            <p className="broadcast-alert__eyebrow broadcast-alert__eyebrow--solo">
+                              Đã Phát Thông Báo Thành Công
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    {broadcastError ? (
+                      <div
+                        className="broadcast-alert broadcast-alert--err"
+                        role="alert"
+                      >
+                        <div className="broadcast-alert__row">
+                          <span className="broadcast-alert__icon-wrap broadcast-alert__icon-wrap--err">
+                            <AlertTriangle size={22} />
+                          </span>
+                          <div className="broadcast-alert__copy">
+                            <p className="broadcast-alert__eyebrow">
+                              Chưa gửi được
+                            </p>
+                            <p className="broadcast-alert__msg">
+                              {broadcastError}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <section className="broadcast-section">
+                      <div className="broadcast-section__rule" aria-hidden />
+                      <h3 className="broadcast-section__title">
+                        <Megaphone size={14} className="broadcast-section__icon" />
+                        <span>Loại thông báo</span>
+                      </h3>
+                      <div className="broadcast-type-row">
+                        {BROADCAST_TYPE_CARDS.map(
+                          ({ value, label, Icon, tone }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              className={`broadcast-type-card broadcast-type-card--${tone}${broadcastType === value ? " is-selected" : ""}`}
+                              onClick={() => {
+                                setBroadcastType(value);
+                                setBroadcastSuccess(false);
+                                setBroadcastError(null);
+                              }}
+                            >
+                              <span
+                                className={`broadcast-type-card__glyph broadcast-type-card__glyph--${tone}`}
+                              >
+                                <Icon size={22} />
+                              </span>
+                              <span className="broadcast-type-card__label">
+                                {label}
+                              </span>
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="broadcast-section">
+                      <div className="broadcast-section__rule" aria-hidden />
+                      <h3 className="broadcast-section__title">
+                        <Target size={14} className="broadcast-section__icon" />
+                        <span>Đối tượng nhận</span>
+                      </h3>
+                      <div className="broadcast-global-card">
+                        <div className="broadcast-global-card__main">
+                          <div className="broadcast-global-card__text">
+                            <span className="broadcast-global-card__label">
+                              Phát loa toàn hệ thống
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={broadcastAllUsers}
+                            className={`broadcast-toggle${broadcastAllUsers ? " is-on" : ""}`}
+                            onClick={() => {
+                              setBroadcastAllUsers((v) => {
+                                const next = !v;
+                                if (next) setBroadcastTargetRoles([]);
+                                return next;
+                              });
+                              setBroadcastSuccess(false);
+                              setBroadcastError(null);
+                            }}
+                          >
+                            <span className="broadcast-toggle__knob" />
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className={`broadcast-recipient-grid${broadcastAllUsers ? " is-disabled" : ""}`}
+                        aria-disabled={broadcastAllUsers}
+                      >
+                        {BROADCAST_RECIPIENT_ROLES.map((r) => {
+                          const checked = broadcastTargetRoles.includes(
+                            r.value,
+                          );
+                          return (
+                            <label
+                              key={r.value}
+                              className={`broadcast-recipient-tile${checked ? " is-selected" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="broadcast-recipient-tile__input"
+                                checked={checked}
+                                disabled={broadcastAllUsers}
+                                onChange={() => toggleBroadcastRole(r.value)}
+                              />
+                              <span className="broadcast-recipient-tile__indicator" />
+                              <span className="broadcast-recipient-tile__body">
+                                <span className="broadcast-recipient-tile__name">
+                                  {r.desc}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    <section className="broadcast-section">
+                      <div className="broadcast-section__rule" aria-hidden />
+                      <h3 className="broadcast-section__title">
+                        <Pencil size={14} className="broadcast-section__icon" />
+                        <span>Nội dung thông báo</span>
+                      </h3>
+                      <div className="broadcast-field">
+                        <label
+                          className="broadcast-field__label"
+                          htmlFor="broadcast-title"
+                        >
+                          Tiêu đề
+                        </label>
+                        <div className="broadcast-field__wrap">
+                          <input
+                            id="broadcast-title"
+                            type="text"
+                            className="broadcast-input"
+                            value={broadcastTitle}
+                            maxLength={BROADCAST_TITLE_MAX}
+                            onChange={(e) => {
+                              setBroadcastTitle(
+                                e.target.value.slice(0, BROADCAST_TITLE_MAX),
+                              );
+                              setBroadcastSuccess(false);
+                              setBroadcastError(null);
+                            }}
+                            placeholder="Bảo trì hệ thống khẩn cấp!"
+                            autoComplete="off"
+                          />
+                          <span className="broadcast-field__counter">
+                            {broadcastTitle.length}/{BROADCAST_TITLE_MAX}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="broadcast-field">
+                        <label
+                          className="broadcast-field__label"
+                          htmlFor="broadcast-message"
+                        >
+                          Nội dung
+                        </label>
+                        <div className="broadcast-field__wrap broadcast-field__wrap--textarea">
+                          <textarea
+                            id="broadcast-message"
+                            className="broadcast-textarea"
+                            rows={4}
+                            value={broadcastMessage}
+                            maxLength={BROADCAST_MESSAGE_MAX}
+                            onChange={(e) => {
+                              setBroadcastMessage(
+                                e.target.value.slice(
+                                  0,
+                                  BROADCAST_MESSAGE_MAX,
+                                ),
+                              );
+                              setBroadcastSuccess(false);
+                              setBroadcastError(null);
+                            }}
+                            placeholder="Đêm nay 12h hệ thống sẽ bảo trì 30 phút. Các cửa hàng chú ý chốt ca sớm!"
+                          />
+                          <span className="broadcast-field__counter">
+                            {broadcastMessage.length}/{BROADCAST_MESSAGE_MAX}
+                          </span>
+                        </div>
+                      </div>
+                    </section>
+
+                    <div className="broadcast-actions">
+                      <button
+                        type="submit"
+                        className="broadcast-submit"
+                        disabled={broadcastSubmitting}
+                      >
+                        <Megaphone size={16} />
+                        {broadcastSubmitting
+                          ? "Đang phát loa…"
+                          : "Gửi phát loa ngay"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </>
             )}
           </div>
@@ -3001,11 +3363,15 @@ const AdminPage = ({ onLogout, userData }) => {
                     }
                   >
                     <option value="">-- Chọn đơn vị --</option>
-                    <option value="TO">TO - Tô</option>
-                    <option value="PHAN">PHAN - Phần</option>
-                    <option value="LY">LY - Ly</option>
-                    <option value="CAI">CAI - Cái</option>
-                    <option value="DIA">DIA - Đĩa</option>
+                    {salesGrouped.map(([groupName, items]) => (
+                      <optgroup key={groupName} label={groupName}>
+                        {items.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -3251,15 +3617,13 @@ const AdminPage = ({ onLogout, userData }) => {
                     }
                   >
                     <option value="">-- Chọn đơn vị --</option>
-                    {Object.entries(units).map(([groupName, items]) => (
+                    {baseGrouped.map(([groupName, items]) => (
                       <optgroup key={groupName} label={groupName}>
-                        {Array.isArray(items)
-                          ? items.map((u) => (
-                              <option key={u.code} value={u.code}>
-                                {u.label ?? u.code}
-                              </option>
-                            ))
-                          : null}
+                        {items.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
                       </optgroup>
                     ))}
                   </select>
@@ -3393,7 +3757,7 @@ const AdminPage = ({ onLogout, userData }) => {
                   <p className="ck-text-white">
                     {Number(detailIngredient.kitchenStock).toLocaleString()} /{" "}
                     {Number(detailIngredient.minThreshold).toLocaleString()}{" "}
-                    {detailIngredient.unit ?? "KG"}
+                    {labelFor(detailIngredient.unit || "KG")}
                   </p>
                 </div>
                 <div>
@@ -3501,7 +3865,9 @@ const AdminPage = ({ onLogout, userData }) => {
                 <div className="field">
                   <label>Đơn vị</label>
                   <div className="product-detail-value">
-                    {detailProduct.baseUnit ?? "—"}
+                    {detailProduct.baseUnit
+                      ? labelFor(detailProduct.baseUnit)
+                      : "—"}
                   </div>
                 </div>
               </div>
@@ -3536,7 +3902,7 @@ const AdminPage = ({ onLogout, userData }) => {
                           ).toLocaleString("vi-VN")}
                         </span>
                         <span className="product-detail-formula-unit">
-                          {ing.unit ?? "KG"}
+                          {labelFor(ing.unit || "KG")}
                         </span>
                       </div>
                     </div>
@@ -3609,7 +3975,7 @@ const AdminPage = ({ onLogout, userData }) => {
           role="presentation"
         >
           <div
-            className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+            className="ck-modal-box ingredient-form-box import-modal-box--wide ck-w-full"
             onClick={(e) => e.stopPropagation()}
             role="presentation"
           >
@@ -3619,11 +3985,11 @@ const AdminPage = ({ onLogout, userData }) => {
               </div>
               <button
                 type="button"
-                className="btn-close"
+                className="btn-close import-modal-close"
                 disabled={importSubmitting}
                 onClick={() => setShowImportModal(false)}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -3640,96 +4006,216 @@ const AdminPage = ({ onLogout, userData }) => {
                 />
               </div>
 
-              <div className="field">
-                <label>
-                  Danh sách nguyên liệu nhập ({importForm.items.length} dòng)
-                </label>
-                <div className="ck-rounded-xl ck-border ck-border-gray-700 ck-overflow-hidden ck-bg-gray-900/40">
-                  <div
-                    className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-text-xs ck-font-medium ck-text-gray-500 ck-border-b ck-border-gray-700"
-                    style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
-                  >
-                    <span>Nguyên liệu</span>
-                    <span>Số lượng</span>
-                    <span>Đơn giá (đ)</span>
-                    <span />
-                  </div>
-                  {importForm.items.map((row, index) => (
-                    <div
-                      key={index}
-                      className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-border-b ck-border-gray-700/50 last:ck-border-b-0 hover:ck-bg-gray-800/40 ck-transition-colors"
-                      style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
-                    >
-                      <select
-                        className="ck-select ck-w-full ck-px-3 ck-py-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-lg ck-text-sm"
-                        value={row.ingredientId}
-                        onChange={(e) =>
-                          handleImportRowChange(
-                            index,
-                            "ingredientId",
-                            e.target.value,
-                          )
-                        }
-                      >
-                        <option value="">-- Chọn nguyên liệu --</option>
-                        {ingredients.map((ing) => (
-                          <option
-                            key={ing.ingredientId ?? ing.id}
-                            value={ing.ingredientId ?? ing.id}
-                          >
-                            {ing.name ?? ing.ingredientName} ({ing.unit ?? "KG"}
-                            )
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-sm"
-                        value={row.quantity}
-                        onChange={(e) =>
-                          handleImportRowChange(
-                            index,
-                            "quantity",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="0"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-sm"
-                        value={row.importPrice}
-                        onChange={(e) =>
-                          handleImportRowChange(
-                            index,
-                            "importPrice",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="0"
-                      />
-                      <button
-                        type="button"
-                        className="import-remove-row-btn"
-                        onClick={() => handleRemoveImportRow(index)}
-                        title="Xóa dòng"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="import-add-row-btn ck-w-full ck-py-2.5 ck-px-3 ck-text-sm ck-flex ck-items-center ck-justify-center ck-gap-2 ck-transition-colors"
-                    onClick={handleAddImportRow}
-                  >
-                    <Plus size={14} />
-                    Thêm dòng nguyên liệu
-                  </button>
+              <div className="field import-lines-field">
+                <div className="import-lines-intro">
+                  <span className="import-lines-intro__title">
+                    Danh sách nguyên liệu
+                  </span>
+                  <span className="import-lines-intro__badge">
+                    {importForm.items.length} dòng
+                  </span>
                 </div>
+                <p className="import-lines-intro__hint">
+                  Chọn nguyên liệu, đơn vị nhập, số lượng và đơn giá — hệ thống
+                  tự tính thành tiền từng dòng.
+                </p>
+
+                <div className="import-lines-stack">
+                  {importForm.items.map((row, index) => {
+                    const selectedIng = ingredients.find(
+                      (x) =>
+                        String(x.ingredientId ?? x.id) ===
+                        String(row.ingredientId),
+                    );
+                    const qty = Number(row.quantity) || 0;
+                    const price = Number(row.importPrice) || 0;
+                    const lineTotal = qty * price;
+                    const stockVal =
+                      selectedIng != null
+                        ? Number(
+                            selectedIng.kitchenStock ??
+                              selectedIng.stockQuantity ??
+                              selectedIng.stock ??
+                              0,
+                          ) || 0
+                        : null;
+                    return (
+                      <div key={index} className="import-line-card">
+                        <div className="import-line-card__head">
+                          <div className="import-line-card__index">
+                            <span
+                              className="import-line-card__index-icon"
+                              aria-hidden
+                            >
+                              <Package size={14} />
+                            </span>
+                            Dòng {index + 1}
+                          </div>
+                          {selectedIng ? (
+                            <div className="import-line-card__meta">
+                              Tồn hiện tại:{" "}
+                              <strong>
+                                {stockVal.toLocaleString("vi-VN")}{" "}
+                                {labelFor(
+                                  selectedIng.unit ||
+                                    row.unit ||
+                                    "KG",
+                                )}
+                              </strong>
+                            </div>
+                          ) : (
+                            <div className="import-line-card__meta import-line-card__meta--muted">
+                              Chưa chọn nguyên liệu
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="import-line-card__remove import-remove-row-btn"
+                            onClick={() => handleRemoveImportRow(index)}
+                            title="Xóa dòng"
+                            aria-label="Xóa dòng"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <div className="import-line-card__body">
+                          <div className="import-line-block">
+                            <span className="import-line-label">
+                              Nguyên liệu
+                            </span>
+                            <select
+                              className="import-line-select"
+                              value={row.ingredientId}
+                              onChange={(e) =>
+                                handleImportRowChange(
+                                  index,
+                                  "ingredientId",
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              <option value="">— Chọn nguyên liệu —</option>
+                              {ingredients.map((ing) => {
+                                const nm =
+                                  ing.name ??
+                                  ing.ingredientName ??
+                                  ing.ingredientId ??
+                                  ing.id;
+                                return (
+                                  <option
+                                    key={ing.ingredientId ?? ing.id}
+                                    value={ing.ingredientId ?? ing.id}
+                                  >
+                                    {nm}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+
+                          <div className="import-line-grid">
+                            <div className="import-line-block">
+                              <span className="import-line-label">
+                                Đơn vị nhập
+                              </span>
+                              <select
+                                className="import-line-select"
+                                value={row.unit ?? ""}
+                                onChange={(e) =>
+                                  handleImportRowChange(
+                                    index,
+                                    "unit",
+                                    e.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">— Chọn ĐVT —</option>
+                                {allGrouped.map(([groupName, items]) => (
+                                  <optgroup
+                                    key={groupName}
+                                    label={groupName}
+                                  >
+                                    {items.map((u) => (
+                                      <option key={u.value} value={u.value}>
+                                        {u.label}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="import-line-block">
+                              <span className="import-line-label">
+                                Số lượng
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="import-line-input"
+                                value={row.quantity}
+                                onChange={(e) =>
+                                  handleImportRowChange(
+                                    index,
+                                    "quantity",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="0"
+                              />
+                            </div>
+                            <div className="import-line-block">
+                              <span className="import-line-label">
+                                Đơn giá (đ)
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                className="import-line-input"
+                                value={row.importPrice}
+                                onChange={(e) =>
+                                  handleImportRowChange(
+                                    index,
+                                    "importPrice",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="0"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="import-line-foot">
+                            <span className="import-line-foot__label">
+                              Thành tiền dòng
+                            </span>
+                            <span className="import-line-foot__value">
+                              {lineTotal.toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="import-grand-total">
+                  <span className="import-grand-total__label">
+                    Tổng giá trị phiếu (ước tính)
+                  </span>
+                  <span className="import-grand-total__value">
+                    {importGrandTotal.toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="import-add-row-btn ck-w-full ck-py-2.5 ck-px-3 ck-text-sm ck-flex ck-items-center ck-justify-center ck-gap-2 ck-transition-colors"
+                  onClick={handleAddImportRow}
+                >
+                  <Plus size={13} />
+                  Thêm dòng nguyên liệu
+                </button>
               </div>
 
               <div className="form-actions">
