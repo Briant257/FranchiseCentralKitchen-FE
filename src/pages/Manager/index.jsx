@@ -46,6 +46,18 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const [selectedStore, setSelectedStore] = useState(null);
   const [stores, setStores] = useState([]);
   const [unitMasterData, setUnitMasterData] = useState([]);
+  // Khai báo state cho form nguyên liệu
+const [showAddIngredient, setShowAddIngredient] = useState(false);
+
+// (Tùy chọn) Nếu bạn chưa có 2 state này thì thêm vào để khỏi lỗi khi click nút "Thêm nguyên liệu"
+const [editingIngredient, setEditingIngredient] = useState(null);
+
+
+const [ingredientForm, setIngredientForm] = useState({
+  name: "",
+  unit: "",
+  unitCost: "",
+});
   const getUnitLabel = useCallback(
     (code) => {
       if (!code) return code;
@@ -387,6 +399,71 @@ const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
     if (diffDays > 14) return "week"; // > 14 ngày  → tuần
     return "day";
   }, []);
+// 1. HÀM THÊM MỚI NGUYÊN LIỆU
+  const handleCreateIngredient = async (e) => {
+    e.preventDefault();
+    if (!ingredientForm.name || !ingredientForm.unit) {
+      return alert("Vui lòng nhập đủ Tên nguyên liệu và Đơn vị!");
+    }
+    
+    try {
+      const payload = {
+        name: ingredientForm.name,
+        unit: ingredientForm.unit,
+        unitCost: Number(ingredientForm.unitCost) || 0,
+        kitchenStock: 0, 
+        minThreshold: 0, 
+      };
+
+      // Gọi API thêm mới (bạn kiểm tra lại tên hàm API cho đúng nhé)
+      await api.createIngredient(payload); 
+      
+      alert("✅ Thêm nguyên liệu thành công!");
+      setShowAddIngredient(false);
+      setIngredientForm({ name: "", unit: "", unitCost: "", kitchenStock: "", minThreshold: "" });
+      
+      // Load lại danh sách sau khi thêm
+     loadData();
+      
+    } catch (error) {
+      alert("❌ Lỗi khi thêm: " + (error.message || "Vui lòng thử lại"));
+    }
+  };
+
+  // 2. HÀM CẬP NHẬT (SỬA) NGUYÊN LIỆU
+  const handleUpdateIngredient = async (e) => {
+    e.preventDefault();
+    if (!ingredientForm.name || !ingredientForm.unit) {
+      return alert("Vui lòng nhập đủ Tên nguyên liệu và Đơn vị!");
+    }
+
+    try {
+      const payload = {
+        name: ingredientForm.name,
+        unit: ingredientForm.unit,
+        unitCost: Number(ingredientForm.unitCost) || 0,
+        kitchenStock: Number(ingredientForm.kitchenStock) || 0,
+        minThreshold: Number(ingredientForm.minThreshold) || 0,
+        version: editingIngredient.version, // Truyền version để backend check conflict
+      };
+
+      const ingredientId = editingIngredient.ingredientId || editingIngredient.id;
+
+      // Gọi API cập nhật (bạn kiểm tra lại tên hàm API update cho đúng nhé)
+      await api.updateIngredient(ingredientId, payload); 
+      
+      alert("✅ Cập nhật nguyên liệu thành công!");
+      setShowAddIngredient(false);
+      setEditingIngredient(null);
+      setIngredientForm({ name: "", unit: "", unitCost: "", kitchenStock: "", minThreshold: "" });
+      
+      // Load lại danh sách sau khi sửa
+      loadData();
+
+    } catch (error) {
+      alert("❌ Lỗi khi cập nhật: " + (error.message || "Vui lòng thử lại"));
+    }
+  };
 
   const CHART_MODE_LEVELS = { day: 0, week: 1, month: 2, year: 3 };
 
@@ -2092,22 +2169,51 @@ api.getRecipeOfProduct(pId)
               ))}
             </select>
           </div>
-          <div className="ck-mt-4">
-            <label className="ck-block ck-text-gray-400 ck-mb-1">
-              Giá Bán (₫)
-            </label>
-            <input
-              type="number"
-              value={newProduct.sellingPrice}
-              onChange={(e) =>
-                setNewProduct({
-                  ...newProduct,
-                  sellingPrice: e.target.value,
-                })
-              }
-              className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none"
-            />
+
+          {/* ================= CHIA 2 CỘT: GIÁ BÁN & ĐƠN VỊ ================= */}
+          <div className="ck-grid ck-grid-cols-2 ck-gap-4 ck-mt-4">
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Giá Bán (₫)
+              </label>
+              <input
+                type="number"
+                value={newProduct.sellingPrice}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    sellingPrice: e.target.value,
+                  })
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-green-400 ck-font-bold ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-green-400 ck-outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="ck-block ck-text-gray-400 ck-mb-1">
+                Đơn vị tính <span className="ck-text-red-500">*</span>
+              </label>
+              <select
+                value={newProduct.baseUnit || ""}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    baseUnit: e.target.value,
+                  })
+                }
+                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
+                style={{ WebkitAppearance: "none", MozAppearance: "none", appearance: "none" }}
+              >
+                <option value="" disabled>-- Chọn đơn vị --</option>
+                {unitMasterData.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+          {/* =============================================================== */}
 
           {/* ===== CÔNG THỨC NGUYÊN LIỆU (CHỈ HIỆN KHI THÊM MỚI) ===== */}
           {!editingProduct && (
@@ -2327,6 +2433,29 @@ api.getRecipeOfProduct(pId)
                   >
                     📋 Lịch sử nhập kho
                   </button>
+
+                  {/* DÁN NÚT THÊM NGUYÊN LIỆU VÀO ĐÂY */}
+  <button
+    type="button"
+    onClick={() => {
+      setIngredientForm({
+        name: "",
+        kitchenStock: "",
+        unit: "",
+        unitCost: "",
+        minThreshold: "",
+      });
+      setShowAddIngredient(true);
+    }}
+    className="btn btn-outline-teal"
+    style={{
+      background: "#0f766e", 
+      color: "#fff",
+      border: "1px solid #0d9488",
+    }}
+  >
+    ➕ Thêm nguyên liệu
+  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -6097,6 +6226,182 @@ api.getRecipeOfProduct(pId)
           </div>
         </div>
       )}
+
+      {/* ================== MODAL THÊM NGUYÊN LIỆU ================== */}
+{showAddIngredient && (
+  <div
+    className="ck-modal-overlay ingredient-form-modal"
+    onClick={() => {
+      setShowAddIngredient(false);
+      setEditingIngredient(null);
+    }}
+    role="presentation"
+  >
+    <div
+      className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+      onClick={(e) => e.stopPropagation()}
+      role="presentation"
+    >
+      <div className="form-header">
+        <div>
+          <h3>
+            {editingIngredient
+              ? "Chỉnh sửa nguyên liệu"
+              : "Thêm nguyên liệu"}
+          </h3>
+        </div>
+        <button
+          type="button"
+          className="btn-close"
+          onClick={() => {
+            setShowAddIngredient(false);
+            setEditingIngredient(null);
+          }}
+        >
+          <span style={{ fontSize: "16px", fontWeight: "bold" }}>✕</span>
+        </button>
+      </div>
+
+      <form
+        className="form-body"
+        onSubmit={
+          editingIngredient
+            ? handleUpdateIngredient
+            : handleCreateIngredient
+        }
+      >
+        {editingIngredient && (
+          <div className="editing-bar">
+            <span>
+              Đang sửa:{" "}
+              <strong>
+                {editingIngredient.name ??
+                  editingIngredient.ingredientName}
+              </strong>
+            </span>
+            {editingIngredient.version != null && (
+              <span className="version">
+                v{editingIngredient.version}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="field">
+          <label>Tên nguyên liệu *</label>
+          <input
+            type="text"
+            value={ingredientForm.name}
+            onChange={(e) =>
+              setIngredientForm({
+                ...ingredientForm,
+                name: e.target.value,
+              })
+            }
+            placeholder="VD: Thịt bò Úc"
+            autoFocus
+          />
+        </div>
+
+        <div className="form-row">
+          {/* ================= THAY ĐỔI Ở ĐÂY ================= */}
+          <div className="field">
+            <label>Đơn vị</label>
+            <select
+              value={ingredientForm.unit}
+              onChange={(e) =>
+                setIngredientForm({
+                  ...ingredientForm,
+                  unit: e.target.value,
+                })
+              }
+            >
+              <option value="">-- Chọn đơn vị --</option>
+              {/* Load các option từ unitMasterData thay vì units như cũ */}
+              {unitMasterData.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* ================================================= */}
+          
+          <div className="field">
+            <label>Đơn giá (đ)</label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={ingredientForm.unitCost}
+              onChange={(e) =>
+                setIngredientForm({
+                  ...ingredientForm,
+                  unitCost: e.target.value,
+                })
+              }
+              placeholder="0"
+            />
+          </div>
+        </div>
+
+        {editingIngredient && (
+          <div className="form-row">
+            <div className="field">
+              <label>Tồn kho</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={ingredientForm.kitchenStock}
+                onChange={(e) =>
+                  setIngredientForm({
+                    ...ingredientForm,
+                    kitchenStock: e.target.value,
+                  })
+                }
+                placeholder="0"
+              />
+            </div>
+            <div className="field">
+              <label>Mức tối thiểu</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={ingredientForm.minThreshold}
+                onChange={(e) =>
+                  setIngredientForm({
+                    ...ingredientForm,
+                    minThreshold: e.target.value,
+                  })
+                }
+                placeholder="0"
+              />
+              <p className="helper">Cảnh báo khi tồn kho ≤ mức này</p>
+            </div>
+          </div>
+        )}
+
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => {
+              setShowAddIngredient(false);
+              setEditingIngredient(null);
+            }}
+          >
+            Hủy
+          </button>
+          <button type="submit" className="btn-submit">
+            {editingIngredient ? "Lưu thay đổi" : "Thêm nguyên liệu"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
       {showImportHistoryModal && (
         <div
