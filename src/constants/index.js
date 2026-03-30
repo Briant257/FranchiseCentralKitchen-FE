@@ -9,6 +9,7 @@ import {
   BarChart3,
   Store,
   Users,
+  Megaphone,
 } from "../components/icons/Icons";
 
 /** Cấu hình hiển thị trạng thái đơn hàng */
@@ -34,6 +35,7 @@ export const ADMIN_TABS = [
   { id: "stores", label: "Cửa hàng", icon: Store },
   { id: "kitchen", label: "Danh mục & Sản phẩm", icon: Package },
   { id: "ingredients", label: "Quản lý kho", icon: BarChart3 },
+  { id: "broadcast", label: "Phát loa", icon: Megaphone },
 ];
 /** Enum SystemRole (BE) — trùng tên và nhãn */
 export const SYSTEM_ROLES = [

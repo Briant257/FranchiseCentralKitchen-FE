@@ -11,6 +11,7 @@ import SupplyCoordinatorPage from "./pages/SupplyCoordinator"; //
 import "./styles/app.css";
 import ThemeToggleButton from "./components/common/ThemeToggleButton";
 import { useUiTheme } from "./context/UiThemeContext";
+import { UnitsProvider } from "./context/UnitsContext";
 
 function App() {
   const { uiTheme } = useUiTheme();
@@ -53,7 +54,11 @@ function App() {
 
   // 1. NHÁNH 1: DÀNH RIÊNG CHO SẾP TỔNG (ADMIN)
   if (currentUser.role === "admin") {
-    return <AdminPage onLogout={handleLogout} userData={userData} />;
+    return (
+      <UnitsProvider>
+        <AdminPage onLogout={handleLogout} userData={userData} />
+      </UnitsProvider>
+    );
   }
 
   // 2. NHÁNH 2: DÀNH RIÊNG CHO QUẢN LÝ (MANAGER)
