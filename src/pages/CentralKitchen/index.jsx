@@ -869,7 +869,7 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                                                 }
                                           }
                                         >
-                                          {p.isActive ? "Còn hàng" : "Hết hàng"}
+                                          {p.isActive ? "Đang bán" : "Hết hàng"}
                                         </span>
                                       </td>
                                     </tr>
