@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   TrendingUp,
   Activity,
-  CheckCircle,
 } from "../../components/icons/Icons";
 import "../../styles/store-manager.css";
 import api from "../../services/api";
@@ -604,26 +603,6 @@ const CentralKitchenPage = ({ onLogout, userData, onProfileUpdated }) => {
                 </div>
                 <div className="sc-val" style={{ color: "var(--amber)" }}>
                   {stats.cooking}
-                </div>
-              </div>
-              <div className="sc">
-                <div
-                  className="sc-stripe"
-                  style={{ background: "var(--sage)" }}
-                />
-                <div className="sc-top">
-                  <div>
-                    <div className="sc-label">Mẻ hoàn thành</div>
-                  </div>
-                  <div
-                    className="sc-icon"
-                    style={{ background: "var(--sage-bg)" }}
-                  >
-                    <CheckCircle size={14} style={{ color: "var(--sage)" }} />
-                  </div>
-                </div>
-                <div className="sc-val" style={{ color: "var(--sage)" }}>
-                  {stats.completed}
                 </div>
               </div>
             </div>
