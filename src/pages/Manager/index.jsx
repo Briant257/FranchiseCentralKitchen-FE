@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   LayoutDashboard,
   Plus,
@@ -29,6 +29,46 @@ const MANAGER_TAB_ITEMS = [
   { label: "Cửa hàng Franchise", icon: Store },
   { label: "Cài đặt hệ thống", icon: Settings },
 ];
+
+const SYSTEM_CONFIG_LABELS = {
+  AUTO_RESOLVE_HOURS: {
+    label: "Giờ tự động chốt đơn",
+    description: "Số giờ tự động chốt đơn sau khi xe tới",
+    icon: "⏱️",
+  },
+  DEFAULT_CURRENCY: {
+    label: "Đơn vị tiền tệ mặc định",
+    description: "Đơn vị tiền tệ sử dụng trong toàn hệ thống",
+    icon: "💰",
+  },
+  EXPRESS_SURCHARGE: {
+    label: "Phụ phí giao hàng hỏa tốc",
+    description: "Phụ phí áp dụng cho đơn hàng URGENT (VNĐ)",
+    icon: "🚀",
+  },
+  MAX_CART_ITEMS: {
+    label: "Số món tối đa trong giỏ hàng",
+    description: "Giới hạn số lượng món tối đa mỗi đơn hàng",
+    icon: "🛒",
+  },
+  MIN_ORDER_AMOUNT: {
+    label: "Giá trị đơn hàng tối thiểu",
+    description: "Giá trị đơn hàng tối thiểu được phép đặt (VNĐ)",
+    icon: "📋",
+  },
+};
+
+// Hàm helper lấy label — nếu không có trong map thì tự format key thành chữ đọc được
+const getConfigLabel = (key) => {
+  if (SYSTEM_CONFIG_LABELS[key]) return SYSTEM_CONFIG_LABELS[key];
+  // Fallback: AUTO_RESOLVE_HOURS → Auto Resolve Hours
+  const fallbackLabel = key
+    .toLowerCase()
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return { label: fallbackLabel, description: "", icon: "⚙️" };
+};
 
 const ManagerPage = ({ onLogout, userData, onProfileUpdated }) => {
   const { uiTheme } = useUiTheme();
@@ -97,6 +137,20 @@ const [ingredientForm, setIngredientForm] = useState({
   const [importHistoryLoading, setImportHistoryLoading] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null); // modal con
 
+  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+const [unitSearchText, setUnitSearchText] = useState("");
+const unitDropdownRef = useRef(null);
+
+const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+const [categorySearchText, setCategorySearchText] = useState("");
+const categoryDropdownRef = useRef(null);
+const [openIngredientDropdownIdx, setOpenIngredientDropdownIdx] = useState(null);
+const [ingredientSearchTexts, setIngredientSearchTexts] = useState({});
+const ingredientDropdownRefs = useRef({});
+const [filterRecipeCategory, setFilterRecipeCategory] = useState("Tất cả");
+const [isFilterRecipeCatOpen, setIsFilterRecipeCatOpen] = useState(false);
+const [filterRecipeCatSearch, setFilterRecipeCatSearch] = useState("");
+const filterRecipeCatRef = useRef(null);
   // --- STATE NHẬP KHO ---
   const [showImportModal, setShowImportModal] = useState(false);
   const [importForm, setImportForm] = useState({
@@ -148,7 +202,18 @@ const [ingredientForm, setIngredientForm] = useState({
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedSessionCode, setSelectedSessionCode] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
+  const [isConvUnitDropdownOpen, setIsConvUnitDropdownOpen] = useState(false);
+const [convUnitSearchText, setConvUnitSearchText] = useState();
+const convUnitDropdownRef = useRef(null);
+const [isRecipeIngDropdownOpen, setIsRecipeIngDropdownOpen] = useState(false);
+const [recipeIngSearchText, setRecipeIngSearchText] = useState("");
+const recipeIngDropdownRef = useRef(null);
+const [openImportDropdownIdx, setOpenImportDropdownIdx] = useState(null);
+const [importIngSearchTexts, setImportIngSearchTexts] = useState({});
+const importIngDropdownRefs = useRef({});
+const [isFilterCatDropdownOpen, setIsFilterCatDropdownOpen] = useState(false);
+const [filterCatSearchText, setFilterCatSearchText] = useState("");
+const filterCatDropdownRef = useRef(null);
   // --- STATE TÌM KIẾM KIỂM KÊ KHO ---
   const [stocktakeSearchText, setStocktakeSearchText] = useState("");
   const [stocktakeAppliedSearch, setStocktakeAppliedSearch] = useState("");
@@ -540,6 +605,90 @@ const [ingredientForm, setIngredientForm] = useState({
   }, [loadData]);
   useEffect(() => setStocktakePage(1), [stocktakeAppliedSearch]);
   useEffect(() => setFranchiseStorePage(1), [franchiseStoreAppliedSearch]);
+  useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (convUnitDropdownRef.current && !convUnitDropdownRef.current.contains(event.target)) {
+      setIsConvUnitDropdownOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+  useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (unitDropdownRef.current && !unitDropdownRef.current.contains(event.target)) {
+      setIsUnitDropdownOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    // Đóng Đơn vị tính
+    if (unitDropdownRef.current && !unitDropdownRef.current.contains(event.target)) {
+      setIsUnitDropdownOpen(false);
+    }
+    // Đóng Danh mục (Phần mới thêm)
+    if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+      setIsCategoryDropdownOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (openIngredientDropdownIdx !== null) {
+      const ref = ingredientDropdownRefs.current[openIngredientDropdownIdx];
+      if (ref && !ref.contains(event.target)) {
+        setOpenIngredientDropdownIdx(null);
+      }
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, [openIngredientDropdownIdx]);
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (recipeIngDropdownRef.current && !recipeIngDropdownRef.current.contains(event.target)) {
+      setIsRecipeIngDropdownOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (openImportDropdownIdx !== null) {
+      const ref = importIngDropdownRefs.current[openImportDropdownIdx];
+      if (ref && !ref.contains(event.target)) {
+        setOpenImportDropdownIdx(null);
+      }
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, [openImportDropdownIdx]);
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (filterCatDropdownRef.current && !filterCatDropdownRef.current.contains(event.target)) {
+      setIsFilterCatDropdownOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (filterRecipeCatRef.current && !filterRecipeCatRef.current.contains(event.target)) {
+      setIsFilterRecipeCatOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+
 
   // ==========================================
   // HÀM XỬ LÝ KIỂM KÊ KHO
@@ -705,6 +854,8 @@ const [ingredientForm, setIngredientForm] = useState({
         alert("Thêm sản phẩm thành công!");
       }
       setShowAddProduct(false);
+      setOpenIngredientDropdownIdx(null); 
+      setIngredientSearchTexts({});
       loadData();
     } catch (error) {
       alert("Lỗi lưu sản phẩm: " + error.message);
@@ -883,6 +1034,8 @@ const [ingredientForm, setIngredientForm] = useState({
         }),
       });
       setShowImportModal(false);
+      setOpenImportDropdownIdx(null);
+setImportIngSearchTexts({});
       setImportForm({
         note: "",
         items: [{ ingredientId: "", quantity: "", importPrice: "" }],
@@ -1686,24 +1839,188 @@ const [ingredientForm, setIngredientForm] = useState({
                           Tìm
                         </button>
                       </div>
-                      <select
-                        value={filterProductCategory}
-                        onChange={(e) =>
-                          setFilterProductCategory(e.target.value)
-                        }
-                        className={
-                          isLight
-                            ? "ck-bg-white ck-text-slate-900 ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-slate-300 ck-outline-none ck-cursor-pointer"
-                            : "ck-bg-gray-900 ck-text-white ck-px-4 ck-py-2 ck-rounded-xl ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer"
-                        }
-                      >
-                        <option value="Tất cả danh mục">Tất cả danh mục</option>
-                        {categoriesList.map((cat) => (
-                          <option key={cat.id} value={cat.name}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div ref={filterCatDropdownRef} style={{ position: "relative" }}>
+  {/* Nút hiển thị */}
+  <div
+    onClick={() => {
+      setIsFilterCatDropdownOpen(!isFilterCatDropdownOpen);
+      setFilterCatSearchText("");
+    }}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "8px",
+      background: isLight ? "#fff" : "#111827",
+      color: isLight ? "#0f172a" : "#e5e7eb",
+      border: isLight ? "1px solid #cbd5e1" : "1px solid #374151",
+      borderRadius: "12px",
+      padding: "8px 14px",
+      fontSize: "13px",
+      fontWeight: "600",
+      cursor: "pointer",
+      userSelect: "none",
+      minWidth: "180px",
+    }}
+  >
+    <span>
+      {filterProductCategory === "Tất cả danh mục"
+        ? "🗂 Tất cả danh mục"
+        : categoriesList.find((c) => c.name === filterProductCategory)?.name || filterProductCategory}
+    </span>
+    <span style={{ fontSize: "10px", color: "#6b7280" }}>
+      {isFilterCatDropdownOpen ? "▲" : "▼"}
+    </span>
+  </div>
+
+  {/* Dropdown panel */}
+  {isFilterCatDropdownOpen && (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        right: 0,
+        marginTop: "6px",
+        minWidth: "220px",
+        background: isLight ? "#fff" : "#1f2937",
+        border: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+        borderRadius: "12px",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+        zIndex: 999,
+        overflow: "hidden",
+      }}
+    >
+      {/* Ô tìm kiếm */}
+      <div
+        style={{
+          padding: "8px",
+          borderBottom: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+        }}
+      >
+        <input
+          type="text"
+          autoFocus
+          placeholder="Tìm danh mục..."
+          value={filterCatSearchText}
+          onChange={(e) => setFilterCatSearchText(e.target.value)}
+          style={{
+            width: "100%",
+            background: isLight ? "#f8fafc" : "#111827",
+            color: isLight ? "#0f172a" : "#fff",
+            border: isLight ? "1px solid #cbd5e1" : "1px solid #4b5563",
+            borderRadius: "8px",
+            padding: "6px 10px",
+            fontSize: "12px",
+            outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      {/* Danh sách */}
+      <div
+        className="hide-scrollbar"
+        style={{ maxHeight: "220px", overflowY: "auto", padding: "4px 0" }}
+      >
+        {/* Option "Tất cả" */}
+        <div
+          onClick={() => {
+            setFilterProductCategory("Tất cả danh mục");
+            setIsFilterCatDropdownOpen(false);
+            setFilterCatSearchText("");
+          }}
+          style={{
+            padding: "8px 14px",
+            fontSize: "13px",
+            cursor: "pointer",
+            fontWeight: filterProductCategory === "Tất cả danh mục" ? "700" : "400",
+            background: filterProductCategory === "Tất cả danh mục"
+              ? "rgba(20,184,166,0.12)"
+              : "transparent",
+            color: filterProductCategory === "Tất cả danh mục"
+              ? "#2dd4bf"
+              : isLight ? "#0f172a" : "#e5e7eb",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+          onMouseEnter={(e) => {
+            if (filterProductCategory !== "Tất cả danh mục") {
+              e.currentTarget.style.background = "#14b8a6";
+              e.currentTarget.style.color = "#fff";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (filterProductCategory !== "Tất cả danh mục") {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = isLight ? "#0f172a" : "#e5e7eb";
+            }
+          }}
+        >
+          <span>🗂</span> Tất cả danh mục
+        </div>
+
+        {/* Các danh mục */}
+        {categoriesList
+          .filter((cat) =>
+            cat.name.toLowerCase().includes(filterCatSearchText.toLowerCase())
+          )
+          .map((cat) => {
+            const isSelected = filterProductCategory === cat.name;
+            return (
+              <div
+                key={cat.id}
+                onClick={() => {
+                  setFilterProductCategory(cat.name);
+                  setIsFilterCatDropdownOpen(false);
+                  setFilterCatSearchText("");
+                }}
+                style={{
+                  padding: "8px 14px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: isSelected ? "700" : "400",
+                  background: isSelected ? "rgba(20,184,166,0.12)" : "transparent",
+                  color: isSelected ? "#2dd4bf" : isLight ? "#0f172a" : "#e5e7eb",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = "#14b8a6";
+                    e.currentTarget.style.color = "#fff";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = isLight ? "#0f172a" : "#e5e7eb";
+                  }
+                }}
+              >
+                {cat.name}
+              </div>
+            );
+          })}
+
+        {/* Không tìm thấy */}
+        {categoriesList.filter((cat) =>
+          cat.name.toLowerCase().includes(filterCatSearchText.toLowerCase())
+        ).length === 0 && (
+          <div
+            style={{
+              padding: "14px",
+              textAlign: "center",
+              fontSize: "12px",
+              color: "#6b7280",
+            }}
+          >
+            Không tìm thấy "{filterCatSearchText}"
+          </div>
+        )}
+      </div>
+    </div>
+  )}
+</div>
                     </div>
 
                     <div className="mgr-split">
@@ -2103,7 +2420,12 @@ api.getRecipeOfProduct(pId)
           </div>
           <button
             type="button"
-            onClick={() => setShowAddProduct(false)}
+            onClick={() => {
+  setShowAddProduct(false);
+  setOpenIngredientDropdownIdx(null); 
+  setIngredientSearchTexts({});         
+}}
+            
             className="mgr-icon-btn"
           >
             ✕
@@ -2147,28 +2469,88 @@ api.getRecipeOfProduct(pId)
               className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 focus:ck-border-red-500 ck-outline-none"
             />
           </div>
-          <div>
-            <label className="ck-block ck-text-gray-400 ck-mb-1">
-              Danh mục
-            </label>
-            <select
-              value={newProduct.categoryId}
-              onChange={(e) =>
-                setNewProduct({
-                  ...newProduct,
-                  categoryId: e.target.value,
-                })
-              }
-              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
+          {/* ================= DANH MỤC (CÓ SEARCH) MỚI ================= */}
+<div ref={categoryDropdownRef} className="ck-relative">
+  <label className="ck-block ck-text-gray-400 ck-mb-1 ck-text-sm">
+    Danh mục
+  </label>
+  
+  <div
+    onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+    className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer ck-flex ck-justify-between ck-items-center"
+  >
+    <span>
+      {newProduct.categoryId
+        ? categoriesList.find((c) => String(c.id) === String(newProduct.categoryId))?.name || "Đã chọn danh mục"
+        : "-- Chọn danh mục --"}
+    </span>
+    <span className="ck-text-gray-500 ck-text-xs">▼</span>
+  </div>
+
+  {isCategoryDropdownOpen && (
+    <div
+      className="ck-absolute ck-z-50 ck-w-full ck-bg-gray-800 ck-border ck-border-gray-600 ck-rounded-lg ck-shadow-2xl"
+      style={{ top: "100%", marginTop: "4px" }} 
+    >
+      <div className="ck-p-2 ck-border-b ck-border-gray-700">
+        <input
+          type="text"
+          autoFocus
+          placeholder="Tìm danh mục..."
+          value={categorySearchText}
+          onChange={(e) => setCategorySearchText(e.target.value)}
+          className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-1.5 ck-rounded-md ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
+        />
+      </div>
+
+      <div className="ck-max-h-48 ck-overflow-y-auto hide-scrollbar ck-py-1">
+        <div
+          onClick={() => {
+            setNewProduct({ ...newProduct, categoryId: "" });
+            setIsCategoryDropdownOpen(false);
+            setCategorySearchText("");
+          }}
+          className={`ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ${
+            !newProduct.categoryId ? "ck-bg-teal-700 ck-text-white" : "ck-text-gray-300"
+          }`}
+        >
+          -- Chọn danh mục --
+        </div>
+
+        {categoriesList
+          .filter((cat) =>
+            cat.name.toLowerCase().includes(categorySearchText.toLowerCase())
+          )
+          .map((cat) => (
+            <div
+              key={cat.id}
+              onClick={() => {
+                setNewProduct({ ...newProduct, categoryId: cat.id });
+                setIsCategoryDropdownOpen(false);
+                setCategorySearchText(""); 
+              }}
+              className={`ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ${
+                String(newProduct.categoryId) === String(cat.id)
+                  ? "ck-bg-teal-700 ck-text-white"
+                  : "ck-text-gray-300"
+              }`}
             >
-              <option value="">-- Chọn danh mục --</option>
-              {categoriesList.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
+              {cat.name}
+            </div>
+          ))}
+
+        {categoriesList.filter((cat) =>
+          cat.name.toLowerCase().includes(categorySearchText.toLowerCase())
+        ).length === 0 && (
+          <div className="ck-px-3 ck-py-3 ck-text-gray-500 ck-text-center ck-text-sm">
+            Không tìm thấy "{categorySearchText}"
           </div>
+        )}
+      </div>
+    </div>
+  )}
+</div>
+{/* ================= END DANH MỤC ================= */}
 
           {/* ================= CHIA 2 CỘT: GIÁ BÁN & ĐƠN VỊ ================= */}
           <div className="ck-grid ck-grid-cols-2 ck-gap-4 ck-mt-4">
@@ -2189,29 +2571,77 @@ api.getRecipeOfProduct(pId)
               />
             </div>
 
-            <div>
+            {/* ================= ĐƠN VỊ TÍNH (CÓ SEARCH) ================= */}
+            <div ref={unitDropdownRef} className="ck-relative">
               <label className="ck-block ck-text-gray-400 ck-mb-1">
                 Đơn vị tính <span className="ck-text-red-500">*</span>
               </label>
-              <select
-                value={newProduct.baseUnit || ""}
-                onChange={(e) =>
-                  setNewProduct({
-                    ...newProduct,
-                    baseUnit: e.target.value,
-                  })
-                }
-                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none"
-                style={{ WebkitAppearance: "none", MozAppearance: "none", appearance: "none" }}
+              
+              <div
+                onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
+                className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-cursor-pointer ck-flex ck-justify-between ck-items-center"
               >
-                <option value="" disabled>-- Chọn đơn vị --</option>
-                {unitMasterData.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
+                <span>
+                  {newProduct.baseUnit
+                    ? unitMasterData.find((u) => u.value === newProduct.baseUnit)?.label || newProduct.baseUnit
+                    : "-- Chọn đơn vị --"}
+                </span>
+                <span className="ck-text-gray-500 ck-text-xs">▼</span>
+              </div>
+
+              {isUnitDropdownOpen && (
+               <div
+      className="ck-absolute ck-z-50 ck-w-full ck-bg-gray-800 ck-border ck-border-gray-600 ck-rounded-lg ck-shadow-2xl"
+      // 👇 SỬA DÒNG NÀY: Đổi bottom thành top để nó rớt xuống dưới 👇
+      style={{ top: "100%", marginTop: "4px" }} 
+    >
+      {/* Ô Nhập Tìm Kiếm */}
+      <div className="ck-p-2 ck-border-b ck-border-gray-700">
+        <input
+          type="text"
+          autoFocus // Tự động trỏ chuột vào khi mở
+          placeholder="Tìm đơn vị..."
+                      value={unitSearchText}
+                      onChange={(e) => setUnitSearchText(e.target.value)}
+                      className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-1.5 ck-rounded-md ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
+                    />
+                  </div>
+
+                  <div className="ck-max-h-48 ck-overflow-y-auto hide-scrollbar ck-py-1">
+                    {unitMasterData
+                      .filter((u) =>
+                        u.label.toLowerCase().includes(unitSearchText.toLowerCase())
+                      )
+                      .map((u) => (
+                        <div
+                          key={u.value}
+                          onClick={() => {
+                            setNewProduct({ ...newProduct, baseUnit: u.value });
+                            setIsUnitDropdownOpen(false);
+                            setUnitSearchText(""); 
+                          }}
+                          className={`ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ${
+                            newProduct.baseUnit === u.value
+                              ? "ck-bg-teal-700 ck-text-white"
+                              : "ck-text-gray-300"
+                          }`}
+                        >
+                          {u.label}
+                        </div>
+                      ))}
+
+                    {unitMasterData.filter((u) =>
+                      u.label.toLowerCase().includes(unitSearchText.toLowerCase())
+                    ).length === 0 && (
+                      <div className="ck-px-3 ck-py-3 ck-text-gray-500 ck-text-center ck-text-sm">
+                        Không tìm thấy "{unitSearchText}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+            {/* ================= END ĐƠN VỊ TÍNH ================= */}
           </div>
           {/* =============================================================== */}
 
@@ -2220,11 +2650,11 @@ api.getRecipeOfProduct(pId)
             <div style={{
               marginTop: "20px",
               paddingTop: "20px",
-              borderTop: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+              borderTop: typeof isLight !== 'undefined' && isLight ? "1px solid #e2e8f0" : "1px solid #374151",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: isLight ? "#64748b" : "#6b7280" }}>
+                  <p style={{ margin: 0, fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: typeof isLight !== 'undefined' && isLight ? "#64748b" : "#6b7280" }}>
                     Công thức nguyên liệu
                   </p>
                   <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#4b5563", fontStyle: "italic" }}>
@@ -2238,47 +2668,204 @@ api.getRecipeOfProduct(pId)
                 )}
               </div>
 
-              {(newProduct.ingredients || []).length > 0 && (
-                <div className="ck-flex ck-flex-col ck-gap-2 ck-mb-3">
-                  {(newProduct.ingredients || []).map((row, idx) => (
-                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", borderRadius: "10px", background: isLight ? "#f8fafc" : "rgba(15,23,42,0.5)", border: isLight ? "1px solid #e2e8f0" : "1px solid #1f2937" }}>
-                      <select
-                        value={row.ingredientId ?? ""}
-                        onChange={(e) => setNewProduct((prev) => ({
-                          ...prev,
-                          ingredients: prev.ingredients.map((it, i) => i === idx ? { ...it, ingredientId: e.target.value } : it),
-                        }))}
-                        style={{ flex: 1, minWidth: 0, background: isLight ? "#fff" : "#111827", color: isLight ? "#0f172a" : "#e5e7eb", border: isLight ? "1px solid #cbd5e1" : "1px solid #374151", borderRadius: "8px", padding: "6px 8px", fontSize: "12px", outline: "none" }}
-                      >
-                        <option value="">-- Chọn nguyên liệu --</option>
-                        {inventory.map((ing) => (
-                          <option key={ing.ingredientId ?? ing.id} value={ing.ingredientId ?? ing.id}>
-                            {ing.ingredientName ?? ing.name} ({ing.unit ?? "KG"})
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number" min="0.001" step="0.001" placeholder="SL"
-                        value={row.amountNeeded ?? ""}
-                        onChange={(e) => setNewProduct((prev) => ({
-                          ...prev,
-                          ingredients: prev.ingredients.map((it, i) => i === idx ? { ...it, amountNeeded: Number(e.target.value) || 0 } : it),
-                        }))}
-                        style={{ width: "64px", flexShrink: 0, background: isLight ? "#fff" : "#111827", color: isLight ? "#0f172a" : "#e5e7eb", border: isLight ? "1px solid #cbd5e1" : "1px solid #374151", borderRadius: "8px", padding: "6px 8px", fontSize: "12px", outline: "none", textAlign: "right" }}
-                      />
-                      <button type="button"
-                        onClick={() => setNewProduct((prev) => ({ ...prev, ingredients: prev.ingredients.filter((_, i) => i !== idx) }))}
-                        className="ck-flex ck-items-center ck-justify-center ck-w-7 ck-h-7 ck-rounded-lg ck-text-gray-500 hover:ck-bg-red-500/10 hover:ck-text-red-400 ck-transition-all"
-                        title="Xóa" style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "15px" }}
-                      >➖</button>
-                    </div>
-                  ))}
+              {(newProduct.ingredients || []).map((row, idx) => {
+  const searchText = ingredientSearchTexts[idx] || "";
+  const filteredIngredients = inventory.filter((ing) => {
+    const name = ing.ingredientName ?? ing.name ?? "";
+    return name.toLowerCase().includes(searchText.toLowerCase());
+  });
+  const selectedIng = inventory.find(
+    (ing) => String(ing.ingredientId ?? ing.id) === String(row.ingredientId)
+  );
+
+  return (
+    <div
+      key={idx}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "8px 10px",
+        borderRadius: "10px",
+        background: isLight ? "#f8fafc" : "rgba(15,23,42,0.5)",
+        border: isLight ? "1px solid #e2e8f0" : "1px solid #1f2937",
+      }}
+    >
+      {/* ===== DROPDOWN NGUYÊN LIỆU CÓ SEARCH ===== */}
+      <div
+        ref={(el) => (ingredientDropdownRefs.current[idx] = el)}
+        className="ck-relative"
+        style={{ flex: 1, minWidth: 0 }}
+      >
+        {/* Nút hiển thị tên đã chọn */}
+        <div
+          onClick={() =>
+            setOpenIngredientDropdownIdx(
+              openIngredientDropdownIdx === idx ? null : idx
+            )
+          }
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: isLight ? "#fff" : "#111827",
+            color: selectedIng
+              ? isLight ? "#0f172a" : "#e5e7eb"
+              : "#6b7280",
+            border: isLight ? "1px solid #cbd5e1" : "1px solid #374151",
+            borderRadius: "8px",
+            padding: "6px 8px",
+            fontSize: "12px",
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+        >
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selectedIng
+              ? `${selectedIng.ingredientName ?? selectedIng.name} (${selectedIng.unit ?? "KG"})`
+              : "-- Chọn nguyên liệu --"}
+          </span>
+          <span style={{ color: "#6b7280", fontSize: "10px", marginLeft: "4px", flexShrink: 0 }}>▼</span>
+        </div>
+
+        {/* Dropdown panel */}
+        {openIngredientDropdownIdx === idx && (
+          <div
+            className="ck-absolute ck-z-50 ck-bg-gray-800 ck-border ck-border-gray-600 ck-rounded-lg ck-shadow-2xl"
+            style={{
+              top: "100%",
+              marginTop: "4px",
+              left: 0,
+              right: 0,
+              minWidth: "220px",
+            }}
+          >
+            {/* Ô tìm kiếm */}
+            <div className="ck-p-2 ck-border-b ck-border-gray-700">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Tìm nguyên liệu..."
+                value={searchText}
+                onChange={(e) =>
+                  setIngredientSearchTexts((prev) => ({
+                    ...prev,
+                    [idx]: e.target.value,
+                  }))
+                }
+                className="ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-1.5 ck-rounded-md ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
+              />
+            </div>
+
+            {/* Danh sách */}
+            <div className="ck-max-h-48 ck-overflow-y-auto hide-scrollbar ck-py-1">
+              {/* Option trống */}
+              <div
+                onClick={() => {
+                  setNewProduct((prev) => ({
+                    ...prev,
+                    ingredients: prev.ingredients.map((it, i) =>
+                      i === idx ? { ...it, ingredientId: "" } : it
+                    ),
+                  }));
+                  setOpenIngredientDropdownIdx(null);
+                  setIngredientSearchTexts((prev) => ({ ...prev, [idx]: "" }));
+                }}
+                className="ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ck-text-gray-400"
+              >
+                -- Chọn nguyên liệu --
+              </div>
+
+              {filteredIngredients.map((ing) => {
+                const ingId = ing.ingredientId ?? ing.id;
+                const isSelected = String(row.ingredientId) === String(ingId);
+                return (
+                  <div
+                    key={ingId}
+                    onClick={() => {
+                      setNewProduct((prev) => ({
+                        ...prev,
+                        ingredients: prev.ingredients.map((it, i) =>
+                          i === idx ? { ...it, ingredientId: ingId } : it
+                        ),
+                      }));
+                      setOpenIngredientDropdownIdx(null);
+                      setIngredientSearchTexts((prev) => ({ ...prev, [idx]: "" }));
+                    }}
+                    className={`ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ${
+                      isSelected ? "ck-bg-teal-700 ck-text-white" : "ck-text-gray-300"
+                    }`}
+                  >
+                    {ing.ingredientName ?? ing.name}
+                    <span style={{ color: "#9ca3af", marginLeft: "4px", fontSize: "11px" }}>
+                      ({ing.unit ?? "KG"})
+                    </span>
+                  </div>
+                );
+              })}
+
+              {filteredIngredients.length === 0 && (
+                <div className="ck-px-3 ck-py-3 ck-text-gray-500 ck-text-center ck-text-sm">
+                  Không tìm thấy "{searchText}"
                 </div>
               )}
+            </div>
+          </div>
+        )}
+      </div>
+      {/* ===== END DROPDOWN NGUYÊN LIỆU ===== */}
+
+      {/* Ô nhập số lượng — giữ nguyên */}
+      <input
+        type="number" min="0.001" step="0.001" placeholder="SL"
+        value={row.amountNeeded ?? ""}
+        onChange={(e) =>
+          setNewProduct((prev) => ({
+            ...prev,
+            ingredients: prev.ingredients.map((it, i) =>
+              i === idx ? { ...it, amountNeeded: Number(e.target.value) || 0 } : it
+            ),
+          }))
+        }
+        style={{
+          width: "64px", flexShrink: 0,
+          background: isLight ? "#fff" : "#111827",
+          color: isLight ? "#0f172a" : "#e5e7eb",
+          border: isLight ? "1px solid #cbd5e1" : "1px solid #374151",
+          borderRadius: "8px", padding: "6px 8px",
+          fontSize: "12px", outline: "none", textAlign: "right",
+        }}
+      />
+
+      {/* Nút xóa dòng — giữ nguyên */}
+      <button
+        type="button"
+        onClick={() =>
+          setNewProduct((prev) => ({
+            ...prev,
+            ingredients: prev.ingredients.filter((_, i) => i !== idx),
+          }))
+        }
+        title="Xóa"
+        style={{
+          background: "transparent", border: "none", cursor: "pointer",
+          fontSize: "15px", color: "#6b7280",
+          width: "28px", height: "28px",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          borderRadius: "8px",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.1)"; e.currentTarget.style.color = "#f87171"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
+      >
+        ➖
+      </button>
+    </div>
+  );
+})}
 
               <button type="button"
                 onClick={() => setNewProduct((prev) => ({ ...prev, ingredients: [...(prev.ingredients || []), { ingredientId: "", amountNeeded: 0.1 }] }))}
-                style={{ width: "100%", padding: "10px", borderRadius: "10px", background: "transparent", color: isLight ? "#0d9488" : "#2dd4bf", border: isLight ? "1px dashed #0d9488" : "1px dashed rgba(45,212,191,0.4)", cursor: "pointer", fontSize: "12px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                style={{ width: "100%", padding: "10px", borderRadius: "10px", background: "transparent", color: typeof isLight !== 'undefined' && isLight ? "#0d9488" : "#2dd4bf", border: typeof isLight !== 'undefined' && isLight ? "1px dashed #0d9488" : "1px dashed rgba(45,212,191,0.4)", cursor: "pointer", fontSize: "12px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <span style={{ fontSize: "16px" }}>➕</span> Thêm nguyên liệu vào công thức
               </button>
@@ -2310,7 +2897,7 @@ api.getRecipeOfProduct(pId)
                 {showAddCategory && (
                   <div
                     className="ck-fixed ck-inset-0 ck-z-50 ck-flex ck-items-center ck-justify-center ck-animate-fade-in"
-                    style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }}
+                    style={{ backgroundColor: "rgba(0, 0, 0, 0.8)",zIndex: 9999 }}
                   >
                     <div
                       className="mgr-aside ck-bg-gray-900 ck-border ck-border-gray-700 ck-rounded-xl ck-shadow-2xl"
@@ -2637,7 +3224,7 @@ api.getRecipeOfProduct(pId)
                   {selectedInventoryItem && (
                     <div
                       className="mgr-aside ck-animate-fade-in"
-                      style={{ flex: "0 0 32%", minWidth: 280 }}
+                      style={{ flex: "0 0 32%", minWidth: 280,overflow: "visible"  }}
                     >
                       <div className="mgr-aside__head">
                         <div>
@@ -2710,23 +3297,143 @@ api.getRecipeOfProduct(pId)
                             <div className="ck-bg-gray-800 ck-p-4 ck-rounded-xl ck-mb-4 ck-border ck-border-blue-500/30 ck-animate-fade-in">
                               {/* Group 2 ô Input chia đều 50/50 */}
                               <div className="conversion-input-group ck-flex ck-gap-2 ck-w-full">
-                                <select
-                                  value={newConversion.unitName}
-                                  onChange={(e) =>
-                                    setNewConversion({
-                                      ...newConversion,
-                                      unitName: e.target.value,
-                                    })
-                                  }
-                                  className="ck-flex-1 ck-min-w-0 ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2 ck-rounded-lg ck-border ck-border-gray-700 ck-outline-none ck-text-xs"
-                                >
-                                  <option value="">-- Chọn đơn vị --</option>
-                                  {unitMasterData.map((u) => (
-                                    <option key={u.value} value={u.value}>
-                                      {u.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                {/* MỚI: search dropdown quy đổi đơn vị */}
+<div ref={convUnitDropdownRef} style={{ position: "relative", flex: 1, minWidth: 0 }}>
+  
+  {/* Ô trigger */}
+  <div
+    id="conv-unit-trigger"
+    onClick={() => {
+      setIsConvUnitDropdownOpen((prev) => !prev);
+      setConvUnitSearchText("");
+    }}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "7px 10px",
+      borderRadius: "8px",
+      border: "1px solid #374151",
+      background: "#111827",
+      color: newConversion.unitName ? "#e5e7eb" : "#6b7280",
+      cursor: "pointer",
+      fontSize: "12px",
+      userSelect: "none",
+      minHeight: "34px",
+    }}
+  >
+    <span>
+      {newConversion.unitName
+        ? unitMasterData.find((u) => u.value === newConversion.unitName)?.label ?? newConversion.unitName
+        : "-- Chọn đơn vị --"}
+    </span>
+    <span style={{ fontSize: "10px", color: "#6b7280" }}>
+      {isConvUnitDropdownOpen ? "▲" : "▼"}
+    </span>
+  </div>
+
+  {/* Dropdown panel - fixed để thoát overflow */}
+  {isConvUnitDropdownOpen && (
+  <div
+    style={{
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      marginTop: "4px",
+      background: "#1f2937",
+      border: "1px solid #374151",
+      borderRadius: "8px",
+      zIndex: 99999,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+      overflow: "hidden",
+    }}
+  >
+    {/* Ô search */}
+    <div style={{ padding: "6px", borderBottom: "1px solid #374151" }}>
+      <input
+        autoFocus
+        type="text"
+        placeholder="Tìm đơn vị..."
+        value={convUnitSearchText}
+        onChange={(e) => setConvUnitSearchText(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          padding: "5px 8px",
+          borderRadius: "6px",
+          border: "1px solid #374151",
+          background: "#111827",
+          color: "#e5e7eb",
+          fontSize: "12px",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+      />
+    </div>
+
+    {/* Danh sách */}
+    <ul
+      className="hide-scrollbar"
+      style={{
+        listStyle: "none",
+        margin: 0,
+        padding: "4px 0",
+        maxHeight: "160px",
+        overflowY: "auto",
+      }}
+    >
+      {unitMasterData
+        .filter(
+          (u) =>
+            u.label.toLowerCase().includes(convUnitSearchText.toLowerCase()) ||
+            u.value.toLowerCase().includes(convUnitSearchText.toLowerCase())
+        )
+        .map((u) => (
+          <li
+            key={u.value}
+            onClick={() => {
+              setNewConversion({ ...newConversion, unitName: u.value });
+              setIsConvUnitDropdownOpen(false);
+              setConvUnitSearchText("");
+            }}
+            style={{
+              padding: "7px 12px",
+              cursor: "pointer",
+              fontSize: "12px",
+              color: newConversion.unitName === u.value ? "#2dd4bf" : "#e5e7eb",
+              background:
+                newConversion.unitName === u.value
+                  ? "rgba(20,184,166,0.12)"
+                  : "transparent",
+              fontWeight: newConversion.unitName === u.value ? "600" : "400",
+            }}
+            onMouseEnter={(e) => {
+              if (newConversion.unitName !== u.value)
+                e.currentTarget.style.background = "#374151";
+            }}
+            onMouseLeave={(e) => {
+              if (newConversion.unitName !== u.value)
+                e.currentTarget.style.background = "transparent";
+            }}
+          >
+            {u.label}
+          </li>
+        ))}
+
+      {unitMasterData.filter(
+        (u) =>
+          u.label.toLowerCase().includes(convUnitSearchText.toLowerCase()) ||
+          u.value.toLowerCase().includes(convUnitSearchText.toLowerCase())
+      ).length === 0 && (
+        <li style={{ padding: "8px 12px", color: "#6b7280", fontSize: "12px" }}>
+          Không tìm thấy
+        </li>
+      )}
+    </ul>
+  </div>
+)}
+</div>
 
                                 <input
                                   type="number"
@@ -3214,81 +3921,232 @@ api.getRecipeOfProduct(pId)
                               </div>
 
                               {/* Danh sách dòng */}
-                              {importForm.items.map((row, index) => (
-                                <div
-                                  key={index}
-                                  className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-border-b ck-border-gray-700/50 last:ck-border-b-0 hover:ck-bg-gray-800/40"
-                                  style={{
-                                    gridTemplateColumns: "1fr 80px 100px 36px",
-                                  }}
-                                >
-                                  <select
-                                    className="ck-select ck-w-full ck-px-3 ck-py-2 ck-bg-gray-900 ck-border ck-border-gray-700 ck-text-white ck-rounded-lg ck-text-xs"
-                                    value={row.ingredientId}
-                                    onChange={(e) =>
-                                      handleImportRowChange(
-                                        index,
-                                        "ingredientId",
-                                        e.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="">-- Chọn --</option>
-                                    {inventory.map((ing) => (
-                                      <option
-                                        key={ing.id}
-                                        value={ing.ingredientId ?? ing.id}
-                                      >
-                                        {ing.name ?? ing.ingredientName} (
-                                        {getUnitLabel(ing.unit) ?? "KG"})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-xs ck-bg-gray-950 ck-text-right"
-                                    value={row.quantity}
-                                    onChange={(e) =>
-                                      handleImportRowChange(
-                                        index,
-                                        "quantity",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="0"
-                                  />
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-xs ck-bg-gray-950 ck-text-right"
-                                    value={row.importPrice}
-                                    onChange={(e) =>
-                                      handleImportRowChange(
-                                        index,
-                                        "importPrice",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="0"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveImportRow(index)}
-                                    className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-full ck-text-gray-500 hover:ck-bg-red-500/10 hover:ck-text-red-500 ck-transition-all"
-                                    style={{
-                                      background: "transparent",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      fontSize: "15px",
-                                    }}
-                                    title="Xóa dòng"
-                                  >
-                                    ➖
-                                  </button>
-                                </div>
-                              ))}
+                              {importForm.items.map((row, index) => {
+  const searchText = importIngSearchTexts[index] || "";
+  const selectedIng = inventory.find(
+    (ing) => String(ing.ingredientId ?? ing.id) === String(row.ingredientId)
+  );
+  const filteredList = inventory.filter((ing) => {
+    const name = ing.name ?? ing.ingredientName ?? "";
+    return name.toLowerCase().includes(searchText.toLowerCase());
+  });
+
+  return (
+    <div
+      key={index}
+      className="ck-grid ck-gap-2 ck-p-2 ck-items-center ck-border-b ck-border-gray-700/50 last:ck-border-b-0 hover:ck-bg-gray-800/40"
+      style={{ gridTemplateColumns: "1fr 80px 100px 36px" }}
+    >
+      {/* ===== DROPDOWN NGUYÊN LIỆU ===== */}
+      <div
+        ref={(el) => (importIngDropdownRefs.current[index] = el)}
+        style={{ position: "relative" }}
+      >
+        {/* Nút hiển thị */}
+        <div
+          onClick={() =>
+            setOpenImportDropdownIdx(
+              openImportDropdownIdx === index ? null : index
+            )
+          }
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#111827",
+            color: selectedIng ? "#fff" : "#6b7280",
+            border: "1px solid #374151",
+            borderRadius: "8px",
+            padding: "7px 10px",
+            fontSize: "12px",
+            cursor: "pointer",
+            userSelect: "none",
+            overflow: "hidden",
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {selectedIng
+              ? `${selectedIng.name ?? selectedIng.ingredientName} (${getUnitLabel(selectedIng.unit) ?? "KG"})`
+              : "-- Chọn --"}
+          </span>
+          <span style={{ fontSize: "9px", color: "#6b7280", marginLeft: "4px", flexShrink: 0 }}>
+            ▼
+          </span>
+        </div>
+
+        {/* Dropdown panel */}
+        {openImportDropdownIdx === index && (
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              marginTop: "4px",
+              left: 0,
+              minWidth: "220px",
+              zIndex: 9999,
+              background: "#1f2937",
+              border: "1px solid #374151",
+              borderRadius: "10px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+            }}
+          >
+            {/* Ô tìm kiếm */}
+            <div style={{ padding: "8px", borderBottom: "1px solid #374151" }}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Tìm nguyên liệu..."
+                value={searchText}
+                onChange={(e) =>
+                  setImportIngSearchTexts((prev) => ({
+                    ...prev,
+                    [index]: e.target.value,
+                  }))
+                }
+                style={{
+                  width: "100%",
+                  background: "#111827",
+                  color: "#fff",
+                  border: "1px solid #4b5563",
+                  borderRadius: "7px",
+                  padding: "6px 10px",
+                  fontSize: "12px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {/* Danh sách */}
+            <div
+              className="hide-scrollbar"
+              style={{ maxHeight: "180px", overflowY: "auto", padding: "4px 0" }}
+            >
+              {/* Option trống */}
+              <div
+                onClick={() => {
+                  handleImportRowChange(index, "ingredientId", "");
+                  setOpenImportDropdownIdx(null);
+                  setImportIngSearchTexts((prev) => ({ ...prev, [index]: "" }));
+                }}
+                style={{
+                  padding: "7px 12px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  color: "#6b7280",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#14b8a6";
+                  e.currentTarget.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "#6b7280";
+                }}
+              >
+                -- Chọn --
+              </div>
+
+              {filteredList.map((ing) => {
+                const ingId = ing.ingredientId ?? ing.id;
+                const isSelected = String(row.ingredientId) === String(ingId);
+                return (
+                  <div
+                    key={ingId}
+                    onClick={() => {
+                      handleImportRowChange(index, "ingredientId", ingId);
+                      setOpenImportDropdownIdx(null);
+                      setImportIngSearchTexts((prev) => ({ ...prev, [index]: "" }));
+                    }}
+                    style={{
+                      padding: "7px 12px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      background: isSelected ? "#0d9488" : "transparent",
+                      color: isSelected ? "#fff" : "#e5e7eb",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.background = "#14b8a6";
+                        e.currentTarget.style.color = "#fff";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.color = "#e5e7eb";
+                      }
+                    }}
+                  >
+                    <span>{ing.name ?? ing.ingredientName}</span>
+                    <span style={{ fontSize: "10px", color: isSelected ? "#99f6e4" : "#9ca3af" }}>
+                      {getUnitLabel(ing.unit) ?? "KG"}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {filteredList.length === 0 && (
+                <div
+                  style={{
+                    padding: "14px",
+                    textAlign: "center",
+                    fontSize: "12px",
+                    color: "#6b7280",
+                  }}
+                >
+                  Không tìm thấy "{searchText}"
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      {/* ===== END DROPDOWN ===== */}
+
+      {/* Số lượng — giữ nguyên */}
+      <input
+        type="number" min="0" step="0.01"
+        className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-xs ck-bg-gray-950 ck-text-right"
+        value={row.quantity}
+        onChange={(e) => handleImportRowChange(index, "quantity", e.target.value)}
+        placeholder="0"
+      />
+
+      {/* Đơn giá — giữ nguyên */}
+      <input
+        type="number" min="0"
+        className="ck-input ck-w-full ck-px-3 ck-py-2 ck-rounded-lg ck-text-xs ck-bg-gray-950 ck-text-right"
+        value={row.importPrice}
+        onChange={(e) => handleImportRowChange(index, "importPrice", e.target.value)}
+        placeholder="0"
+      />
+
+      {/* Nút xóa dòng — giữ nguyên */}
+      <button
+        type="button"
+        onClick={() => handleRemoveImportRow(index)}
+        className="ck-flex ck-items-center ck-justify-center ck-w-8 ck-h-8 ck-rounded-full ck-text-gray-500 hover:ck-bg-red-500/10 hover:ck-text-red-500 ck-transition-all"
+        style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "15px" }}
+        title="Xóa dòng"
+      >
+        ➖
+      </button>
+    </div>
+  );
+})}
 
                               {/* Nút thêm dòng - CSS Admin + Icon + */}
                               <button
@@ -4211,66 +5069,238 @@ api.getRecipeOfProduct(pId)
                 </div>
 
                 {/* TOOLBAR GIỐNG ADMIN */}
-                <div className="toolbar">
-                  {/* Dùng alignItems: 'stretch' để các thành phần bên trong tự động bằng chiều cao nhau */}
-                  <div style={{ display: "flex", alignItems: "stretch" }}>
-                    <div
-                      className="search-wrap"
-                      style={{ margin: 0, marginRight: "25px" }}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ opacity: 0.5 }}
-                      >
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                      </svg>
-                      <input
-                        type="text"
-                        placeholder="Tìm theo mã sản phẩm hoặc tên món…"
-                        value={recipeSearchText}
-                        onChange={(e) => setRecipeSearchText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter")
-                            setRecipeAppliedSearch(recipeSearchText);
-                        }}
-                        style={{ minWidth: "300px" }}
-                      />
-                    </div>
+                <div className="toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "stretch" }}>
+  {/* TRÁI: Search + Nút tìm */}
+  <div style={{ display: "flex", alignItems: "stretch" }}>
+    <div className="search-wrap" style={{ margin: 0, marginRight: "12px" }}>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        style={{ opacity: 0.5 }}
+      >
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input
+        type="text"
+        placeholder="Tìm theo mã sản phẩm hoặc tên món…"
+        value={recipeSearchText}
+        onChange={(e) => setRecipeSearchText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") setRecipeAppliedSearch(recipeSearchText);
+        }}
+        style={{ minWidth: "280px" }}
+      />
+    </div>
+    <button
+      type="button"
+      className="btn btn-teal"
+      onClick={() => setRecipeAppliedSearch(recipeSearchText)}
+    >
+      Tìm kiếm
+    </button>
+  </div>
 
-                    <button
-                      type="button"
-                      className="btn btn-teal" /* <-- Đã xóa chữ btn-sm ở đây */
-                      onClick={() => setRecipeAppliedSearch(recipeSearchText)}
-                    >
-                      Tìm kiếm
-                    </button>
-                  </div>
+  {/* PHẢI: Dropdown lọc danh mục */}
+  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <span style={{ fontSize: "12px", color: "#6b7280", whiteSpace: "nowrap" }}>
+      Danh mục:
+    </span>
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+  <div ref={filterRecipeCatRef} style={{ position: "relative" }}>
+    {/* Nút trigger */}
+    <div
+      onClick={() => {
+        setIsFilterRecipeCatOpen(!isFilterRecipeCatOpen);
+        setFilterRecipeCatSearch("");
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "8px",
+        background: isLight ? "#f1f5f9" : "#1f2937",
+        color: isLight ? "#0f172a" : "#e5e7eb",
+        border: isLight ? "1px solid #cbd5e1" : "1px solid #374151",
+        borderRadius: "10px",
+        padding: "8px 14px",
+        fontSize: "13px",
+        fontWeight: "600",
+        cursor: "pointer",
+        userSelect: "none",
+        minWidth: "180px",
+      }}
+    >
+      <span>
+        {filterRecipeCategory === "Tất cả"
+          ? "🗂 Tất cả danh mục"
+          : categoriesList.find((c) => String(c.id) === filterRecipeCategory)?.name || "🗂 Tất cả danh mục"}
+      </span>
+      <span style={{ fontSize: "10px", color: "#6b7280" }}>
+        {isFilterRecipeCatOpen ? "▲" : "▼"}
+      </span>
+    </div>
+
+    {/* Dropdown panel */}
+    {isFilterRecipeCatOpen && (
+      <div
+        style={{
+          position: "absolute",
+          top: "100%",
+          right: 0,
+          marginTop: "6px",
+          minWidth: "220px",
+          background: isLight ? "#fff" : "#1f2937",
+          border: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+          borderRadius: "12px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+          zIndex: 999,
+          overflow: "hidden",
+        }}
+      >
+        {/* Ô tìm kiếm */}
+        <div style={{
+          padding: "8px",
+          borderBottom: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+        }}>
+          <input
+            type="text"
+            autoFocus
+            placeholder="Tìm danh mục..."
+            value={filterRecipeCatSearch}
+            onChange={(e) => setFilterRecipeCatSearch(e.target.value)}
+            style={{
+              width: "100%",
+              background: isLight ? "#f8fafc" : "#111827",
+              color: isLight ? "#0f172a" : "#fff",
+              border: isLight ? "1px solid #cbd5e1" : "1px solid #4b5563",
+              borderRadius: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {/* Danh sách */}
+        <div
+          className="hide-scrollbar"
+          style={{ maxHeight: "220px", overflowY: "auto", padding: "4px 0" }}
+        >
+          {categoriesList
+            .filter((cat) =>
+              cat.name.toLowerCase().includes(filterRecipeCatSearch.toLowerCase())
+            )
+            .map((cat) => {
+              const isSelected = filterRecipeCategory === String(cat.id);
+              return (
+                <div
+                  key={cat.id}
+                  onClick={() => {
+                    setFilterRecipeCategory(String(cat.id));
+                    setRecipePage(1);
+                    setIsFilterRecipeCatOpen(false);
+                    setFilterRecipeCatSearch("");
+                  }}
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    fontWeight: isSelected ? "700" : "400",
+                    background: isSelected ? "rgba(20,184,166,0.12)" : "transparent",
+                    color: isSelected ? "#2dd4bf" : isLight ? "#0f172a" : "#e5e7eb",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = "#14b8a6";
+                      e.currentTarget.style.color = "#fff";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = isLight ? "#0f172a" : "#e5e7eb";
+                    }
+                  }}
+                >
+                  {cat.name}
                 </div>
+              );
+            })}
+
+          {categoriesList.filter((cat) =>
+            cat.name.toLowerCase().includes(filterRecipeCatSearch.toLowerCase())
+          ).length === 0 && (
+            <div style={{
+              padding: "14px",
+              textAlign: "center",
+              fontSize: "12px",
+              color: "#6b7280",
+            }}>
+              Không tìm thấy "{filterRecipeCatSearch}"
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+
+  {/* Nút bỏ lọc — chỉ hiện khi đang lọc */}
+  {filterRecipeCategory !== "Tất cả" && (
+    <button
+      type="button"
+      onClick={() => {
+        setFilterRecipeCategory("Tất cả");
+        setRecipePage(1);
+      }}
+      style={{
+        background: "rgba(239,68,68,0.1)",
+        color: "#f87171",
+        border: "1px solid rgba(239,68,68,0.2)",
+        borderRadius: "8px",
+        padding: "6px 10px",
+        fontSize: "12px",
+        fontWeight: "700",
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      ✕ Bỏ lọc
+    </button>
+  )}
+</div>
+      {/* Icon mũi tên */}
+    </div>
+  </div>
+</div>
 
                 <div className="product-grid" style={{ paddingBottom: "40px" }}>
                   {(() => {
                     const filteredRecipes = masterProducts.filter((prod) => {
-                      let matchText = true;
-                      if (recipeAppliedSearch) {
-                        matchText =
-                          (prod.product_id || prod.productId || "")
-                            .toLowerCase()
-                            .includes(recipeAppliedSearch.toLowerCase()) ||
-                          (prod.product_name || prod.name || "")
-                            .toLowerCase()
-                            .includes(recipeAppliedSearch.toLowerCase());
-                      }
-                      return matchText;
-                    });
+  let matchText = true;
+  if (recipeAppliedSearch) {
+    matchText =
+      (prod.product_id || prod.productId || "")
+        .toLowerCase()
+        .includes(recipeAppliedSearch.toLowerCase()) ||
+      (prod.product_name || prod.name || "")
+        .toLowerCase()
+        .includes(recipeAppliedSearch.toLowerCase());
+  }
+  // Lọc theo danh mục
+  let matchCat = true;
+  if (filterRecipeCategory !== "Tất cả") {
+    matchCat =
+      String(prod.categoryId || prod.category_id || "") === filterRecipeCategory;
+  }
+
+  return matchText && matchCat;
+});
 
                     const currentRecipeRows = filteredRecipes.slice(
                       (recipePage - 1) * ITEMS_PER_PAGE,
@@ -4542,43 +5572,189 @@ api.getRecipeOfProduct(pId)
                         />
 
                         <div className="field ck-mb-2">
-                          <label className="ck-text-[11px] ck-text-gray-500 ck-mb-1.5 ck-block">
-                            THÊM NGUYÊN LIỆU MỚI
-                          </label>
-                          <select
-                            className={
-                              isLight
-                                ? "ck-w-full ck-bg-white ck-text-slate-900 ck-px-3 ck-py-2.5 ck-rounded-xl ck-border ck-border-slate-300 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
-                                : "ck-w-full ck-bg-gray-900 ck-text-white ck-px-3 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-teal-500 ck-outline-none ck-text-sm"
-                            }
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (!val) return;
-                              const found = inventory.find(
-                                (i) => (i.ingredientId || i.id) === val,
-                              );
-                              if (found) {
-                                setEditingRecipeIngredients([
-                                  ...editingRecipeIngredients,
-                                  {
-                                    ingredientId: val,
-                                    name: found.ingredientName || found.name,
-                                    amountNeeded: 1,
-                                    unit: found.unit,
-                                  },
-                                ]);
-                                e.target.value = "";
-                              }
-                            }}
-                          >
-                            <option value="">+ Chọn thêm nguyên liệu...</option>
-                            {inventory.map((i) => (
-                              <option key={i.id} value={i.ingredientId || i.id}>
-                                {i.ingredientName || i.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+  <label className="ck-text-[11px] ck-text-gray-500 ck-mb-1.5 ck-block">
+    THÊM NGUYÊN LIỆU MỚI
+  </label>
+
+  <div ref={recipeIngDropdownRef} className="ck-relative">
+    {/* Nút hiển thị */}
+    <div
+      onClick={() => {
+        setIsRecipeIngDropdownOpen(!isRecipeIngDropdownOpen);
+        setRecipeIngSearchText("");
+      }}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        background: isLight ? "#fff" : "#111827",
+        color: "#6b7280",
+        border: isLight ? "1px solid #cbd5e1" : "1px solid #374151",
+        borderRadius: "12px",
+        padding: "10px 14px",
+        fontSize: "14px",
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+    >
+      <span>+ Chọn thêm nguyên liệu...</span>
+      <span style={{ fontSize: "10px", color: "#6b7280" }}>▼</span>
+    </div>
+
+    {/* Dropdown panel */}
+    {isRecipeIngDropdownOpen && (
+      <div
+        className="ck-absolute ck-z-50 ck-w-full ck-rounded-xl ck-shadow-2xl"
+        style={{
+          top: "100%",
+          marginTop: "6px",
+          background: isLight ? "#fff" : "#1f2937",
+          border: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+        }}
+      >
+        {/* Ô tìm kiếm */}
+        <div
+          style={{
+            padding: "8px",
+            borderBottom: isLight ? "1px solid #e2e8f0" : "1px solid #374151",
+          }}
+        >
+          <input
+            type="text"
+            autoFocus
+            placeholder="Tìm nguyên liệu..."
+            value={recipeIngSearchText}
+            onChange={(e) => setRecipeIngSearchText(e.target.value)}
+            style={{
+              width: "100%",
+              background: isLight ? "#f8fafc" : "#111827",
+              color: isLight ? "#0f172a" : "#fff",
+              border: isLight ? "1px solid #cbd5e1" : "1px solid #4b5563",
+              borderRadius: "8px",
+              padding: "6px 12px",
+              fontSize: "13px",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {/* Danh sách nguyên liệu */}
+        <div
+          className="hide-scrollbar"
+          style={{ maxHeight: "200px", overflowY: "auto", padding: "4px 0" }}
+        >
+          {inventory
+            .filter((ing) => {
+              // Lọc ra những nguyên liệu chưa có trong công thức
+              const alreadyAdded = editingRecipeIngredients.some(
+                (r) =>
+                  String(r.ingredientId) ===
+                  String(ing.ingredientId ?? ing.id)
+              );
+              const name = ing.ingredientName ?? ing.name ?? "";
+              const matchSearch = name
+                .toLowerCase()
+                .includes(recipeIngSearchText.toLowerCase());
+              return !alreadyAdded && matchSearch;
+            })
+            .map((ing) => {
+              const ingId = ing.ingredientId ?? ing.id;
+              return (
+                <div
+                  key={ingId}
+                  onClick={() => {
+                    setEditingRecipeIngredients([
+                      ...editingRecipeIngredients,
+                      {
+                        ingredientId: ingId,
+                        name: ing.ingredientName ?? ing.name,
+                        amountNeeded: 1,
+                        unit: ing.unit,
+                      },
+                    ]);
+                    setIsRecipeIngDropdownOpen(false);
+                    setRecipeIngSearchText("");
+                  }}
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    color: isLight ? "#0f172a" : "#e5e7eb",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#14b8a6";
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = isLight ? "#0f172a" : "#e5e7eb";
+                  }}
+                >
+                  <span>{ing.ingredientName ?? ing.name}</span>
+                  <span style={{ fontSize: "11px", color: "#9ca3af" }}>
+                    {ing.unit ?? "KG"}
+                  </span>
+                </div>
+              );
+            })}
+
+          {/* Không tìm thấy */}
+          {inventory.filter((ing) => {
+            const name = ing.ingredientName ?? ing.name ?? "";
+            return name.toLowerCase().includes(recipeIngSearchText.toLowerCase());
+          }).length === 0 && (
+            <div
+              style={{
+                padding: "16px",
+                textAlign: "center",
+                fontSize: "13px",
+                color: "#6b7280",
+              }}
+            >
+              Không tìm thấy "{recipeIngSearchText}"
+            </div>
+          )}
+
+          {/* Đã thêm hết rồi */}
+          {inventory.filter((ing) => {
+            const alreadyAdded = editingRecipeIngredients.some(
+              (r) =>
+                String(r.ingredientId) ===
+                String(ing.ingredientId ?? ing.id)
+            );
+            const name = ing.ingredientName ?? ing.name ?? "";
+            return (
+              !alreadyAdded &&
+              name.toLowerCase().includes(recipeIngSearchText.toLowerCase())
+            );
+          }).length === 0 &&
+            inventory.some((ing) => {
+              const name = ing.ingredientName ?? ing.name ?? "";
+              return name
+                .toLowerCase()
+                .includes(recipeIngSearchText.toLowerCase());
+            }) && (
+              <div
+                style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "#14b8a6",
+                }}
+              >
+                ✅ Tất cả nguyên liệu đã được thêm vào công thức
+              </div>
+            )}
+        </div>
+      </div>
+    )}
+  </div>
+</div>
                       </div>
 
                       {/* FOOTER: ÉP MÀU XANH TEAL + XÁM ĐẬM */}
@@ -5144,143 +6320,251 @@ api.getRecipeOfProduct(pId)
                 </div>
 
                 <div className="mgr-store-grid">
-                  {Object.keys(systemConfigs).length > 0 ? (
-                    Object.entries(systemConfigs).map(([key, val]) => (
-                      <div
-                        key={key}
-                        className="mgr-store-card ck-cursor-pointer hover:ck-border-orange-500/50 ck-transition-all"
-                        onClick={() => setSelectedConfig({ key, val })}
-                      >
-                        <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
-                          <div className="mgr-store-card__icon ck-flex ck-items-center ck-justify-center ck-bg-gray-800 ck-rounded-full ck-w-10 ck-h-10">
-                            <span style={{ fontSize: 20 }}>⚙️</span>
-                          </div>
-                          <span className="mgr-pill mgr-pill--ok">Tham số</span>
-                        </div>
-                        <h3 className="mgr-store-card__name ck-capitalize">
-                          {key.replace(/_/g, " ")}
-                        </h3>
-                        <p className="mgr-store-card__addr ck-truncate ck-mt-1">
-                          Giá trị:{" "}
-                          <span className="ck-text-orange-400 ck-font-bold">
-                            {val}
-                          </span>
-                        </p>
-                        <div className="mgr-store-card__foot ck-mt-4">
-                          <span
-                            className="mgr-mono-muted ck-truncate ck-max-w-[70%]"
-                            style={{ fontSize: 10 }}
-                            title={key}
-                          >
-                            {key}
-                          </span>
-                          <span className="mgr-store-card__cta">
-                            Chỉnh sửa →
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="mgr-empty" style={{ gridColumn: "1 / -1" }}>
-                      <div className="mgr-empty__icon">⚙️</div>
-                      <p className="mgr-empty__title">Chưa có cấu hình</p>
-                    </div>
-                  )}
-                </div>
+  {Object.keys(systemConfigs).length > 0 ? (
+    Object.entries(systemConfigs).map(([key, val]) => {
+      const meta = getConfigLabel(key);
+      return (
+        <div
+          key={key}
+          className="mgr-store-card ck-cursor-pointer hover:ck-border-orange-500/50 ck-transition-all"
+          onClick={() => setSelectedConfig({ key, val })}
+        >
+          <div className="ck-flex ck-justify-between ck-mb-2 ck-items-start">
+            <div className="mgr-store-card__icon ck-flex ck-items-center ck-justify-center ck-bg-gray-800 ck-rounded-full ck-w-10 ck-h-10">
+              <span style={{ fontSize: 20 }}>{meta.icon}</span>
+            </div>
+            <span className="mgr-pill mgr-pill--ok">Tham số</span>
+          </div>
+
+          {/* Tên tiếng Việt to, rõ */}
+          <h3 className="mgr-store-card__name">
+            {meta.label}
+          </h3>
+
+          {/* Mô tả tiếng Việt */}
+          {meta.description && (
+            <p className="ck-text-xs ck-mt-1" style={{ color: "#6b7280", lineHeight: 1.5 }}>
+              {meta.description}
+            </p>
+          )}
+
+          <p className="mgr-store-card__addr ck-truncate ck-mt-2">
+            Giá trị:{" "}
+            <span className="ck-text-orange-400 ck-font-bold">{val}</span>
+          </p>
+
+          <div className="mgr-store-card__foot ck-mt-4">
+            {/* Key gốc nhỏ xíu bên dưới để dev còn biết */}
+            <span
+              className="mgr-mono-muted ck-truncate ck-max-w-[70%]"
+              style={{ fontSize: 10 }}
+              title={key}
+            >
+              {key}
+            </span>
+            <span className="mgr-store-card__cta">Chỉnh sửa →</span>
+          </div>
+        </div>
+      );
+    })
+  ) : (
+    <div className="mgr-empty" style={{ gridColumn: "1 / -1" }}>
+      <div className="mgr-empty__icon">⚙️</div>
+      <p className="mgr-empty__title">Chưa có cấu hình</p>
+    </div>
+  )}
+</div>
+
+{/* MODAL CHỈNH SỬA */}
+{selectedConfig && (() => {
+  const meta = getConfigLabel(selectedConfig.key);
+  return (
+    <div
+      className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in"
+      onClick={() => setSelectedConfig(null)}
+      role="presentation"
+      style={{ zIndex: 9999 }}
+    >
+      <div
+        className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+        onClick={(e) => e.stopPropagation()}
+        role="presentation"
+      >
+        <div className="form-header">
+          <div>
+            {/* Tên tiếng Việt to */}
+            <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>{meta.icon}</span>
+              {meta.label}
+            </h3>
+            {/* Mô tả */}
+            {meta.description && (
+              <p className="ck-text-xs ck-mt-1" style={{ color: "#9ca3af" }}>
+                {meta.description}
+              </p>
+            )}
+            {/* Key gốc nhỏ xíu cho dev */}
+            <p className="ck-text-xs ck-mt-1" style={{ color: "#fb923c", fontFamily: "monospace" }}>
+              {selectedConfig.key}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setSelectedConfig(null)}
+            aria-label="Đóng"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="form-body">
+          <div className="field">
+            <label>Giá trị hiện tại</label>
+            <input
+              type="text"
+              defaultValue={selectedConfig.val}
+              id={`input-cfg-${selectedConfig.key}`}
+              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-font-mono"
+              placeholder="Nhập giá trị mới..."
+            />
+            <p className="ck-text-xs ck-text-gray-500 ck-mt-2 ck-italic">
+              * Lưu ý: Thay đổi tham số hệ thống có thể ảnh hưởng đến quy
+              trình vận hành chung của toàn bộ chuỗi.
+            </p>
+          </div>
+
+          <div className="form-actions ck-mt-6">
+            <button
+              type="button"
+              className="btn-submit"
+              onClick={async () => {
+                const inputDom = document.getElementById(
+                  `input-cfg-${selectedConfig.key}`
+                );
+                if (!inputDom.value.trim())
+                  return alert("Vui lòng không để trống!");
+                try {
+                  await api.updateSystemConfig(selectedConfig.key.trim(), {
+                    configValue: String(inputDom.value.trim()),
+                    description: "Cập nhật từ Manager",
+                  });
+                  alert("✅ Đã cập nhật thành công!");
+                  setSelectedConfig(null);
+                } catch (e) {
+                  alert("❌ Lỗi: " + e.message);
+                }
+              }}
+            >
+              Lưu thay đổi
+            </button>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setSelectedConfig(null)}
+            >
+              Hủy bỏ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+})()}
 
                 {/* MODAL CHỈNH SỬA (Hiển thị nổi lên khi chọn 1 config) */}
-                {selectedConfig && (
-                  <div
-                    className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in"
-                    onClick={() => setSelectedConfig(null)}
-                    role="presentation"
-                    style={{ zIndex: 9999 }}
-                  >
-                    <div
-                      className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
-                      onClick={(e) => e.stopPropagation()}
-                      role="presentation"
-                    >
-                      {/* HEADER CHUẨN MODAL */}
-                      <div className="form-header">
-                        <div>
-                          <h3 className="ck-capitalize">
-                            {selectedConfig.key.replace(/_/g, " ")}
-                          </h3>
-                          <p
-                            className="ck-text-sm"
-                            style={{ marginTop: 4, color: "#fb923c" }}
-                          >
-                            Mã tham số: {selectedConfig.key}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn-close"
-                          onClick={() => setSelectedConfig(null)}
-                          aria-label="Đóng"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                {selectedConfig && (() => {
+  const meta = getConfigLabel(selectedConfig.key);
+  return (
+    <div
+      className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in"
+      onClick={() => setSelectedConfig(null)}
+      role="presentation"
+      style={{ zIndex: 9999 }}
+    >
+      <div
+        className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
+        onClick={(e) => e.stopPropagation()}
+        role="presentation"
+      >
+        <div className="form-header">
+          <div>
+            <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>{meta.icon}</span>
+              {meta.label}
+            </h3>
+            {meta.description && (
+              <p className="ck-text-xs ck-mt-1" style={{ color: "#9ca3af" }}>
+                {meta.description}
+              </p>
+            )}
+            <p className="ck-text-xs ck-mt-1" style={{ color: "#fb923c", fontFamily: "monospace" }}>
+              {selectedConfig.key}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setSelectedConfig(null)}
+            aria-label="Đóng"
+          >
+            ✕
+          </button>
+        </div>
 
-                      {/* BODY CHUẨN MODAL */}
-                      <div className="form-body">
-                        <div className="field">
-                          <label>Giá trị hiện tại</label>
-                          <input
-                            type="text"
-                            defaultValue={selectedConfig.val}
-                            id={`input-cfg-${selectedConfig.key}`}
-                            className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-font-mono"
-                            placeholder="Nhập giá trị mới..."
-                          />
-                          <p className="ck-text-xs ck-text-gray-500 ck-mt-2 ck-italic">
-                            * Lưu ý: Thay đổi tham số hệ thống có thể ảnh hưởng
-                            đến quy trình vận hành chung của toàn bộ chuỗi.
-                          </p>
-                        </div>
+        <div className="form-body">
+          <div className="field">
+            <label>Giá trị hiện tại</label>
+            <input
+              type="text"
+              defaultValue={selectedConfig.val}
+              id={`input-cfg-${selectedConfig.key}`}
+              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-font-mono"
+              placeholder="Nhập giá trị mới..."
+            />
+            <p className="ck-text-xs ck-text-gray-500 ck-mt-2 ck-italic">
+              * Lưu ý: Thay đổi tham số hệ thống có thể ảnh hưởng đến quy
+              trình vận hành chung của toàn bộ chuỗi.
+            </p>
+          </div>
 
-                        {/* NÚT BẤM CHUẨN MODAL */}
-                        <div className="form-actions ck-mt-6">
-                          <button
-                            type="button"
-                            className="btn-submit"
-                            onClick={async () => {
-                              const inputDom = document.getElementById(
-                                `input-cfg-${selectedConfig.key}`,
-                              );
-                              if (!inputDom.value.trim())
-                                return alert("Vui lòng không để trống!");
-                              try {
-                                await api.updateSystemConfig(
-                                  selectedConfig.key.trim(),
-                                  {
-                                    configValue: String(inputDom.value.trim()),
-                                    description: "Cập nhật từ Manager",
-                                  },
-                                );
-                                alert("✅ Đã cập nhật thành công!");
-                                setSelectedConfig(null); // Lưu xong thì tự động đóng Modal cho xịn
-                              } catch (e) {
-                                alert("❌ Lỗi: " + e.message);
-                              }
-                            }}
-                          >
-                            Lưu thay đổi
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-cancel"
-                            onClick={() => setSelectedConfig(null)}
-                          >
-                            Hủy bỏ
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+          <div className="form-actions ck-mt-6">
+            <button
+              type="button"
+              className="btn-submit"
+              onClick={async () => {
+                const inputDom = document.getElementById(
+                  `input-cfg-${selectedConfig.key}`
+                );
+                if (!inputDom.value.trim())
+                  return alert("Vui lòng không để trống!");
+                try {
+                  await api.updateSystemConfig(selectedConfig.key.trim(), {
+                    configValue: String(inputDom.value.trim()),
+                    description: "Cập nhật từ Manager",
+                  });
+                  alert("✅ Đã cập nhật thành công!");
+                  setSelectedConfig(null);
+                } catch (e) {
+                  alert("❌ Lỗi: " + e.message);
+                }
+              }}
+            >
+              Lưu thay đổi
+            </button>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setSelectedConfig(null)}
+            >
+              Hủy bỏ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+})()}
               </div>
             )}
           </div>
@@ -6305,26 +7589,142 @@ api.getRecipeOfProduct(pId)
 
         <div className="form-row">
           {/* ================= THAY ĐỔI Ở ĐÂY ================= */}
-          <div className="field">
-            <label>Đơn vị</label>
-            <select
-              value={ingredientForm.unit}
-              onChange={(e) =>
-                setIngredientForm({
-                  ...ingredientForm,
-                  unit: e.target.value,
-                })
-              }
-            >
-              <option value="">-- Chọn đơn vị --</option>
-              {/* Load các option từ unitMasterData thay vì units như cũ */}
-              {unitMasterData.map((u) => (
-                <option key={u.value} value={u.value}>
-                  {u.label}
-                </option>
-              ))}
-            </select>
-          </div>
+         <div className="field" ref={unitDropdownRef} style={{ position: "relative" }}>
+  <label>Đơn vị</label>
+
+  {/* Ô trigger */}
+  <div
+    id="unit-trigger"
+    onClick={() => {
+      setIsUnitDropdownOpen((prev) => !prev);
+      setUnitSearchText("");
+    }}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "8px 12px",
+      borderRadius: "8px",
+      border: "1px solid #374151",
+      background: "#1f2937",
+      color: ingredientForm.unit ? "#e5e7eb" : "#6b7280",
+      cursor: "pointer",
+      minHeight: "38px",
+      userSelect: "none",
+    }}
+  >
+    <span>
+      {ingredientForm.unit
+        ? unitMasterData.find((u) => u.value === ingredientForm.unit)?.label ?? ingredientForm.unit
+        : "-- Chọn đơn vị --"}
+    </span>
+    <span style={{ fontSize: "11px", color: "#6b7280" }}>
+      {isUnitDropdownOpen ? "▲" : "▼"}
+    </span>
+  </div>
+
+  {/* Dropdown panel - dùng fixed + tính tọa độ */}
+  {isUnitDropdownOpen && (() => {
+    const triggerEl = document.getElementById("unit-trigger");
+    const rect = triggerEl?.getBoundingClientRect();
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: rect ? rect.bottom + 4 : 0,
+          left: rect ? rect.left : 0,
+          width: rect ? rect.width : 240,
+          background: "#1f2937",
+          border: "1px solid #374151",
+          borderRadius: "8px",
+          zIndex: 99999,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Ô search */}
+        <div style={{ padding: "8px" }}>
+          <input
+            autoFocus
+            type="text"
+            placeholder="Tìm đơn vị..."
+            value={unitSearchText}
+            onChange={(e) => setUnitSearchText(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #374151",
+              background: "#111827",
+              color: "#e5e7eb",
+              fontSize: "13px",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {/* Danh sách */}
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: "0 0 6px 0",
+            maxHeight: "180px",
+            overflowY: "auto",
+          }}
+        >
+          {unitMasterData
+            .filter((u) =>
+              u.label.toLowerCase().includes(unitSearchText.toLowerCase()) ||
+              u.value.toLowerCase().includes(unitSearchText.toLowerCase())
+            )
+            .map((u) => (
+              <li
+                key={u.value}
+                onClick={() => {
+                  setIngredientForm({ ...ingredientForm, unit: u.value });
+                  setIsUnitDropdownOpen(false);
+                  setUnitSearchText("");
+                }}
+                style={{
+                  padding: "8px 16px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  color: ingredientForm.unit === u.value ? "#2dd4bf" : "#e5e7eb",
+                  background:
+                    ingredientForm.unit === u.value
+                      ? "rgba(20,184,166,0.12)"
+                      : "transparent",
+                  fontWeight: ingredientForm.unit === u.value ? "600" : "400",
+                }}
+                onMouseEnter={(e) => {
+                  if (ingredientForm.unit !== u.value)
+                    e.currentTarget.style.background = "#374151";
+                }}
+                onMouseLeave={(e) => {
+                  if (ingredientForm.unit !== u.value)
+                    e.currentTarget.style.background = "transparent";
+                }}
+              >
+                {u.label}
+              </li>
+            ))}
+
+          {unitMasterData.filter((u) =>
+            u.label.toLowerCase().includes(unitSearchText.toLowerCase()) ||
+            u.value.toLowerCase().includes(unitSearchText.toLowerCase())
+          ).length === 0 && (
+            <li style={{ padding: "10px 16px", color: "#6b7280", fontSize: "13px" }}>
+              Không tìm thấy đơn vị nào
+            </li>
+          )}
+        </ul>
+      </div>
+    );
+  })()}
+</div>
           {/* ================================================= */}
           
           <div className="field">
