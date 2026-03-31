@@ -5,36 +5,12 @@ import React, {
   useLayoutEffect,
   useCallback,
 } from "react";
-import SockJS from "sockjs-client";
-import { Stomp } from "@stomp/stompjs";
 import api from "../../services/api";
 import { Bell } from "../icons/Icons";
 import "../../styles/NotificationBell.css";
 
 const PANEL_WIDTH = 360;
 const POLL_MS = 45_000;
-const WS_POLL_FALLBACK_MS = 8_000;
-
-function getCurrentUsername() {
-  try {
-    const stored = api.getStoredUser?.();
-    const u =
-      stored?.username ||
-      stored?.email ||
-      stored?.name ||
-      stored?.fullName ||
-      localStorage.getItem("username");
-    return u ? String(u) : "";
-  } catch {
-    return String(localStorage.getItem("username") || "");
-  }
-}
-
-function buildSockJsUrl() {
-  // CRA có proxy -> "/ws-notification" sẽ đi qua proxy khi dev,
-  // production thì cùng host.
-  return "/ws-notification";
-}
 
 const TYPE_CLASS = {
   INFO: "nb-type-info",
@@ -77,8 +53,6 @@ function NotificationBell({ variant = "light" }) {
   const [panelStyle, setPanelStyle] = useState({});
   const buttonRef = useRef(null);
   const rootRef = useRef(null);
-  const stompRef = useRef(null);
-  const wsStartedRef = useRef(false);
 
   const refreshUnread = useCallback(async () => {
     if (!api.isAuthenticated()) return;
@@ -90,64 +64,6 @@ function NotificationBell({ variant = "light" }) {
     refreshUnread();
     const t = window.setInterval(refreshUnread, POLL_MS);
     return () => window.clearInterval(t);
-  }, [refreshUnread]);
-
-  useEffect(() => {
-    if (!api.isAuthenticated()) return;
-    if (wsStartedRef.current) return;
-    wsStartedRef.current = true;
-
-    const socket = new SockJS(buildSockJsUrl());
-    const stompClient = Stomp.over(socket);
-    stompClient.debug = () => {};
-    stompRef.current = stompClient;
-
-    const username = getCurrentUsername();
-
-    const onMessage = (message) => {
-      try {
-        const newNotification = JSON.parse(message.body);
-        setItems((prev) => {
-          const id = newNotification?.id;
-          if (!id) return [newNotification, ...prev];
-          const exists = prev.some((x) => String(x?.id) === String(id));
-          return exists ? prev : [newNotification, ...prev];
-        });
-        setUnreadCount((c) => c + 1);
-      } catch {
-        // ignore malformed message
-      }
-    };
-
-    stompClient.connect(
-      {},
-      () => {
-        // Ưu tiên đúng "kênh" sếp đưa: /user/{username}/topic/notifications
-        if (username) {
-          stompClient.subscribe(`/user/${username}/topic/notifications`, onMessage);
-        }
-        // Fallback theo convention Spring: /user/topic/notifications
-        stompClient.subscribe(`/user/topic/notifications`, onMessage);
-      },
-      () => {
-        // Nếu WS lỗi, vẫn còn polling unreadCount đang chạy
-      },
-    );
-
-    // Nếu WS chưa kịp bắn, thỉnh thoảng sync lại để số đỏ không lệch
-    const syncT = window.setInterval(refreshUnread, WS_POLL_FALLBACK_MS);
-
-    return () => {
-      window.clearInterval(syncT);
-      try {
-        if (stompClient?.connected) stompClient.disconnect();
-      } catch {
-        /* ignore */
-      } finally {
-        stompRef.current = null;
-        wsStartedRef.current = false;
-      }
-    };
   }, [refreshUnread]);
 
   const loadList = useCallback(async () => {
