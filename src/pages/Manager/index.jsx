@@ -31,30 +31,30 @@ const MANAGER_TAB_ITEMS = [
 ];
 
 const SYSTEM_CONFIG_LABELS = {
-  AUTO_RESOLVE_HOURS: {
-    label: "Giờ tự động chốt đơn",
-    description: "Số giờ tự động chốt đơn sau khi xe tới",
+  OPEN_TIME: {
+    label: "Giờ mở cửa",
+    description: "Thời gian bắt đầu hoạt động trong ngày của hệ thống",
+    icon: "⏰",
+  },
+  STANDARD_CUTOFF_TIME: {
+    label: "Giờ chốt đơn tiêu chuẩn",
+    description: "Thời hạn cuối cùng để đặt các đơn hàng giao tiêu chuẩn",
+    icon: "📦",
+  },
+  URGENT_CUTOFF_TIME: {
+    label: "Giờ chốt đơn hỏa tốc",
+    description: "Thời hạn cuối cùng để đặt các đơn hàng giao hỏa tốc (URGENT)",
+    icon: "⚡",
+  },
+  URGENT_SURCHARGE: {
+    label: "Phụ phí giao hỏa tốc",
+    description: "Mức phụ phí áp dụng cho các đơn hàng URGENT (VNĐ)",
+    icon: "💵",
+  },
+  AUTO_CONFIRM_HOURS: {
+    label: "Giờ tự động xác nhận",
+    description: "Số giờ hệ thống tự động xác nhận/chốt đơn",
     icon: "⏱️",
-  },
-  DEFAULT_CURRENCY: {
-    label: "Đơn vị tiền tệ mặc định",
-    description: "Đơn vị tiền tệ sử dụng trong toàn hệ thống",
-    icon: "💰",
-  },
-  EXPRESS_SURCHARGE: {
-    label: "Phụ phí giao hàng hỏa tốc",
-    description: "Phụ phí áp dụng cho đơn hàng URGENT (VNĐ)",
-    icon: "🚀",
-  },
-  MAX_CART_ITEMS: {
-    label: "Số món tối đa trong giỏ hàng",
-    description: "Giới hạn số lượng món tối đa mỗi đơn hàng",
-    icon: "🛒",
-  },
-  MIN_ORDER_AMOUNT: {
-    label: "Giá trị đơn hàng tối thiểu",
-    description: "Giá trị đơn hàng tối thiểu được phép đặt (VNĐ)",
-    icon: "📋",
   },
 };
 
@@ -2608,36 +2608,65 @@ api.getRecipeOfProduct(pId)
                   </div>
 
                   <div className="ck-max-h-48 ck-overflow-y-auto hide-scrollbar ck-py-1">
-                    {unitMasterData
-                      .filter((u) =>
-                        u.label.toLowerCase().includes(unitSearchText.toLowerCase())
-                      )
-                      .map((u) => (
-                        <div
-                          key={u.value}
-                          onClick={() => {
-                            setNewProduct({ ...newProduct, baseUnit: u.value });
-                            setIsUnitDropdownOpen(false);
-                            setUnitSearchText(""); 
-                          }}
-                          className={`ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ${
-                            newProduct.baseUnit === u.value
-                              ? "ck-bg-teal-700 ck-text-white"
-                              : "ck-text-gray-300"
-                          }`}
-                        >
-                          {u.label}
-                        </div>
-                      ))}
+  {(() => {
+    const filtered = unitMasterData.filter((u) =>
+  u.isSales === true &&
+  u.label.toLowerCase().includes(unitSearchText.toLowerCase())
+);
 
-                    {unitMasterData.filter((u) =>
-                      u.label.toLowerCase().includes(unitSearchText.toLowerCase())
-                    ).length === 0 && (
-                      <div className="ck-px-3 ck-py-3 ck-text-gray-500 ck-text-center ck-text-sm">
-                        Không tìm thấy "{unitSearchText}"
-                      </div>
-                    )}
-                  </div>
+    const grouped = filtered.reduce((acc, u) => {
+      const g = u.group || "Khác";
+      if (!acc[g]) acc[g] = [];
+      acc[g].push(u);
+      return acc;
+    }, {});
+
+    if (filtered.length === 0) {
+      return (
+        <div className="ck-px-3 ck-py-3 ck-text-gray-500 ck-text-center ck-text-sm">
+          Không tìm thấy "{unitSearchText}"
+        </div>
+      );
+    }
+
+    return Object.entries(grouped).map(([groupName, units]) => (
+      <div key={groupName}>
+        {/* Tiêu đề nhóm */}
+        <div style={{
+          padding: "6px 12px 4px",
+          fontSize: "11px",
+          fontWeight: "700",
+          color: "#9ca3af",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          userSelect: "none",
+        }}>
+          {groupName}
+        </div>
+
+        {/* Các đơn vị trong nhóm */}
+        {units.map((u) => (
+          <div
+            key={u.value}
+            onClick={() => {
+              setNewProduct({ ...newProduct, baseUnit: u.value });
+              setIsUnitDropdownOpen(false);
+              setUnitSearchText("");
+            }}
+            className={`ck-px-3 ck-py-2 ck-cursor-pointer ck-text-sm hover:ck-bg-teal-600 hover:ck-text-white ${
+              newProduct.baseUnit === u.value
+                ? "ck-bg-teal-700 ck-text-white"
+                : "ck-text-gray-300"
+            }`}
+            style={{ paddingLeft: "20px" }}
+          >
+            {u.label}
+          </div>
+        ))}
+      </div>
+    ));
+  })()}
+</div>
                 </div>
               )}
             </div>
@@ -6375,103 +6404,6 @@ api.getRecipeOfProduct(pId)
   )}
 </div>
 
-{/* MODAL CHỈNH SỬA */}
-{selectedConfig && (() => {
-  const meta = getConfigLabel(selectedConfig.key);
-  return (
-    <div
-      className="ck-modal-overlay ingredient-form-modal ck-animate-fade-in"
-      onClick={() => setSelectedConfig(null)}
-      role="presentation"
-      style={{ zIndex: 9999 }}
-    >
-      <div
-        className="ck-modal-box ingredient-form-box ck-max-w-lg ck-w-full"
-        onClick={(e) => e.stopPropagation()}
-        role="presentation"
-      >
-        <div className="form-header">
-          <div>
-            {/* Tên tiếng Việt to */}
-            <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>{meta.icon}</span>
-              {meta.label}
-            </h3>
-            {/* Mô tả */}
-            {meta.description && (
-              <p className="ck-text-xs ck-mt-1" style={{ color: "#9ca3af" }}>
-                {meta.description}
-              </p>
-            )}
-            {/* Key gốc nhỏ xíu cho dev */}
-            <p className="ck-text-xs ck-mt-1" style={{ color: "#fb923c", fontFamily: "monospace" }}>
-              {selectedConfig.key}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setSelectedConfig(null)}
-            aria-label="Đóng"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="form-body">
-          <div className="field">
-            <label>Giá trị hiện tại</label>
-            <input
-              type="text"
-              defaultValue={selectedConfig.val}
-              id={`input-cfg-${selectedConfig.key}`}
-              className="ck-w-full ck-bg-gray-800 ck-text-white ck-px-4 ck-py-2.5 ck-rounded-xl ck-border ck-border-gray-700 focus:ck-border-orange-500 ck-outline-none ck-font-mono"
-              placeholder="Nhập giá trị mới..."
-            />
-            <p className="ck-text-xs ck-text-gray-500 ck-mt-2 ck-italic">
-              * Lưu ý: Thay đổi tham số hệ thống có thể ảnh hưởng đến quy
-              trình vận hành chung của toàn bộ chuỗi.
-            </p>
-          </div>
-
-          <div className="form-actions ck-mt-6">
-            <button
-              type="button"
-              className="btn-submit"
-              onClick={async () => {
-                const inputDom = document.getElementById(
-                  `input-cfg-${selectedConfig.key}`
-                );
-                if (!inputDom.value.trim())
-                  return alert("Vui lòng không để trống!");
-                try {
-                  await api.updateSystemConfig(selectedConfig.key.trim(), {
-                    configValue: String(inputDom.value.trim()),
-                    description: "Cập nhật từ Manager",
-                  });
-                  alert("✅ Đã cập nhật thành công!");
-                  setSelectedConfig(null);
-                } catch (e) {
-                  alert("❌ Lỗi: " + e.message);
-                }
-              }}
-            >
-              Lưu thay đổi
-            </button>
-            <button
-              type="button"
-              className="btn-cancel"
-              onClick={() => setSelectedConfig(null)}
-            >
-              Hủy bỏ
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-})()}
-
                 {/* MODAL CHỈNH SỬA (Hiển thị nổi lên khi chọn 1 config) */}
                 {selectedConfig && (() => {
   const meta = getConfigLabel(selectedConfig.key);
@@ -7512,6 +7444,7 @@ api.getRecipeOfProduct(pId)
       )}
 
       {/* ================== MODAL THÊM NGUYÊN LIỆU ================== */}
+{/* ================== MODAL THÊM NGUYÊN LIỆU ================== */}
 {showAddIngredient && (
   <div
     className="ck-modal-overlay ingredient-form-modal"
@@ -7588,145 +7521,172 @@ api.getRecipeOfProduct(pId)
         </div>
 
         <div className="form-row">
-          {/* ================= THAY ĐỔI Ở ĐÂY ================= */}
-         <div className="field" ref={unitDropdownRef} style={{ position: "relative" }}>
-  <label>Đơn vị</label>
+          {/* ================= ĐƠN VỊ ================= */}
+          <div className="field" ref={unitDropdownRef} style={{ position: "relative" }}>
+            <label>Đơn vị</label>
 
-  {/* Ô trigger */}
-  <div
-    id="unit-trigger"
-    onClick={() => {
-      setIsUnitDropdownOpen((prev) => !prev);
-      setUnitSearchText("");
-    }}
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "8px 12px",
-      borderRadius: "8px",
-      border: "1px solid #374151",
-      background: "#1f2937",
-      color: ingredientForm.unit ? "#e5e7eb" : "#6b7280",
-      cursor: "pointer",
-      minHeight: "38px",
-      userSelect: "none",
-    }}
-  >
-    <span>
-      {ingredientForm.unit
-        ? unitMasterData.find((u) => u.value === ingredientForm.unit)?.label ?? ingredientForm.unit
-        : "-- Chọn đơn vị --"}
-    </span>
-    <span style={{ fontSize: "11px", color: "#6b7280" }}>
-      {isUnitDropdownOpen ? "▲" : "▼"}
-    </span>
-  </div>
+            {/* Ô trigger */}
+            <div
+              id="unit-trigger"
+              onClick={() => {
+                setIsUnitDropdownOpen((prev) => !prev);
+                setUnitSearchText("");
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "1px solid #374151",
+                background: "#1f2937",
+                color: ingredientForm.unit ? "#e5e7eb" : "#6b7280",
+                cursor: "pointer",
+                minHeight: "38px",
+                userSelect: "none",
+              }}
+            >
+              <span>
+                {ingredientForm.unit
+                  ? unitMasterData.find((u) => u.value === ingredientForm.unit)?.label ?? ingredientForm.unit
+                  : "-- Chọn đơn vị --"}
+              </span>
+              <span style={{ fontSize: "11px", color: "#6b7280" }}>
+                {isUnitDropdownOpen ? "▲" : "▼"}
+              </span>
+            </div>
 
-  {/* Dropdown panel - dùng fixed + tính tọa độ */}
-  {isUnitDropdownOpen && (() => {
-    const triggerEl = document.getElementById("unit-trigger");
-    const rect = triggerEl?.getBoundingClientRect();
-    return (
-      <div
-        style={{
-          position: "fixed",
-          top: rect ? rect.bottom + 4 : 0,
-          left: rect ? rect.left : 0,
-          width: rect ? rect.width : 240,
-          background: "#1f2937",
-          border: "1px solid #374151",
-          borderRadius: "8px",
-          zIndex: 99999,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-          overflow: "hidden",
-        }}
-      >
-        {/* Ô search */}
-        <div style={{ padding: "8px" }}>
-          <input
-            autoFocus
-            type="text"
-            placeholder="Tìm đơn vị..."
-            value={unitSearchText}
-            onChange={(e) => setUnitSearchText(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border: "1px solid #374151",
-              background: "#111827",
-              color: "#e5e7eb",
-              fontSize: "13px",
-              outline: "none",
-              boxSizing: "border-box",
-            }}
-          />
-        </div>
+            {/* Dropdown panel */}
+            {isUnitDropdownOpen && (() => {
+              const triggerEl = document.getElementById("unit-trigger");
+              const rect = triggerEl?.getBoundingClientRect();
+              return (
+                <div
+                  style={{
+                    position: "fixed",
+                    top: rect ? rect.bottom + 4 : 0,
+                    left: rect ? rect.left : 0,
+                    width: rect ? rect.width : 240,
+                    background: "#1f2937",
+                    border: "1px solid #374151",
+                    borderRadius: "8px",
+                    zIndex: 99999,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Ô search */}
+                  <div style={{ padding: "8px" }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Tìm đơn vị..."
+                      value={unitSearchText}
+                      onChange={(e) => setUnitSearchText(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        width: "100%",
+                        padding: "6px 10px",
+                        borderRadius: "6px",
+                        border: "1px solid #374151",
+                        background: "#111827",
+                        color: "#e5e7eb",
+                        fontSize: "13px",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
 
-        {/* Danh sách */}
-        <ul
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: "0 0 6px 0",
-            maxHeight: "180px",
-            overflowY: "auto",
-          }}
-        >
-          {unitMasterData
-            .filter((u) =>
-              u.label.toLowerCase().includes(unitSearchText.toLowerCase()) ||
-              u.value.toLowerCase().includes(unitSearchText.toLowerCase())
-            )
-            .map((u) => (
-              <li
-                key={u.value}
-                onClick={() => {
-                  setIngredientForm({ ...ingredientForm, unit: u.value });
-                  setIsUnitDropdownOpen(false);
-                  setUnitSearchText("");
-                }}
-                style={{
-                  padding: "8px 16px",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  color: ingredientForm.unit === u.value ? "#2dd4bf" : "#e5e7eb",
-                  background:
-                    ingredientForm.unit === u.value
-                      ? "rgba(20,184,166,0.12)"
-                      : "transparent",
-                  fontWeight: ingredientForm.unit === u.value ? "600" : "400",
-                }}
-                onMouseEnter={(e) => {
-                  if (ingredientForm.unit !== u.value)
-                    e.currentTarget.style.background = "#374151";
-                }}
-                onMouseLeave={(e) => {
-                  if (ingredientForm.unit !== u.value)
-                    e.currentTarget.style.background = "transparent";
-                }}
-              >
-                {u.label}
-              </li>
-            ))}
+                  {/* Danh sách có group */}
+                  <ul
+                    style={{
+                      listStyle: "none",
+                      margin: 0,
+                      padding: "0 0 6px 0",
+                      maxHeight: "180px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {(() => {
+                      const filtered = unitMasterData.filter((u) =>
+                        u.isSales === false &&
+                        u.group !== "Đóng gói" &&
+                        (u.label.toLowerCase().includes(unitSearchText.toLowerCase()) ||
+                        u.value.toLowerCase().includes(unitSearchText.toLowerCase()))
+                      );
 
-          {unitMasterData.filter((u) =>
-            u.label.toLowerCase().includes(unitSearchText.toLowerCase()) ||
-            u.value.toLowerCase().includes(unitSearchText.toLowerCase())
-          ).length === 0 && (
-            <li style={{ padding: "10px 16px", color: "#6b7280", fontSize: "13px" }}>
-              Không tìm thấy đơn vị nào
-            </li>
-          )}
-        </ul>
-      </div>
-    );
-  })()}
-</div>
-          {/* ================================================= */}
-          
+                      const grouped = filtered.reduce((acc, u) => {
+                        const g = u.group || "Khác";
+                        if (!acc[g]) acc[g] = [];
+                        acc[g].push(u);
+                        return acc;
+                      }, {});
+
+                      if (filtered.length === 0) {
+                        return (
+                          <li style={{ padding: "10px 16px", color: "#6b7280", fontSize: "13px" }}>
+                            Không tìm thấy đơn vị nào
+                          </li>
+                        );
+                      }
+
+                      return Object.entries(grouped).map(([groupName, units]) => (
+                        <React.Fragment key={groupName}>
+                          {/* Tiêu đề nhóm */}
+                          <li style={{
+                            padding: "6px 16px 4px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            color: "#6b7280",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            userSelect: "none",
+                            pointerEvents: "none",
+                          }}>
+                            {groupName}
+                          </li>
+
+                          {/* Các đơn vị trong nhóm */}
+                          {units.map((u) => (
+                            <li
+                              key={u.value}
+                              onClick={() => {
+                                setIngredientForm({ ...ingredientForm, unit: u.value });
+                                setIsUnitDropdownOpen(false);
+                                setUnitSearchText("");
+                              }}
+                              style={{
+                                padding: "8px 16px",
+                                paddingLeft: "24px",
+                                cursor: "pointer",
+                                fontSize: "13px",
+                                color: ingredientForm.unit === u.value ? "#2dd4bf" : "#e5e7eb",
+                                background: ingredientForm.unit === u.value ? "rgba(20,184,166,0.12)" : "transparent",
+                                fontWeight: ingredientForm.unit === u.value ? "600" : "400",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (ingredientForm.unit !== u.value)
+                                  e.currentTarget.style.background = "#374151";
+                              }}
+                              onMouseLeave={(e) => {
+                                if (ingredientForm.unit !== u.value)
+                                  e.currentTarget.style.background = "transparent";
+                              }}
+                            >
+                              {u.label}
+                            </li>
+                          ))}
+                        </React.Fragment>
+                      ));
+                    })()}
+                  </ul>
+                </div>
+              );
+            })()}
+          </div>
+          {/* ================= END ĐƠN VỊ ================= */}
+
           <div className="field">
             <label>Đơn giá (đ)</label>
             <input
