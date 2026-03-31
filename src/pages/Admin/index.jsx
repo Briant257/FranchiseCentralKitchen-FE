@@ -1895,13 +1895,6 @@ const AdminPage = ({ onLogout, userData }) => {
                     </div>
                     <div className="stat-sub">phân loại</div>
                   </div>
-                  <div className="stat stat-s3">
-                    <div className="stat-label">Có công thức</div>
-                    <div className="stat-val" style={{ color: "var(--teal)" }}>
-                      {productStats.withFormula}
-                    </div>
-                    <div className="stat-sub">đã cấu hình</div>
-                  </div>
                 </div>
 
                 {kitchenSubTab === "products" && (
@@ -1928,13 +1921,6 @@ const AdminPage = ({ onLogout, userData }) => {
                           </button>
                         ))}
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn-sm ml-auto"
-                        onClick={() => loadAdminData()}
-                      >
-                        Làm mới
-                      </button>
                     </div>
                     <div className="product-grid">
                       {filteredProducts.length === 0 ? (
