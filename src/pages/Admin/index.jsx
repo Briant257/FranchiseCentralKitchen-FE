@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users,
   CheckCircle,
@@ -43,10 +43,10 @@ const BROADCAST_MESSAGE_MAX = 500;
 
 /** Lưới đối tượng nhận (theo thiết kế; mã gửi lên API). */
 const BROADCAST_RECIPIENT_ROLES = [
-  { value: "STORE_MANAGER", desc: "Cửa hàng" },
+  { value: "STORE_MANAGER", desc: "Quản Lý Cửa Hàng" },
   { value: "KITCHEN_MANAGER", desc: "Bếp" },
-  { value: "STAFF", desc: "Nhân viên" },
-  { value: "CUSTOMER", desc: "Khách hàng" },
+  { value: "STAFF", desc: "Quản Lý" },
+  { value: "CUSTOMER", desc: "Điều Phối Viên" },
 ];
 
 const BROADCAST_TYPE_CARDS = [
@@ -165,6 +165,7 @@ const AdminPage = ({ onLogout, userData }) => {
   const [broadcastSubmitting, setBroadcastSubmitting] = useState(false);
   const [broadcastError, setBroadcastError] = useState(null);
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
+  const broadcastSuccessRef = useRef(null);
 
   const loadImportHistory = useCallback(async () => {
     setImportHistoryLoading(true);
@@ -172,8 +173,7 @@ const AdminPage = ({ onLogout, userData }) => {
       const data = await api.getImportHistory();
       const list = Array.isArray(data) ? data : [];
       list.sort(
-        (a, b) =>
-          new Date(b.importDate || 0) - new Date(a.importDate || 0),
+        (a, b) => new Date(b.importDate || 0) - new Date(a.importDate || 0),
       );
       setImportHistoryList(list);
     } catch (err) {
@@ -735,9 +735,7 @@ const AdminPage = ({ onLogout, userData }) => {
     const title = broadcastTitle.trim();
     const message = broadcastMessage.trim();
     if (!title || !message) {
-      setBroadcastError(
-        "Còn trống — cần cả tiêu đề lẫn nội dung để phát loa.",
-      );
+      setBroadcastError("Còn trống — cần cả tiêu đề lẫn nội dung để phát loa.");
       return;
     }
     const targetRoles = broadcastAllUsers ? [] : broadcastTargetRoles;
@@ -756,6 +754,19 @@ const AdminPage = ({ onLogout, userData }) => {
         type: broadcastType,
       });
       setBroadcastSuccess(true);
+      // Xóa thông tin đã điền để sẵn sàng gửi lần tiếp theo
+      setBroadcastTitle("");
+      setBroadcastMessage("");
+      setBroadcastAllUsers(false);
+      setBroadcastTargetRoles([]);
+      setBroadcastType("WARNING");
+      // Nhảy lên trên để thấy thông báo thành công
+      window.setTimeout(() => {
+        broadcastSuccessRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 0);
     } catch (err) {
       setBroadcastError(
         err?.message ||
@@ -1942,9 +1953,7 @@ const AdminPage = ({ onLogout, userData }) => {
                             p.ingredients && p.ingredients.length > 0;
                           const price = Number(p.sellingPrice ?? p.price ?? 0);
                           const unitRaw = (p.baseUnit || "").toString().trim();
-                          const unitDisplay = unitRaw
-                            ? labelFor(unitRaw)
-                            : "—";
+                          const unitDisplay = unitRaw ? labelFor(unitRaw) : "—";
                           const pcCatClass = `pc-cat pc-cat-${catName ? "cat" : "other"}`;
                           return (
                             <div
@@ -2308,17 +2317,12 @@ const AdminPage = ({ onLogout, userData }) => {
                                   : status === "low"
                                     ? "#b45309"
                                     : "#15803d";
-                              const shortId =
-                                String(id).length > 10
-                                  ? `${String(id).slice(0, 8)}…`
-                                  : id;
                               return (
                                 <tr key={id}>
                                   <td>
                                     <div className="ing-name">
                                       {ing.name ?? ing.ingredientName}
                                     </div>
-                                    <div className="ing-id">{shortId}</div>
                                   </td>
                                   <td>
                                     <div className="stock-main">
@@ -2456,8 +2460,7 @@ const AdminPage = ({ onLogout, userData }) => {
                           const statusBadgeClass =
                             status === "COMPLETED"
                               ? "b-ok"
-                              : status === "CANCELLED" ||
-                                  status === "FAILED"
+                              : status === "CANCELLED" || status === "FAILED"
                                 ? "b-empty"
                                 : "b-low";
                           const statusLabelVi =
@@ -2582,7 +2585,9 @@ const AdminPage = ({ onLogout, userData }) => {
                                       )
                                     }
                                   >
-                                    {expanded ? "Thu gọn bảng" : "Xem bảng chi tiết"}
+                                    {expanded
+                                      ? "Thu gọn bảng"
+                                      : "Xem bảng chi tiết"}
                                   </button>
                                 </div>
                               </div>
@@ -2641,11 +2646,9 @@ const AdminPage = ({ onLogout, userData }) => {
                                             <td className="price-val">
                                               {Number(
                                                 row.totalPrice ??
-                                                  (Number(row.quantity) ||
-                                                    0) *
-                                                    (Number(
-                                                      row.importPrice,
-                                                    ) || 0),
+                                                  (Number(row.quantity) || 0) *
+                                                    (Number(row.importPrice) ||
+                                                      0),
                                               ).toLocaleString("vi-VN")}
                                               đ
                                             </td>
@@ -2683,11 +2686,9 @@ const AdminPage = ({ onLogout, userData }) => {
                       <div
                         className="broadcast-alert broadcast-alert--ok"
                         role="status"
+                        ref={broadcastSuccessRef}
                       >
-                        <div
-                          className="broadcast-alert__shimmer"
-                          aria-hidden
-                        />
+                        <div className="broadcast-alert__shimmer" aria-hidden />
                         <div className="broadcast-alert__row">
                           <span className="broadcast-alert__icon-wrap broadcast-alert__icon-wrap--ok">
                             <CheckCircle size={22} />
@@ -2724,7 +2725,10 @@ const AdminPage = ({ onLogout, userData }) => {
                     <section className="broadcast-section">
                       <div className="broadcast-section__rule" aria-hidden />
                       <h3 className="broadcast-section__title">
-                        <Megaphone size={14} className="broadcast-section__icon" />
+                        <Megaphone
+                          size={14}
+                          className="broadcast-section__icon"
+                        />
                         <span>Loại thông báo</span>
                       </h3>
                       <div className="broadcast-type-row">
@@ -2869,10 +2873,7 @@ const AdminPage = ({ onLogout, userData }) => {
                             maxLength={BROADCAST_MESSAGE_MAX}
                             onChange={(e) => {
                               setBroadcastMessage(
-                                e.target.value.slice(
-                                  0,
-                                  BROADCAST_MESSAGE_MAX,
-                                ),
+                                e.target.value.slice(0, BROADCAST_MESSAGE_MAX),
                               );
                               setBroadcastSuccess(false);
                               setBroadcastError(null);
@@ -3580,11 +3581,6 @@ const AdminPage = ({ onLogout, userData }) => {
                         editingIngredient.ingredientName}
                     </strong>
                   </span>
-                  {editingIngredient.version != null && (
-                    <span className="version">
-                      v{editingIngredient.version}
-                    </span>
-                  )}
                 </div>
               )}
 
@@ -3604,7 +3600,7 @@ const AdminPage = ({ onLogout, userData }) => {
                 />
               </div>
 
-              <div className="form-row">
+              <div className="form-row form-row--single">
                 <div className="field">
                   <label>Đơn vị</label>
                   <select
@@ -3628,42 +3624,10 @@ const AdminPage = ({ onLogout, userData }) => {
                     ))}
                   </select>
                 </div>
-                <div className="field">
-                  <label>Đơn giá (đ)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={ingredientForm.unitCost}
-                    onChange={(e) =>
-                      setIngredientForm({
-                        ...ingredientForm,
-                        unitCost: e.target.value,
-                      })
-                    }
-                    placeholder="0"
-                  />
-                </div>
               </div>
 
               {editingIngredient && (
-                <div className="form-row">
-                  <div className="field">
-                    <label>Tồn kho</label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={ingredientForm.kitchenStock}
-                      onChange={(e) =>
-                        setIngredientForm({
-                          ...ingredientForm,
-                          kitchenStock: e.target.value,
-                        })
-                      }
-                      placeholder="0"
-                    />
-                  </div>
+                <div className="form-row form-row--single">
                   <div className="field">
                     <label>Mức tối thiểu</label>
                     <input
@@ -4056,11 +4020,7 @@ const AdminPage = ({ onLogout, userData }) => {
                               Tồn hiện tại:{" "}
                               <strong>
                                 {stockVal.toLocaleString("vi-VN")}{" "}
-                                {labelFor(
-                                  selectedIng.unit ||
-                                    row.unit ||
-                                    "KG",
-                                )}
+                                {labelFor(selectedIng.unit || row.unit || "KG")}
                               </strong>
                             </div>
                           ) : (
@@ -4131,10 +4091,7 @@ const AdminPage = ({ onLogout, userData }) => {
                               >
                                 <option value="">— Chọn ĐVT —</option>
                                 {allGrouped.map(([groupName, items]) => (
-                                  <optgroup
-                                    key={groupName}
-                                    label={groupName}
-                                  >
+                                  <optgroup key={groupName} label={groupName}>
                                     {items.map((u) => (
                                       <option key={u.value} value={u.value}>
                                         {u.label}
